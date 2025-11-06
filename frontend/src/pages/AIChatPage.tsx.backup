@@ -1,0 +1,3670 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
+import {
+  Send,
+  Loader2,
+  Sparkles,
+  Bot,
+  User,
+  Plus,
+  Play,
+  X,
+  FileText,
+  Image,
+  Download,
+  PlusCircle,
+  AlertCircle,
+  Heart,
+  Eye,
+  Star,
+  Award,
+  Target,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  Paperclip,
+  File,
+  History,
+  Trash2
+} from 'lucide-react'
+import type { ChatMessage as BaseChatMessage, AIModel, AIProvider } from '../types/ai'
+import { workspaceContainers } from '../data/workspaceContainers'
+import {
+  createChatSession,
+  getChatSessions,
+  updateChatSession,
+  deleteChatSession,
+  type ChatSession
+} from '../services/chatApi'
+import {
+  favoriteWorkflow,
+  unfavoriteWorkflow,
+  getFavoriteWorkflows,
+  getUserWorkflows,
+  type Workflow
+} from '../services/workflowApi'
+
+// 合并className的工具函数
+function cn(...classes: (string | boolean | undefined | null)[]) {
+  return classes.filter(Boolean).join(' ')
+}
+
+// 工作流节点参数类型
+type NodeParameter = {
+  name: string
+  label: string
+  type: 'text' | 'number' | 'select' | 'textarea' | 'boolean'
+  value: string | number | boolean
+  required?: boolean
+  editable?: boolean
+  options?: { label: string; value: string }[]
+  placeholder?: string
+  description?: string
+}
+
+// 工作流节点类型
+type WorkflowNode = {
+  id: string
+  name: string
+  type: 'input' | 'ai-model' | 'tool' | 'output' | 'process'
+  icon: string
+  description: string
+  params: NodeParameter[]
+  editable?: boolean
+}
+
+type WorkflowCard = {
+  id: string
+  title: string
+  description: string
+  category: string
+  author?: string
+  authorLevel?: string
+  authorBadge?: string
+  useCases?: string[]
+  examples?: {
+    title: string
+    description: string
+    imageUrl?: string
+  }[]
+  reviews?: {
+    userName: string
+    rating: number
+    comment: string
+    date: string
+  }[]
+  rating?: number
+  totalReviews?: number
+  aiTools?: {
+    name: string
+    logo?: string
+    type: 'model' | 'tool'
+  }[]
+  prompt?: string
+  matchScore?: number
+  nodes?: WorkflowNode[]
+}
+
+// AI工具卡片类型
+type AIToolCard = {
+  id: string
+  name: string
+  description: string
+  category: string
+  logo?: string
+  type: 'model' | 'tool'
+  provider?: string
+  author?: string
+  rating?: number
+  totalReviews?: number
+  useCases?: string[]
+  examples?: {
+    title: string
+    description: string
+  }[]
+  prompt?: string
+  capabilities?: string[]
+  matchScore?: number
+}
+
+// 推荐项类型（可以是工作流或AI工具）
+type RecommendationCard =
+  | ({ itemType: 'workflow' } & WorkflowCard)
+  | ({ itemType: 'ai-tool' } & AIToolCard)
+
+type WorkflowTool = NonNullable<WorkflowCard['aiTools']>[number]
+
+type ToolExecutionResult = {
+  id: string
+  workflowId: string
+  workflowTitle: string
+  toolName: string
+  toolType?: string
+  status: 'success' | 'failed'
+  output: string
+  startedAt: string
+  finishedAt: string
+}
+
+// 扩展消息类型，支持推荐工作流和AI工具
+type ChatMessage = BaseChatMessage & {
+  recommendedWorkflows?: WorkflowCard[]
+  recommendedItems?: RecommendationCard[] // 新的推荐项列表
+  toolExecutions?: ToolExecutionResult[]
+}
+
+type ExecutionResult =
+  | { type: 'text'; content: string }
+  | { type: 'image'; content: string; caption?: string }
+
+const baseWorkflows: WorkflowCard[] = [
+  {
+    id: 'wf-animated-image',
+    title: '编辑动画图片',
+    description: '为静态图片添加动画效果，输出 GIF 或视频。',
+    category: '图像处理',
+    author: '张小明',
+    authorLevel: '高级创作者',
+    authorBadge: '认证专家',
+    rating: 4.8,
+    totalReviews: 156,
+    useCases: ['社交媒体营销', '产品展示动画', '广告创意制作', '表情包制作'],
+    examples: [
+      {
+        title: '产品展示动画',
+        description: '将静态产品图转换为360度旋转展示动画'
+      },
+      {
+        title: '营销海报动效',
+        description: '为促销海报添加闪烁、缩放等吸引眼球的动画效果'
+      }
+    ],
+    reviews: [
+      {
+        userName: '设计师小王',
+        rating: 5,
+        comment: '非常好用！帮我节省了大量时间，动画效果也很专业。',
+        date: '2024-01-15'
+      },
+      {
+        userName: '营销达人',
+        rating: 4,
+        comment: '效果不错，就是有时候处理大图会比较慢。',
+        date: '2024-01-10'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'DALL-E 3',
+        logo: '🎨',
+        type: 'model'
+      },
+      {
+        name: 'Stable Diffusion',
+        logo: '🖼️',
+        type: 'model'
+      },
+      {
+        name: 'FFmpeg Video Processor',
+        logo: '🎬',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位专业的动画设计师和视觉特效专家。用户将上传静态图片，你需要帮助他们创建吸引眼球的动画效果。根据图片内容和用户需求，建议合适的动画类型（如旋转、缩放、闪烁、渐变等）。生成的动画要流畅自然，时长适中（通常3-5秒），适合在社交媒体、广告或产品展示中使用。输出格式支持GIF或MP4视频。',
+    nodes: [
+      {
+        id: 'node-1',
+        name: '图片输入',
+        type: 'input',
+        icon: '📤',
+        description: '上传需要添加动画效果的静态图片',
+        params: [
+          {
+            name: 'imageFile',
+            label: '图片文件',
+            type: 'text',
+            value: '未上传',
+            required: true,
+            editable: false,
+            description: '支持 JPG、PNG、WebP 格式'
+          },
+          {
+            name: 'imageSize',
+            label: '图片尺寸',
+            type: 'text',
+            value: '自动检测',
+            editable: false
+          }
+        ]
+      },
+      {
+        id: 'node-2',
+        name: '动画效果分析',
+        type: 'ai-model',
+        icon: '🤖',
+        description: '使用 AI 分析图片内容，推荐最佳动画效果',
+        params: [
+          {
+            name: 'model',
+            label: 'AI 模型',
+            type: 'select',
+            value: 'gpt-4-vision',
+            required: true,
+            editable: true,
+            options: [
+              { label: 'GPT-4 Vision', value: 'gpt-4-vision' },
+              { label: 'Claude 3.5 Sonnet', value: 'claude-3.5-sonnet' }
+            ],
+            description: '选择用于分析的 AI 模型'
+          },
+          {
+            name: 'analysisPrompt',
+            label: '分析提示词',
+            type: 'textarea',
+            value: '分析图片主体内容，推荐3-5种适合的动画效果类型',
+            required: true,
+            editable: true,
+            placeholder: '输入自定义分析提示词...'
+          }
+        ]
+      },
+      {
+        id: 'node-3',
+        name: '动画生成',
+        type: 'tool',
+        icon: '✨',
+        description: '根据分析结果生成动画效果',
+        params: [
+          {
+            name: 'animationType',
+            label: '动画类型',
+            type: 'select',
+            value: 'rotate',
+            required: true,
+            editable: true,
+            options: [
+              { label: '旋转', value: 'rotate' },
+              { label: '缩放', value: 'scale' },
+              { label: '闪烁', value: 'blink' },
+              { label: '渐变', value: 'fade' },
+              { label: '组合效果', value: 'combined' }
+            ]
+          },
+          {
+            name: 'duration',
+            label: '动画时长(秒)',
+            type: 'number',
+            value: 3,
+            required: true,
+            editable: true,
+            description: '推荐 3-5 秒'
+          },
+          {
+            name: 'fps',
+            label: '帧率',
+            type: 'number',
+            value: 30,
+            required: true,
+            editable: true
+          }
+        ]
+      },
+      {
+        id: 'node-4',
+        name: '格式转换',
+        type: 'process',
+        icon: '🎬',
+        description: '将动画转换为指定输出格式',
+        params: [
+          {
+            name: 'outputFormat',
+            label: '输出格式',
+            type: 'select',
+            value: 'gif',
+            required: true,
+            editable: true,
+            options: [
+              { label: 'GIF 动图', value: 'gif' },
+              { label: 'MP4 视频', value: 'mp4' },
+              { label: 'WebM 视频', value: 'webm' }
+            ]
+          },
+          {
+            name: 'quality',
+            label: '输出质量',
+            type: 'select',
+            value: 'high',
+            editable: true,
+            options: [
+              { label: '高质量', value: 'high' },
+              { label: '中等', value: 'medium' },
+              { label: '压缩', value: 'compressed' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'node-5',
+        name: '动画输出',
+        type: 'output',
+        icon: '📥',
+        description: '输出最终的动画文件',
+        params: [
+          {
+            name: 'fileName',
+            label: '文件名',
+            type: 'text',
+            value: 'animated_output',
+            editable: true,
+            placeholder: '输入文件名...'
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'wf-article',
+    title: '文章生成器',
+    description: '根据主题自动生成结构完整的文章。',
+    category: '内容创作',
+    author: '李华',
+    authorLevel: '专业作者',
+    authorBadge: '内容创作达人',
+    rating: 4.6,
+    totalReviews: 289,
+    useCases: ['博客文章撰写', 'SEO内容优化', '产品介绍文案', '新闻稿撰写'],
+    examples: [
+      {
+        title: '科技博客文章',
+        description: '生成3000字深度技术分析文章，包含引言、正文、结论'
+      },
+      {
+        title: '产品评测',
+        description: '自动生成结构化的产品评测文章，突出优缺点'
+      }
+    ],
+    reviews: [
+      {
+        userName: '内容编辑',
+        rating: 5,
+        comment: '质量很高，只需要稍微调整就能发布，大大提升了工作效率。',
+        date: '2024-01-18'
+      },
+      {
+        userName: '自媒体人',
+        rating: 4,
+        comment: '生成的内容需要人工润色，但整体框架很好。',
+        date: '2024-01-12'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '📝',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3 Opus',
+        logo: '✍️',
+        type: 'model'
+      },
+      {
+        name: 'SEO Optimizer',
+        logo: '🔍',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位经验丰富的内容创作专家和专业作家。根据用户提供的主题和关键信息，创作高质量的文章。文章需要结构清晰（包含引言、主体段落、结论），逻辑连贯，语言流畅。根据主题调整写作风格和语气，可以是正式的、专业的、轻松的或幽默的。确保内容有深度、有价值，能够吸引读者并传达清晰的信息。如果是SEO文章，要合理布局关键词，优化标题和段落结构。',
+    nodes: [
+      {
+        id: 'node-1',
+        name: '主题输入',
+        type: 'input',
+        icon: '📝',
+        description: '输入文章主题和关键信息',
+        params: [
+          {
+            name: 'topic',
+            label: '文章主题',
+            type: 'text',
+            value: '',
+            required: true,
+            editable: true,
+            placeholder: '输入文章主题...',
+            description: '文章的核心主题'
+          },
+          {
+            name: 'keywords',
+            label: 'SEO关键词',
+            type: 'text',
+            value: '',
+            editable: true,
+            placeholder: '输入关键词，用逗号分隔',
+            description: '用于SEO优化的关键词'
+          },
+          {
+            name: 'wordCount',
+            label: '目标字数',
+            type: 'number',
+            value: 1000,
+            editable: true,
+            description: '期望生成的文章字数'
+          }
+        ]
+      },
+      {
+        id: 'node-2',
+        name: '大纲生成',
+        type: 'ai-model',
+        icon: '📋',
+        description: '使用 AI 生成文章大纲',
+        params: [
+          {
+            name: 'model',
+            label: 'AI 模型',
+            type: 'select',
+            value: 'gpt-4',
+            required: true,
+            editable: true,
+            options: [
+              { label: 'GPT-4', value: 'gpt-4' },
+              { label: 'Claude 3 Opus', value: 'claude-3-opus' },
+              { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' }
+            ]
+          },
+          {
+            name: 'outlineStyle',
+            label: '大纲风格',
+            type: 'select',
+            value: 'detailed',
+            editable: true,
+            options: [
+              { label: '详细大纲', value: 'detailed' },
+              { label: '简洁大纲', value: 'concise' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'node-3',
+        name: '内容生成',
+        type: 'ai-model',
+        icon: '✍️',
+        description: '根据大纲生成完整文章内容',
+        params: [
+          {
+            name: 'model',
+            label: 'AI 模型',
+            type: 'select',
+            value: 'gpt-4',
+            required: true,
+            editable: true,
+            options: [
+              { label: 'GPT-4', value: 'gpt-4' },
+              { label: 'Claude 3 Opus', value: 'claude-3-opus' }
+            ]
+          },
+          {
+            name: 'writingStyle',
+            label: '写作风格',
+            type: 'select',
+            value: 'professional',
+            editable: true,
+            options: [
+              { label: '专业正式', value: 'professional' },
+              { label: '轻松幽默', value: 'casual' },
+              { label: '学术严谨', value: 'academic' },
+              { label: '营销吸引', value: 'marketing' }
+            ]
+          },
+          {
+            name: 'tone',
+            label: '语气',
+            type: 'select',
+            value: 'neutral',
+            editable: true,
+            options: [
+              { label: '中性客观', value: 'neutral' },
+              { label: '热情积极', value: 'enthusiastic' },
+              { label: '冷静分析', value: 'analytical' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'node-4',
+        name: 'SEO优化',
+        type: 'tool',
+        icon: '🔍',
+        description: '优化文章的SEO表现',
+        params: [
+          {
+            name: 'enableSEO',
+            label: '启用SEO优化',
+            type: 'boolean',
+            value: true,
+            editable: true
+          },
+          {
+            name: 'keywordDensity',
+            label: '关键词密度(%)',
+            type: 'number',
+            value: 2,
+            editable: true,
+            description: '推荐 1-3%'
+          }
+        ]
+      },
+      {
+        id: 'node-5',
+        name: '文章输出',
+        type: 'output',
+        icon: '📄',
+        description: '输出最终文章',
+        params: [
+          {
+            name: 'format',
+            label: '输出格式',
+            type: 'select',
+            value: 'markdown',
+            editable: true,
+            options: [
+              { label: 'Markdown', value: 'markdown' },
+              { label: '纯文本', value: 'text' },
+              { label: 'HTML', value: 'html' }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'wf-image',
+    title: '图片生成器',
+    description: '使用 AI 快速生成灵感图或产品图。',
+    category: '图像处理',
+    author: '王小红',
+    authorLevel: '资深设计师',
+    authorBadge: 'AI艺术家',
+    rating: 4.9,
+    totalReviews: 512,
+    useCases: ['广告素材设计', '概念图生成', '产品原型可视化', '艺术创作'],
+    examples: [
+      {
+        title: '电商产品图',
+        description: '根据描述生成高质量的产品展示图'
+      },
+      {
+        title: '概念艺术图',
+        description: '为游戏或影视项目生成场景和角色概念图'
+      }
+    ],
+    reviews: [
+      {
+        userName: '电商运营',
+        rating: 5,
+        comment: '生成的图片质量超出预期，完全可以直接用于产品详情页！',
+        date: '2024-01-20'
+      },
+      {
+        userName: '独立设计师',
+        rating: 5,
+        comment: '灵感枯竭时的救星，能快速生成多种风格的设计方案。',
+        date: '2024-01-16'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'Midjourney',
+        logo: '🎨',
+        type: 'model'
+      },
+      {
+        name: 'DALL-E 3',
+        logo: '🖌️',
+        type: 'model'
+      },
+      {
+        name: 'Stable Diffusion XL',
+        logo: '🌈',
+        type: 'model'
+      }
+    ],
+    prompt: '你是一位富有创意的AI艺术家和视觉设计专家。根据用户的描述和需求，生成高质量、富有创意的图片。你需要理解用户想要的风格（写实、插画、抽象、概念艺术等）、色调（明亮、暗沉、温暖、冷色调等）、构图和主题。生成的图片要细节丰富、符合美学原则、能够准确传达用户的意图。适用于各种场景：产品设计、广告创意、概念原型、艺术创作等。',
+    nodes: [
+      {
+        id: 'node-1',
+        name: '描述输入',
+        type: 'input',
+        icon: '💭',
+        description: '输入图片描述和需求',
+        params: [
+          {
+            name: 'description',
+            label: '图片描述',
+            type: 'textarea',
+            value: '',
+            required: true,
+            editable: true,
+            placeholder: '详细描述你想要生成的图片...',
+            description: '越详细的描述能生成越精准的图片'
+          },
+          {
+            name: 'style',
+            label: '艺术风格',
+            type: 'select',
+            value: 'realistic',
+            editable: true,
+            options: [
+              { label: '写实风格', value: 'realistic' },
+              { label: '插画风格', value: 'illustration' },
+              { label: '概念艺术', value: 'concept-art' },
+              { label: '抽象艺术', value: 'abstract' },
+              { label: '赛博朋克', value: 'cyberpunk' },
+              { label: '水彩画', value: 'watercolor' }
+            ]
+          },
+          {
+            name: 'aspectRatio',
+            label: '画面比例',
+            type: 'select',
+            value: '1:1',
+            editable: true,
+            options: [
+              { label: '正方形 (1:1)', value: '1:1' },
+              { label: '横屏 (16:9)', value: '16:9' },
+              { label: '竖屏 (9:16)', value: '9:16' },
+              { label: '宽屏 (21:9)', value: '21:9' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'node-2',
+        name: 'Prompt优化',
+        type: 'ai-model',
+        icon: '✨',
+        description: '使用 AI 优化生成提示词',
+        params: [
+          {
+            name: 'model',
+            label: 'AI 模型',
+            type: 'select',
+            value: 'gpt-4',
+            editable: true,
+            options: [
+              { label: 'GPT-4', value: 'gpt-4' },
+              { label: 'Claude 3.5 Sonnet', value: 'claude-3.5-sonnet' }
+            ]
+          },
+          {
+            name: 'enhancePrompt',
+            label: '增强提示词',
+            type: 'boolean',
+            value: true,
+            editable: true,
+            description: '自动添加质量增强词'
+          }
+        ]
+      },
+      {
+        id: 'node-3',
+        name: '图片生成',
+        type: 'ai-model',
+        icon: '🎨',
+        description: '使用 AI 模型生成图片',
+        params: [
+          {
+            name: 'model',
+            label: '生成模型',
+            type: 'select',
+            value: 'dall-e-3',
+            required: true,
+            editable: true,
+            options: [
+              { label: 'DALL-E 3', value: 'dall-e-3' },
+              { label: 'Midjourney v6', value: 'midjourney-v6' },
+              { label: 'Stable Diffusion XL', value: 'sdxl' }
+            ]
+          },
+          {
+            name: 'quality',
+            label: '图片质量',
+            type: 'select',
+            value: 'hd',
+            editable: true,
+            options: [
+              { label: '标准', value: 'standard' },
+              { label: '高清', value: 'hd' },
+              { label: '超清', value: 'ultra' }
+            ]
+          },
+          {
+            name: 'numVariations',
+            label: '生成数量',
+            type: 'number',
+            value: 1,
+            editable: true,
+            description: '生成多少张变体（1-4）'
+          }
+        ]
+      },
+      {
+        id: 'node-4',
+        name: '后期处理',
+        type: 'process',
+        icon: '🖼️',
+        description: '对生成的图片进行后期优化',
+        params: [
+          {
+            name: 'upscale',
+            label: '分辨率提升',
+            type: 'select',
+            value: 'none',
+            editable: true,
+            options: [
+              { label: '不提升', value: 'none' },
+              { label: '2倍 (2048px)', value: '2x' },
+              { label: '4倍 (4096px)', value: '4x' }
+            ]
+          },
+          {
+            name: 'colorCorrection',
+            label: '色彩校正',
+            type: 'boolean',
+            value: false,
+            editable: true
+          }
+        ]
+      },
+      {
+        id: 'node-5',
+        name: '图片输出',
+        type: 'output',
+        icon: '💾',
+        description: '输出生成的图片',
+        params: [
+          {
+            name: 'format',
+            label: '输出格式',
+            type: 'select',
+            value: 'png',
+            editable: true,
+            options: [
+              { label: 'PNG', value: 'png' },
+              { label: 'JPEG', value: 'jpeg' },
+              { label: 'WebP', value: 'webp' }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
+
+const recommended: WorkflowCard[] = [
+  {
+    id: 'wf-email',
+    title: '营销邮件助手',
+    description: '快速写出个性化营销邮件，提高转化率。',
+    category: '营销推广',
+    author: '陈晓东',
+    authorLevel: '营销专家',
+    authorBadge: '增长黑客',
+    rating: 4.7,
+    totalReviews: 203,
+    useCases: ['EDM营销', '客户开发邮件', '促销活动推广', '用户召回'],
+    examples: [
+      {
+        title: '新品发布邮件',
+        description: '生成吸引人的新品介绍邮件，提高打开率和点击率'
+      },
+      {
+        title: '客户挽回邮件',
+        description: '针对流失客户的个性化挽回邮件'
+      }
+    ],
+    reviews: [
+      {
+        userName: '市场经理',
+        rating: 5,
+        comment: '转化率提升了30%，邮件文案非常专业！',
+        date: '2024-01-19'
+      },
+      {
+        userName: '创业者',
+        rating: 4,
+        comment: '很实用，帮我节省了很多写邮件的时间。',
+        date: '2024-01-14'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '✉️',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '💌',
+        type: 'model'
+      },
+      {
+        name: 'Email Personalization Engine',
+        logo: '🎯',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位经验丰富的营销文案专家，擅长撰写高转化率的营销邮件。根据用户提供的产品信息、目标受众和营销目标，创作个性化的营销邮件。邮件需要有吸引人的主题行、清晰的价值主张、有说服力的正文内容，以及明确的行动号召（CTA）。语气要专业但不生硬，亲切但不过度热情。根据不同场景（新品发布、促销活动、客户挽回等）调整写作策略，确保邮件能够引起读者兴趣并促进转化。'
+  },
+  {
+    id: 'wf-analysis',
+    title: '数据洞察分析',
+    description: '数据洞察分析工作流是一款专业的智能数据分析助手，能够根据您上传的各类业务报表，快速生成深度分析结论与可执行的策略建议。本工作流采用先进的AI算法，结合多年积累的行业分析经验，可以自动识别数据中的关键趋势、异常波动和潜在机会。无论是销售数据、用户行为数据、市场调研报告还是财务报表，都能在几分钟内完成专业级别的分析。系统会自动提取核心KPI指标，进行同比环比对比，识别数据背后的业务逻辑，并基于行业最佳实践给出针对性的优化建议。特别适合需要快速做出决策的管理层、需要定期输出分析报告的数据分析师，以及希望通过数据驱动业务增长的产品经理。支持多种数据格式导入，可视化呈现分析结果，让复杂的数据分析变得简单高效。通过智能算法深度挖掘数据价值，帮助企业发现增长机会，规避潜在风险，制定更加科学的业务策略，真正实现数据驱动的精细化运营。',
+    category: '数据分析',
+    author: '赵敏',
+    authorLevel: '数据科学家',
+    authorBadge: '分析专家',
+    rating: 4.5,
+    totalReviews: 178,
+    useCases: ['销售数据分析', '用户行为洞察', '市场趋势预测', '竞品分析'],
+    examples: [
+      {
+        title: '月度销售报告',
+        description: '自动分析销售数据，生成洞察和改进建议'
+      },
+      {
+        title: '用户画像分析',
+        description: '基于用户数据生成详细的用户画像和行为分析'
+      }
+    ],
+    reviews: [
+      {
+        userName: '数据分析师',
+        rating: 5,
+        comment: '分析角度很专业，帮我发现了很多之前忽略的问题。',
+        date: '2024-01-17'
+      },
+      {
+        userName: '产品经理',
+        rating: 4,
+        comment: '对决策很有帮助，节省了大量分析时间。',
+        date: '2024-01-11'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '🤖',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '🧠',
+        type: 'model'
+      },
+      {
+        name: 'Python Data Analyzer',
+        logo: '📊',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位资深的数据分析专家，擅长从复杂的业务数据中提取有价值的洞察。请仔细分析用户上传的报表数据，识别关键趋势、异常波动和潜在机会。分析时需要：1) 提取核心KPI指标并进行同环比对比；2) 识别数据背后的业务逻辑和因果关系；3) 基于行业最佳实践给出具体可执行的优化建议；4) 用清晰的可视化图表呈现分析结果。请确保分析结论专业、客观、有深度，建议具有可操作性。'
+  },
+  {
+    id: 'wf-social',
+    title: '社交媒体内容创作',
+    description: '快速生成吸引眼球的社交媒体文案和创意内容。',
+    category: '内容创作',
+    author: '李雪',
+    authorLevel: '内容运营',
+    authorBadge: '创意达人',
+    rating: 4.8,
+    totalReviews: 156,
+    useCases: ['小红书文案', '微博热点', '朋友圈营销', '短视频脚本'],
+    examples: [
+      {
+        title: '产品种草文案',
+        description: '生成吸引人的产品推广文案，提高转化率'
+      },
+      {
+        title: '热点话题创作',
+        description: '结合当前热点，创作高互动内容'
+      }
+    ],
+    reviews: [
+      {
+        userName: '自媒体博主',
+        rating: 5,
+        comment: '文案质量很高，互动率提升了50%！',
+        date: '2024-01-20'
+      },
+      {
+        userName: '品牌运营',
+        rating: 5,
+        comment: '创意十足，帮我节省了大量时间。',
+        date: '2024-01-18'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '✍️',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '📱',
+        type: 'model'
+      },
+      {
+        name: 'Content Optimizer',
+        logo: '🎨',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位富有创意的社交媒体内容创作专家，擅长撰写吸引眼球、引发互动的社交媒体文案。根据用户提供的产品信息、目标平台（小红书/微博/抖音等）和内容主题，创作符合平台调性的优质内容。文案要有强烈的视觉感、情感共鸣和传播力，善用emoji、话题标签和互动元素。根据不同平台特点调整内容风格：小红书注重真实分享和种草，微博强调话题性和传播性，抖音突出视觉冲击和节奏感。确保内容既能吸引关注又能促进转化。'
+  },
+  {
+    id: 'wf-code-review',
+    title: '智能代码审查',
+    description: '自动检测代码问题，提供优化建议和最佳实践。',
+    category: '开发工具',
+    author: '张伟',
+    authorLevel: '高级工程师',
+    authorBadge: '技术专家',
+    rating: 4.6,
+    totalReviews: 134,
+    useCases: ['代码质量检查', '安全漏洞扫描', '性能优化建议', '代码规范审查'],
+    examples: [
+      {
+        title: 'React组件优化',
+        description: '识别性能瓶颈，提供重构建议'
+      },
+      {
+        title: 'API安全审查',
+        description: '检测潜在的安全漏洞和风险'
+      }
+    ],
+    reviews: [
+      {
+        userName: '前端开发',
+        rating: 5,
+        comment: '发现了很多我没注意到的问题，非常实用！',
+        date: '2024-01-16'
+      },
+      {
+        userName: '技术负责人',
+        rating: 4,
+        comment: '提高了团队代码质量，减少了bug率。',
+        date: '2024-01-12'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '💻',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '🔍',
+        type: 'model'
+      },
+      {
+        name: 'Code Analyzer',
+        logo: '🛠️',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位经验丰富的软件工程师和代码审查专家，擅长发现代码中的潜在问题并提供专业的优化建议。请仔细审查用户提供的代码，从以下几个维度进行分析：1) 代码质量和可维护性；2) 性能优化空间；3) 安全漏洞和风险点；4) 代码规范和最佳实践；5) 潜在的bug和边界情况。提供清晰的问题说明、具体的修改建议和改进后的代码示例。确保建议专业、实用、易于理解和实施。'
+  },
+  {
+    id: 'wf-customer-service',
+    title: '客服回复助手',
+    description: '智能生成专业、友好的客服回复，提高服务效率。',
+    category: '客户服务',
+    author: '王芳',
+    authorLevel: '客服主管',
+    authorBadge: '服务之星',
+    rating: 4.7,
+    totalReviews: 189,
+    useCases: ['售前咨询', '售后问题处理', '投诉安抚', '产品咨询'],
+    examples: [
+      {
+        title: '订单问题处理',
+        description: '快速响应订单相关问题，提供解决方案'
+      },
+      {
+        title: '客户投诉处理',
+        description: '专业、温和地处理客户投诉和不满'
+      }
+    ],
+    reviews: [
+      {
+        userName: '客服专员',
+        rating: 5,
+        comment: '回复质量很高，客户满意度提升明显！',
+        date: '2024-01-19'
+      },
+      {
+        userName: '电商运营',
+        rating: 5,
+        comment: '节省了大量培训时间，新人也能快速上手。',
+        date: '2024-01-15'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '💬',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '🤝',
+        type: 'model'
+      },
+      {
+        name: 'Sentiment Analyzer',
+        logo: '😊',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位专业、友好的客服人员，擅长处理各类客户咨询和问题。根据客户的问题和情绪，提供恰当、专业的回复。回复需要：1) 体现同理心，理解客户感受；2) 提供清晰的解决方案或信息；3) 保持专业且友好的语气；4) 根据问题类型（咨询/投诉/售后）调整回复策略。对于投诉要先安抚情绪再解决问题，对于咨询要详细准确，对于售后要积极跟进。确保客户感受到被重视和尊重。'
+  },
+  {
+    id: 'wf-presentation',
+    title: '演讲稿撰写',
+    description: '生成结构清晰、逻辑严密的演讲稿和PPT大纲。',
+    category: '商务办公',
+    author: '刘强',
+    authorLevel: '演讲教练',
+    authorBadge: '沟通大师',
+    rating: 4.9,
+    totalReviews: 167,
+    useCases: ['产品发布会', '团队汇报', '商业路演', '培训演讲'],
+    examples: [
+      {
+        title: '产品发布演讲',
+        description: '打造震撼的产品发布会演讲稿'
+      },
+      {
+        title: '季度总结汇报',
+        description: '生成数据清晰、结论有力的汇报内容'
+      }
+    ],
+    reviews: [
+      {
+        userName: '产品经理',
+        rating: 5,
+        comment: '逻辑清晰，演讲效果非常好，老板很满意！',
+        date: '2024-01-21'
+      },
+      {
+        userName: '创业者',
+        rating: 5,
+        comment: '帮我拿下了投资，演讲稿太棒了！',
+        date: '2024-01-17'
+      }
+    ],
+    aiTools: [
+      {
+        name: 'GPT-4',
+        logo: '🎤',
+        type: 'model'
+      },
+      {
+        name: 'Claude 3.5 Sonnet',
+        logo: '📊',
+        type: 'model'
+      },
+      {
+        name: 'Speech Optimizer',
+        logo: '🎯',
+        type: 'tool'
+      }
+    ],
+    prompt: '你是一位专业的演讲稿撰写专家和沟通顾问，擅长创作有说服力、感染力的演讲内容。根据用户提供的演讲主题、场景和目标听众，创作结构清晰、逻辑严密的演讲稿。演讲稿要包含：1) 引人入胜的开场；2) 清晰的核心观点；3) 有力的论据支撑；4) 情感共鸣的故事案例；5) 令人印象深刻的结尾。根据不同场景（产品发布/商业路演/团队汇报/培训分享）调整内容风格和侧重点。确保内容既专业又生动，既有数据支撑又有情感感染力。'
+  }
+]
+
+// AI工具库
+const baseAITools: AIToolCard[] = [
+  {
+    id: 'tool-gpt4',
+    name: 'GPT-4',
+    description: 'OpenAI 最强大的多模态语言模型，擅长复杂推理、创意写作和代码生成。',
+    category: '文本生成',
+    logo: '🤖',
+    type: 'model',
+    provider: 'OpenAI',
+    author: 'OpenAI',
+    rating: 4.9,
+    totalReviews: 2843,
+    useCases: ['文案创作', '代码生成', '数据分析', '问答对话'],
+    examples: [
+      {
+        title: '创意文案生成',
+        description: '快速生成营销文案、产品描述、社交媒体内容'
+      },
+      {
+        title: '代码助手',
+        description: '帮助编写、调试和优化各种编程语言的代码'
+      }
+    ],
+    capabilities: ['文本生成', '代码生成', '图像理解', '多轮对话'],
+    prompt: '你是GPT-4，一个强大的AI助手。你可以帮助用户完成各种文本创作、分析推理、代码编程等任务。'
+  },
+  {
+    id: 'tool-claude',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Anthropic 的高性能AI模型，在分析、写作和编程任务中表现出色。',
+    category: '文本生成',
+    logo: '🧠',
+    type: 'model',
+    provider: 'Anthropic',
+    author: 'Anthropic',
+    rating: 4.8,
+    totalReviews: 1567,
+    useCases: ['长文本分析', '技术文档', '数据处理', '逻辑推理'],
+    examples: [
+      {
+        title: '文档分析',
+        description: '深度分析长篇文档，提取关键信息和洞察'
+      },
+      {
+        title: '技术写作',
+        description: '撰写清晰准确的技术文档和API文档'
+      }
+    ],
+    capabilities: ['长文本理解', '精确推理', '代码审查', '结构化输出'],
+    prompt: '你是Claude，一个善于分析和推理的AI助手。你可以帮助用户完成复杂的分析任务、技术写作和编程工作。'
+  },
+  {
+    id: 'tool-dalle',
+    name: 'DALL-E 3',
+    description: 'OpenAI 的图像生成模型，可以根据文字描述创建高质量的图像。',
+    category: '图像生成',
+    logo: '🎨',
+    type: 'model',
+    provider: 'OpenAI',
+    author: 'OpenAI',
+    rating: 4.7,
+    totalReviews: 1923,
+    useCases: ['产品设计', '营销素材', '插画创作', '概念图'],
+    examples: [
+      {
+        title: '营销海报',
+        description: '根据品牌调性生成吸引眼球的营销海报'
+      },
+      {
+        title: '产品原型',
+        description: '快速可视化产品设计想法和概念'
+      }
+    ],
+    capabilities: ['文生图', '高分辨率输出', '风格控制', '细节丰富'],
+    prompt: '你是DALL-E 3图像生成助手。根据用户的描述，你可以生成高质量、富有创意的图像。'
+  },
+  {
+    id: 'tool-midjourney',
+    name: 'Midjourney',
+    description: '专业级AI艺术生成工具，以其独特的艺术风格和高质量输出而闻名。',
+    category: '图像生成',
+    logo: '🖼️',
+    type: 'model',
+    provider: 'Midjourney',
+    author: 'Midjourney',
+    rating: 4.9,
+    totalReviews: 3421,
+    useCases: ['艺术创作', '概念设计', '游戏美术', '品牌视觉'],
+    examples: [
+      {
+        title: '游戏角色设计',
+        description: '创建独特风格的游戏角色和场景概念图'
+      },
+      {
+        title: '品牌视觉',
+        description: '生成符合品牌调性的视觉设计元素'
+      }
+    ],
+    capabilities: ['艺术风格', '超高质量', '细节控制', '多样化风格'],
+    prompt: '你是Midjourney艺术生成助手。你擅长创作富有艺术感和美学价值的图像。'
+  },
+  {
+    id: 'tool-whisper',
+    name: 'Whisper',
+    description: 'OpenAI 的语音识别模型，支持多语言转录和翻译。',
+    category: '语音处理',
+    logo: '🎤',
+    type: 'model',
+    provider: 'OpenAI',
+    author: 'OpenAI',
+    rating: 4.6,
+    totalReviews: 892,
+    useCases: ['会议记录', '字幕生成', '语音翻译', '播客转文字'],
+    examples: [
+      {
+        title: '会议转录',
+        description: '将会议录音转换为准确的文字记录'
+      },
+      {
+        title: '多语言字幕',
+        description: '为视频生成多语言字幕和翻译'
+      }
+    ],
+    capabilities: ['多语言识别', '高准确率', '时间戳', '噪音过滤'],
+    prompt: '你是Whisper语音识别助手。你可以将语音准确转换为文字，支持多种语言。'
+  }
+]
+
+const defaultModel: { provider: AIProvider; model: AIModel } = {
+  provider: 'openai',
+  model: {
+    modelId: 'gpt-3.5-turbo',
+    modelName: 'ChatGPT',
+    description: 'OpenAI GPT-3.5 Turbo',
+    inputPrice: 0.5,
+    outputPrice: 1.5,
+    category: 'text',
+    maxTokens: 16385
+  }
+}
+
+// 工作角色和具体工作定义已移至 src/data/workspaceContainers.ts
+// 现在使用统一的数据源，与工作流画布共享
+
+export function AIChatPage() {
+  const navigate = useNavigate()
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [inputValue, setInputValue] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [workflows, setWorkflows] = useState<WorkflowCard[]>([])
+  const [aiTools, setAITools] = useState<AIToolCard[]>([])
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowCard | null>(null)
+  const [selectedAITool, setSelectedAITool] = useState<AIToolCard | null>(null)
+  const [executionResults, setExecutionResults] = useState<ExecutionResult[]>([])
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
+  const [selectedWorkflowDetail, setSelectedWorkflowDetail] = useState<WorkflowCard | null>(null)
+  const [isEditingWorkflow, setIsEditingWorkflow] = useState(false)
+  const [editedPrompt, setEditedPrompt] = useState('')
+  const [editedAITools, setEditedAITools] = useState<WorkflowCard['aiTools']>([])
+  const [selectedAIToolDetail, setSelectedAIToolDetail] = useState<AIToolCard | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [editedNodeParams, setEditedNodeParams] = useState<Record<string, NodeParameter[]>>({})
+  const [showWorkflowPreview, setShowWorkflowPreview] = useState(false)
+  const [expandedRecommendations, setExpandedRecommendations] = useState<Map<number, number>>(new Map())
+  const [showCategorySelector, setShowCategorySelector] = useState(false)
+  const [workflowToSave, setWorkflowToSave] = useState<WorkflowCard | null>(null)
+  const [buttonPosition, setButtonPosition] = useState<{ top: number; left: number } | null>(null)
+  const [selectedRole, setSelectedRole] = useState<string | null>(null) // 当前选择的角色，null表示在第一层
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+
+  // 对话存储相关状态
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [showSessionList, setShowSessionList] = useState(false)
+  const [isSavingChat, setIsSavingChat] = useState(false)
+
+  // 收藏状态管理
+  const [favoritedWorkflows, setFavoritedWorkflows] = useState<Set<string>>(new Set())
+
+  // 用户工作流库
+  const [userWorkflows, setUserWorkflows] = useState<Workflow[]>([])
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [model] = useState(defaultModel)
+
+  // 推荐工作流列表
+  const recommendedWorkflows = useMemo(() => baseWorkflows, [])
+
+  // 加载用户工作流
+  useEffect(() => {
+    const loadUserWorkflows = async () => {
+      try {
+        const workflows = await getUserWorkflows()
+        setUserWorkflows(workflows)
+      } catch (error) {
+        console.error('加载用户工作流失败:', error)
+      }
+    }
+    loadUserWorkflows()
+  }, [])
+
+const commandKeywords = ['运行', '执行', '启动', '使用', '生成', '调用', '制作', '写', '帮我']
+
+const normalizeForMatch = (text: string) => text.toLowerCase().replace(/\s+/g, '')
+
+const formatTimestamp = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+const generateToolExecutionOutput = (workflow: WorkflowCard, tool: WorkflowTool) => {
+  const highlight =
+    workflow.useCases?.slice(0, 2).join('、') ||
+    workflow.description?.split(/。|\.|；/)[0] ||
+    workflow.title
+
+  const followUp =
+    workflow.aiTools && workflow.aiTools.length > 1
+      ? `接下来可以继续尝试 ${workflow.aiTools.filter(t => t.name !== tool.name).map(t => `「${t.name}」`).join('、')} 进行联动。`
+      : '如需深化结果，可继续补充更多上下文或关联其它工作流。'
+
+  return `工具「${tool.name}」已根据「${workflow.title}」的目标完成初步输出，重点覆盖：${highlight}。${followUp}`
+}
+
+const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]): ToolExecutionResult[] => {
+  const start = Date.now()
+
+  return tools.map((tool, index) => ({
+    id: `${workflow.id}-${normalizeForMatch(tool.name)}-${start}-${index}`,
+    workflowId: workflow.id,
+    workflowTitle: workflow.title,
+    toolName: tool.name,
+    toolType: tool.type,
+    status: 'success',
+    output: generateToolExecutionOutput(workflow, tool),
+    startedAt: new Date(start + index * 180).toISOString(),
+    finishedAt: new Date(start + (index + 1) * 420).toISOString()
+  }))
+}
+
+  const simulateWorkflowExecution = (workflow: WorkflowCard, tool?: WorkflowTool) => {
+    const toolsToRun = (tool ? [tool] : workflow.aiTools ?? []) as WorkflowTool[]
+
+    if (toolsToRun.length === 0) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `「${workflow.title}」暂未配置可直接调用的 AI 工具，请先在工作流中补充工具节点。`
+        }
+      ])
+      return
+    }
+
+    setWorkflows(prev => {
+      if (prev.find((wf) => wf.id === workflow.id)) {
+        return prev
+      }
+      return [...prev, workflow]
+    })
+
+    const executionResults = buildToolExecutionResults(workflow, toolsToRun)
+    const summary = tool
+      ? `已为你执行「${workflow.title}」中的工具「${tool.name}」，生成初步结果。`
+      : `已为你执行「${workflow.title}」中的 ${toolsToRun.length} 个 AI 工具，生成初步结果。`
+
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: summary,
+        toolExecutions: executionResults
+      }
+    ])
+  }
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
+  // 初始化：创建或加载对话会话和收藏状态
+  useEffect(() => {
+    const initChatSession = async () => {
+      try {
+        // 尝试从URL获取会话ID
+        const urlParams = new URLSearchParams(window.location.search)
+        const sessionId = urlParams.get('sessionId')
+
+        if (sessionId) {
+          // 加载指定会话
+          setCurrentSessionId(sessionId)
+        } else {
+          // 创建新会话
+          const newSession = await createChatSession('新对话')
+          setCurrentSessionId(newSession.id)
+        }
+
+        // 加载所有会话列表和收藏的工作流
+        const [sessions, favorites] = await Promise.all([
+          getChatSessions(),
+          getFavoriteWorkflows()
+        ])
+        setChatSessions(sessions)
+
+        // 设置收藏的工作流ID
+        const favoritedIds = new Set(favorites.map(wf => wf.id))
+        setFavoritedWorkflows(favoritedIds)
+      } catch (error) {
+        console.error('初始化对话会话失败:', error)
+      }
+    }
+
+    initChatSession()
+  }, [])
+
+  // 自动保存对话内容
+  useEffect(() => {
+    const saveChat = async () => {
+      if (!currentSessionId || messages.length === 0 || isSavingChat) return
+
+      try {
+        setIsSavingChat(true)
+        await updateChatSession(currentSessionId, {
+          messages: messages as any[],
+          title: messages[0]?.content.substring(0, 30) || '新对话'
+        })
+      } catch (error) {
+        console.error('保存对话失败:', error)
+      } finally {
+        setIsSavingChat(false)
+      }
+    }
+
+    // 防抖保存
+    const timer = setTimeout(saveChat, 1000)
+    return () => clearTimeout(timer)
+  }, [messages, currentSessionId, isSavingChat])
+
+  const handleSend = () => {
+    if (!inputValue.trim()) {
+      return
+    }
+
+    const userMessage: ChatMessage = { role: 'user', content: inputValue.trim() }
+    setMessages((prev) => [...prev, userMessage])
+    setInputValue('')
+    setUploadedFiles([]) // 清空上传的文件
+    setLoading(true)
+    setError(null)
+
+    setTimeout(() => {
+      const userInput = userMessage.content.toLowerCase()
+
+      // 任务相关关键词
+      const taskKeywords = ['帮我', '想要', '需要', '生成', '创建', '制作', '写', '做', '完成', '处理', '分析', '设计', '执行']
+      const chatKeywords = ['什么', '怎么', '为什么', '介绍', '解释', '了解', '是否', '可以吗', '吗', '？']
+      const modifyKeywords = ['修改', '调整', '优化', '改进', '换', '改成', '再', '重新', '不要', '加上', '去掉', '更']
+      const newTaskKeywords = ['另外', '新的', '接下来', '现在', '换个', '其他', '别的']
+
+      // 判断是否是任务导向的对话
+      const isTask = taskKeywords.some(kw => userInput.includes(kw))
+      const isChat = chatKeywords.some(kw => userInput.includes(kw))
+      const isModify = modifyKeywords.some(kw => userInput.includes(kw))
+      const isNewTask = newTaskKeywords.some(kw => userInput.includes(kw))
+
+      // 获取上一次的AI回复（如果存在）
+      const lastAssistantMessage = messages.length > 0
+        ? messages.filter(m => m.role === 'assistant').slice(-1)[0]
+        : null
+
+      const hasPreviousRecommendations = lastAssistantMessage?.recommendedItems && lastAssistantMessage.recommendedItems.length > 0
+
+      // 关键词匹配规则
+      const keywords = {
+        '图片': ['图像处理', '图片', '图像生成'],
+        '图像': ['图像处理', '图片', '图像生成'],
+        '文章': ['内容创作', '文章', '文本生成'],
+        '文案': ['文本生成', '内容创作'],
+        '邮件': ['营销', '邮件'],
+        '数据': ['数据分析', '分析'],
+        '动画': ['图像处理', '动画'],
+        '语音': ['语音处理', '语音'],
+        '代码': ['文本生成', '代码生成'],
+        '小红书': ['内容创作', '自媒体'],
+        '抖音': ['内容创作', '短视频'],
+        '公众号': ['内容创作', '文章'],
+        '演讲': ['文本生成', '内容创作'],
+        'PPT': ['文档处理', '演示']
+      }
+
+      let replyContent = ''
+      let recommendedItems: RecommendationCard[] = []
+
+      // 情况1：只是聊天，不涉及任务
+      if (!isTask && isChat && !hasPreviousRecommendations) {
+        replyContent = `我是您的AI工作助手。您可以告诉我想要完成的任务，我会为您推荐合适的工作流和AI工具。\n\n例如："帮我写一篇小红书文案"、"我想制作一个PPT"等。`
+        // 不推荐任何工具
+      }
+      // 情况2：用户在修改之前的任务结果
+      else if (hasPreviousRecommendations && isModify && !isNewTask) {
+        // 基于上次的推荐进行调整
+        const previousItems = lastAssistantMessage.recommendedItems || []
+
+        // 匹配新的工作流和工具
+        const matchedWorkflows = recommendedWorkflows.filter(wf => {
+          const titleMatch = wf.title.toLowerCase().includes(userInput)
+          const descMatch = wf.description.toLowerCase().includes(userInput)
+          const categoryMatch = wf.category.toLowerCase().includes(userInput)
+
+          for (const [key, values] of Object.entries(keywords)) {
+            if (userInput.includes(key)) {
+              return values.some(v => wf.category.includes(v) || wf.title.includes(v) || wf.description.includes(v))
+            }
+          }
+          return titleMatch || descMatch || categoryMatch
+        })
+
+        const matchedAITools = baseAITools.filter(tool => {
+          const nameMatch = tool.name.toLowerCase().includes(userInput)
+          const descMatch = tool.description.toLowerCase().includes(userInput)
+          const categoryMatch = tool.category.toLowerCase().includes(userInput)
+
+          for (const [key, values] of Object.entries(keywords)) {
+            if (userInput.includes(key)) {
+              return values.some(v => tool.category.includes(v) || tool.name.includes(v) || tool.description.includes(v))
+            }
+          }
+          return nameMatch || descMatch || categoryMatch
+        })
+
+        // 合并新旧推荐（去重）
+        const existingIds = new Set(previousItems.map(item => item.id))
+        const newItems: RecommendationCard[] = []
+
+        matchedWorkflows.forEach(wf => {
+          if (!existingIds.has(wf.id)) {
+            newItems.push({ itemType: 'workflow' as const, ...wf })
+          }
+        })
+
+        matchedAITools.forEach(tool => {
+          if (!existingIds.has(tool.id)) {
+            newItems.push({ itemType: 'ai-tool' as const, ...tool })
+          }
+        })
+
+        // 保留之前的推荐，添加新的推荐
+        recommendedItems = [...previousItems, ...newItems.slice(0, 4)]
+        replyContent = `好的，我已根据您的新需求调整了推荐。以下是优化后的工作流和AI工具：`
+      }
+      // 情况3：用户开始新任务
+      else if (isTask || isNewTask) {
+        // 匹配工作流（按贴合度排序）
+        const matchedWorkflows = recommendedWorkflows.filter(wf => {
+          const titleMatch = wf.title.toLowerCase().includes(userInput)
+          const descMatch = wf.description.toLowerCase().includes(userInput)
+          const categoryMatch = wf.category.toLowerCase().includes(userInput)
+
+          // 计算匹配度分数
+          let score = 0
+          if (titleMatch) score += 3
+          if (descMatch) score += 2
+          if (categoryMatch) score += 1
+
+          for (const [key, values] of Object.entries(keywords)) {
+            if (userInput.includes(key)) {
+              if (values.some(v => wf.category.includes(v) || wf.title.includes(v) || wf.description.includes(v))) {
+                score += 2
+              }
+            }
+          }
+
+          wf.matchScore = score
+          return score > 0
+        }).sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+
+        // 匹配AI工具（按贴合度排序）
+        const matchedAITools = baseAITools.filter(tool => {
+          const nameMatch = tool.name.toLowerCase().includes(userInput)
+          const descMatch = tool.description.toLowerCase().includes(userInput)
+          const categoryMatch = tool.category.toLowerCase().includes(userInput)
+
+          let score = 0
+          if (nameMatch) score += 3
+          if (descMatch) score += 2
+          if (categoryMatch) score += 1
+
+          for (const [key, values] of Object.entries(keywords)) {
+            if (userInput.includes(key)) {
+              if (values.some(v => tool.category.includes(v) || tool.name.includes(v) || tool.description.includes(v))) {
+                score += 2
+              }
+            }
+          }
+
+          tool.matchScore = score
+          return score > 0
+        }).sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+
+        // 合并推荐项（按匹配度交替显示）
+        const matchedItems: RecommendationCard[] = []
+        const maxLength = Math.max(matchedAITools.length, matchedWorkflows.length)
+
+        for (let i = 0; i < maxLength && matchedItems.length < 8; i++) {
+          if (i < matchedWorkflows.length) {
+            matchedItems.push({ itemType: 'workflow' as const, ...matchedWorkflows[i] })
+          }
+          if (i < matchedAITools.length && matchedItems.length < 8) {
+            matchedItems.push({ itemType: 'ai-tool' as const, ...matchedAITools[i] })
+          }
+        }
+
+        recommendedItems = matchedItems.length > 0 ? matchedItems : []
+
+        // 如果没有匹配项，推荐默认工具
+        if (recommendedItems.length === 0) {
+          for (let i = 0; i < 3 && i < recommendedWorkflows.length; i++) {
+            recommendedItems.push({ itemType: 'workflow' as const, ...recommendedWorkflows[i] })
+          }
+          for (let i = 0; i < 3 && i < baseAITools.length; i++) {
+            recommendedItems.push({ itemType: 'ai-tool' as const, ...baseAITools[i] })
+          }
+          replyContent = `我理解您想要完成这个任务。以下是一些推荐的工作流和AI工具：`
+        } else {
+          const itemCount = matchedWorkflows.length + matchedAITools.length
+          const typeText = matchedAITools.length > 0 && matchedWorkflows.length > 0
+            ? 'AI工具和工作流'
+            : matchedAITools.length > 0 ? 'AI工具' : '工作流'
+          replyContent = `我为您找到了 ${itemCount} 个匹配的${typeText}，已按贴合度排序。您可以点击下方卡片查看详情并使用：`
+        }
+      }
+      // 情况4：继续对话但不明确
+      else {
+        replyContent = `请告诉我您想要完成什么任务，我会为您推荐合适的工作流和AI工具。`
+      }
+
+      const reply: ChatMessage = {
+        role: 'assistant',
+        content: replyContent,
+        recommendedItems: recommendedItems.length > 0 ? recommendedItems : undefined
+      }
+      setMessages((prev) => [...prev, reply])
+      setLoading(false)
+    }, 800)
+  }
+
+  const handleAddWorkflow = (workflow: WorkflowCard) => {
+    setWorkflows((prev) => {
+      if (prev.find((wf) => wf.id === workflow.id)) {
+        return prev
+      }
+      return [...prev, workflow]
+    })
+    // 不自动选中，需要用户手动点击"设为当前"
+    setShowLibrary(false)
+  }
+
+  const handleAddAITool = (tool: AIToolCard) => {
+    setAITools((prev) => {
+      if (prev.find((t) => t.id === tool.id)) {
+        return prev
+      }
+      return [...prev, tool]
+    })
+    // 不自动选中，需要用户手动点击"设为当前"
+    setShowLibrary(false)
+  }
+
+  const handleWorkflowToolExecution = (workflow: WorkflowCard, tool?: WorkflowTool) => {
+    handleAddWorkflow(workflow)
+    simulateWorkflowExecution(workflow, tool)
+  }
+
+  // 打开分类选择器
+  const handleOpenCategorySelector = (workflow: WorkflowCard, event: React.MouseEvent<HTMLButtonElement>) => {
+    const button = event.currentTarget
+    const rect = button.getBoundingClientRect()
+    setButtonPosition({
+      top: rect.top,
+      left: rect.right + 8 // 加号右边8px处
+    })
+    setWorkflowToSave(workflow)
+    setShowCategorySelector(true)
+  }
+
+  // 选择具体工作并保存
+  const handleSaveToJob = (role: string, job: string) => {
+    if (!workflowToSave) return
+
+    // 这里可以添加实际的保存逻辑（比如调用API保存到后端）
+    console.log(`保存工作流"${workflowToSave.title}"到角色"${role}"的工作"${job}"`)
+
+    // 同时添加到工具箱
+    handleAddWorkflow(workflowToSave)
+
+    // 关闭弹窗并清空所有状态
+    setShowCategorySelector(false)
+    setWorkflowToSave(null)
+    setSelectedRole(null)
+    setButtonPosition(null)
+  }
+
+  // 收藏/取消收藏工作流
+  const handleToggleFavorite = async (workflowId: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+
+    const isFavorited = favoritedWorkflows.has(workflowId)
+
+    try {
+      if (isFavorited) {
+        // 取消收藏
+        await unfavoriteWorkflow(workflowId)
+        setFavoritedWorkflows(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(workflowId)
+          return newSet
+        })
+      } else {
+        // 收藏
+        await favoriteWorkflow(workflowId)
+        setFavoritedWorkflows(prev => new Set(prev).add(workflowId))
+      }
+    } catch (error) {
+      console.error('收藏操作失败:', error)
+      // 可以在这里添加错误提示
+    }
+  }
+
+  // 创建新对话
+  const handleCreateNewChat = async () => {
+    // 先清空所有内容（无论 API 是否成功都清空）
+    setMessages([])
+    setExecutionResults([])
+    setWorkflows([])
+    setAITools([])
+    setSelectedWorkflow(null)
+    setSelectedAITool(null)
+    setUploadedFiles([])
+    setInputValue('')
+    setError(null)
+    setShowSessionList(false)
+
+    try {
+      const newSession = await createChatSession('新对话')
+      setCurrentSessionId(newSession.id)
+
+      // 更新会话列表
+      const sessions = await getChatSessions()
+      setChatSessions(sessions)
+    } catch (error) {
+      console.error('创建新对话失败:', error)
+    }
+  }
+
+  // 切换对话会话
+  const handleSwitchSession = (sessionId: string) => {
+    setCurrentSessionId(sessionId)
+    const session = chatSessions.find(s => s.id === sessionId)
+    if (session) {
+      setMessages(session.messages as any[])
+    }
+
+    // 切换会话时清空其他内容，每个会话有独立的状态
+    setExecutionResults([])
+    setWorkflows([])
+    setSelectedWorkflow(null)
+    setUploadedFiles([])
+    setInputValue('')
+    setShowSessionList(false)
+  }
+
+  // 删除对话会话
+  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteChatSession(sessionId)
+
+      // 更新会话列表
+      const sessions = await getChatSessions()
+      setChatSessions(sessions)
+
+      // 如果删除的是当前会话，创建新会话
+      if (sessionId === currentSessionId) {
+        await handleCreateNewChat()
+      }
+    } catch (error) {
+      console.error('删除对话失败:', error)
+    }
+  }
+
+  const handleExecuteWorkflow = () => {
+    // 检查是否有选中的工作流或AI工具
+    if ((!selectedWorkflow && !selectedAITool) || isExecuting) return
+    setIsExecuting(true)
+
+    setTimeout(() => {
+      const newResults: ExecutionResult[] = []
+
+      // 如果选中了工作流
+      if (selectedWorkflow) {
+        newResults.push({
+          type: 'text',
+          content: `工作流「${selectedWorkflow.title}」已完成。\n\n输出内容基于最近一次对话的需求。`
+        })
+
+        if (selectedWorkflow.category.includes('图像')) {
+          newResults.push({
+            type: 'image',
+            content: `https://picsum.photos/seed/${selectedWorkflow.id}-${Date.now()}/600/360`,
+            caption: '示例图片结果'
+          })
+        }
+      }
+
+      // 如果选中了AI工具
+      if (selectedAITool) {
+        newResults.push({
+          type: 'text',
+          content: `AI工具「${selectedAITool.name}」已完成。\n\n${selectedAITool.description}\n\n输出内容基于最近一次对话的需求。`
+        })
+
+        // 如果是图像类AI工具，也添加图片结果
+        if (selectedAITool.category.includes('图像') || selectedAITool.name.includes('Midjourney') || selectedAITool.name.includes('DALL-E')) {
+          newResults.push({
+            type: 'image',
+            content: `https://picsum.photos/seed/${selectedAITool.id}-${Date.now()}/600/360`,
+            caption: `由 ${selectedAITool.name} 生成`
+          })
+        }
+      }
+
+      // 追加新结果到现有结果中，而不是替换
+      setExecutionResults(prev => [...prev, ...newResults])
+      setIsExecuting(false)
+    }, 1200)
+  }
+
+  // 文件上传处理函数
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      const newFiles = Array.from(files)
+      setUploadedFiles((prev) => [...prev, ...newFiles])
+    }
+  }
+
+  const handleFileRemove = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const files = event.dataTransfer.files
+    if (files) {
+      const newFiles = Array.from(files)
+      setUploadedFiles((prev) => [...prev, ...newFiles])
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  const cn = (...classes: (string | boolean | undefined | null)[]) => classes.filter(Boolean).join(' ')
+
+  // 统一样式系统 - 增强版
+  const panelBaseClass =
+    'flex h-full flex-col overflow-hidden rounded-3xl border border-violet-100 bg-white'
+  const primaryButtonClasses =
+    'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-bold transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-xl hover:from-violet-700 hover:to-indigo-700 hover:shadow-2xl hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100'
+
+  return (
+    <div className="flex h-[calc(100vh-64px)] flex-col bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50">
+      <main className="grid flex-1 gap-2 overflow-hidden px-2 pb-3 pt-3 lg:gap-2.5 lg:px-3 xl:px-4 xl:grid-cols-[1.2fr_0.8fr_1.2fr]">
+        {/* 会话面板 */}
+        <section className={panelBaseClass}>
+          <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-3 py-2">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
+              <p className="text-[11px] text-slate-600 font-medium mt-0.5">输入需求获取建议</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSessionList((prev) => !prev)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-violet-100 transition-all duration-200"
+                title="对话历史"
+              >
+                <History className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateNewChat}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-violet-100 transition-all duration-200"
+                title="创建新对话"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+
+          <div className={cn("flex-1 overflow-y-auto px-2.5 py-2.5", messages.length === 0 ? "flex items-center justify-center" : "space-y-2")}>
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-200 bg-gradient-to-br from-violet-100 to-indigo-100 px-5 py-8 text-center max-w-lg">
+                <div className="rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 p-3 shadow-2xl mb-4 ring-4 ring-violet-200">
+                  <Bot className="h-8 w-8 text-white" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900 mb-2">开始与 AI 对话</p>
+                <p className="text-base leading-relaxed text-slate-700 max-w-md">
+                  描述你想完成的任务，我会为你推荐合适的工作流并协助执行
+                </p>
+                <div className="mt-5 flex items-center gap-3 text-sm text-violet-700 font-bold bg-white px-5 py-2.5 rounded-full">
+                  <Sparkles className="h-4 w-4" />
+                  <span>智能推荐 · 快速执行</span>
+                </div>
+              </div>
+            )}
+
+            {messages.map((message, idx) => (
+              <div key={idx} className="space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-600">
+                  <div
+                    className={cn(
+                      'rounded-lg p-1.5',
+                      message.role === 'user' ? 'bg-violet-100 text-violet-600' : 'bg-indigo-100 text-indigo-600'
+                    )}
+                  >
+                    {message.role === 'user' ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                  </div>
+                  <span>{message.role === 'user' ? '你' : 'AI 助手'}</span>
+                </div>
+                {message.role === 'user' ? (
+                  <p className="max-w-[85%] text-base font-medium leading-relaxed text-slate-700 whitespace-pre-wrap">
+                    {message.content}
+                  </p>
+                ) : (
+                  <p className="max-w-[85%] text-base leading-relaxed text-slate-800 whitespace-pre-wrap">
+                    {message.content}
+                  </p>
+                )}
+
+                {/* 推荐项卡片（AI工具和工作流）*/}
+                {message.recommendedItems && message.recommendedItems.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {message.recommendedItems.slice(0, expandedRecommendations.get(idx) || 4).map((item) => {
+                        if (item.itemType === 'ai-tool') {
+                          // AI工具卡片
+                          const tool = item as AIToolCard & { itemType: 'ai-tool' }
+                          return (
+                            <div
+                              key={tool.id}
+                              className="group relative flex h-full flex-col rounded-lg border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-3 shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-2xl"
+                              draggable={true}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('ai-tool', JSON.stringify(tool))
+                              }}
+                              onClick={() => {
+                                // TODO: 实现AI工具详情弹窗
+                                console.log('点击AI工具:', tool.name)
+                              }}
+                            >
+                              {/* 标题行：Logo + 名称 + 分类 */}
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="text-lg">{tool.logo || '🤖'}</span>
+                                <h4 className="text-sm font-bold text-slate-900">{tool.name}</h4>
+                                <span className="text-[10px] font-bold text-cyan-600 bg-cyan-100 px-1.5 py-0.5 rounded">
+                                  {tool.category}
+                                </span>
+                              </div>
+
+                              {/* 描述 */}
+                              <p className="mb-2 text-xs leading-snug text-slate-600 line-clamp-2">{tool.description}</p>
+
+                              {/* 能力标签 */}
+                              {tool.capabilities && tool.capabilities.length > 0 && (
+                                <div className="mb-2 flex flex-wrap gap-1.5">
+                                  {tool.capabilities.slice(0, 3).map((capability, capIdx) => (
+                                    <span
+                                      key={capIdx}
+                                      className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-cyan-600"
+                                    >
+                                      {capability}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* 按钮行 */}
+                              <div className="mt-auto flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleAddAITool(tool)
+                                  }}
+                                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  使用此工具
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    // TODO: 实现AI工具详情查看
+                                  }}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-200 bg-white text-cyan-600 hover:bg-cyan-50 hover:scale-110 transition-all"
+                                  title="查看详情"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => handleToggleFavorite(tool.id, e)}
+                                  className={cn(
+                                    "inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-all",
+                                    favoritedWorkflows.has(tool.id)
+                                      ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                      : "border-rose-200 bg-white text-rose-500 hover:bg-rose-50 hover:scale-110"
+                                  )}
+                                  title={favoritedWorkflows.has(tool.id) ? "取消收藏" : "收藏"}
+                                >
+                                  <Heart className={cn("h-3.5 w-3.5", favoritedWorkflows.has(tool.id) && "fill-rose-600")} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        } else {
+                          // 工作流卡片
+                          const workflow = item as WorkflowCard & { itemType: 'workflow' }
+                          return (
+                            <div
+                              key={workflow.id}
+                              className="group relative flex h-full flex-col rounded-lg border border-dashed border-violet-200 bg-gradient-to-br from-white to-violet-50 p-3 shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-2xl"
+                              draggable
+                              onClick={() => setSelectedWorkflowDetail(workflow)}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('workflow', JSON.stringify(workflow))
+                              }}
+                            >
+                              {/* 标题行：图标 + 标题 + 分类 */}
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Sparkles className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                                <h4 className="text-sm font-bold text-slate-900">{workflow.title}</h4>
+                                <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">
+                                  {workflow.category}
+                                </span>
+                              </div>
+
+                              {/* 描述 */}
+                              <p className="mb-2 text-xs leading-snug text-slate-600 line-clamp-2">{workflow.description}</p>
+
+                              {/* 使用场景标签 */}
+                              {workflow.useCases && workflow.useCases.length > 0 && (
+                                <div className="mb-2 flex flex-wrap gap-1.5">
+                                  {workflow.useCases.slice(0, 3).map((useCase, ucIdx) => (
+                                    <span
+                                      key={ucIdx}
+                                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-violet-600"
+                                    >
+                                      {useCase}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* AI工具标签（如果有）*/}
+                              {workflow.aiTools && workflow.aiTools.length > 0 && (
+                                <div className="mb-2 flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-500 font-medium">集成:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {workflow.aiTools.slice(0, 3).map((tool, toolIdx) => (
+                                      <span
+                                        key={toolIdx}
+                                        className="inline-flex items-center gap-0.5 text-[10px] font-medium text-violet-600"
+                                      >
+                                        {tool.logo && <span>{tool.logo}</span>}
+                                        <span>{tool.name}</span>
+                                      </span>
+                                    ))}
+                                    {workflow.aiTools.length > 3 && (
+                                      <span className="text-[10px] text-slate-500">+{workflow.aiTools.length - 3}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 按钮行 */}
+                              <div className="mt-auto flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleAddWorkflow(workflow)
+                                  }}
+                                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  使用此工作流
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedWorkflowDetail(workflow)
+                                  }}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-white text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all"
+                                  title="查看详情"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => handleToggleFavorite(workflow.id, e)}
+                                  className={cn(
+                                    "inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-all",
+                                    favoritedWorkflows.has(workflow.id)
+                                      ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                      : "border-rose-200 bg-white text-rose-500 hover:bg-rose-50 hover:scale-110"
+                                  )}
+                                  title={favoritedWorkflows.has(workflow.id) ? "取消收藏" : "收藏"}
+                                >
+                                  <Heart className={cn("h-3.5 w-3.5", favoritedWorkflows.has(workflow.id) && "fill-rose-600")} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        }
+                      })}
+                    </div>
+
+                    {/* 更多按钮 */}
+                    {message.recommendedItems.length > 4 && (
+                      <button
+                        onClick={() => {
+                          const currentLimit = expandedRecommendations.get(idx) || 4
+                          if (currentLimit === 4) {
+                            const newMap = new Map(expandedRecommendations)
+                            newMap.set(idx, 8)
+                            setExpandedRecommendations(newMap)
+                          } else {
+                            navigate(`/search?q=${encodeURIComponent(message.content)}`)
+                          }
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-violet-200 text-violet-700 font-semibold text-sm hover:from-violet-100 hover:to-indigo-100 hover:border-violet-300 hover:shadow-md transition-all duration-200"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                        {(expandedRecommendations.get(idx) || 4) === 4 ? '查看更多推荐' : '探索全部相关内容'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* 推荐工作流卡片 - 优化紧凑版（兼容旧数据）*/}
+                {message.recommendedWorkflows && message.recommendedWorkflows.length > 0 && !message.recommendedItems && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {message.recommendedWorkflows.slice(0, expandedRecommendations.get(idx) || 4).map((workflow) => (
+                        <div
+                          key={workflow.id}
+                          className="group relative rounded-lg border-2 border-violet-200 bg-gradient-to-br from-white to-violet-50 p-3 shadow-lg hover:shadow-2xl hover:border-violet-400 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                          draggable
+                          onClick={() => setSelectedWorkflowDetail(workflow)}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('workflow', JSON.stringify(workflow))
+                          }}
+                        >
+                          {/* 右上角加号按钮 - 打开分类选择器 */}
+                          <div className="absolute top-2 right-2 z-10">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenCategorySelector(workflow, e)
+                              }}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md hover:shadow-lg hover:scale-110 transition-all"
+                              title="选择分类并保存"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          {/* 标题行：图标 + 标题 + 标签 */}
+                          <div className="flex items-center gap-1.5 mb-1.5 pr-8">
+                            <Sparkles className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+                            <h4 className="text-sm font-bold text-slate-900">{workflow.title}</h4>
+                            <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">
+                              {workflow.category}
+                            </span>
+                          </div>
+
+                          {/* 描述（精简为单行） */}
+                          <p className="text-xs text-slate-600 leading-snug mb-2 line-clamp-1">{workflow.description}</p>
+
+                          {/* 关联 AI 工具 */}
+                          {(() => {
+                            const tools = (workflow.aiTools ?? []) as WorkflowTool[]
+                            if (tools.length === 0) {
+                              return null
+                            }
+                            return (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {tools.slice(0, 3).map((tool, toolIndex) => (
+                                  <button
+                                    key={tool.name + toolIndex}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleWorkflowToolExecution(workflow, tool)
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-violet-600 hover:border-violet-300 hover:bg-violet-100 hover:shadow transition-all"
+                                    title={`运行 ${tool.name}`}
+                                  >
+                                    {tool.logo && <span className="text-xs">{tool.logo}</span>}
+                                    <span>{tool.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          })()}
+
+                          {/* 按钮行：横向排列 */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAddWorkflow(workflow)
+                              }}
+                              className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                            >
+                              <Plus className="h-3 w-3" />
+                              添加到工具箱
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedWorkflowDetail(workflow)
+                              }}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-white text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all"
+                              title="查看详情"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleToggleFavorite(workflow.id, e)}
+                              className={cn(
+                                "inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-all",
+                                favoritedWorkflows.has(workflow.id)
+                                  ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                  : "border-rose-200 bg-white text-rose-500 hover:bg-rose-50 hover:scale-110"
+                              )}
+                              title={favoritedWorkflows.has(workflow.id) ? "取消收藏" : "收藏"}
+                            >
+                              <Heart className={cn("h-3.5 w-3.5", favoritedWorkflows.has(workflow.id) && "fill-rose-600")} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 更多按钮 */}
+                    {message.recommendedWorkflows.length > 4 && (
+                      <button
+                        onClick={() => {
+                          const currentLimit = expandedRecommendations.get(idx) || 4
+                          if (currentLimit === 4) {
+                            // 第一次点击：扩展到8个
+                            const newMap = new Map(expandedRecommendations)
+                            newMap.set(idx, 8)
+                            setExpandedRecommendations(newMap)
+                          } else {
+                            // 第二次点击：跳转到探索页面
+                            navigate(`/search?q=${encodeURIComponent(message.content)}`)
+                          }
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-violet-200 text-violet-700 font-semibold text-sm hover:from-violet-100 hover:to-indigo-100 hover:border-violet-300 hover:shadow-md transition-all duration-200"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                        {(expandedRecommendations.get(idx) || 4) === 4 ? '查看更多推荐' : '探索全部相关内容'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {message.toolExecutions && message.toolExecutions.length > 0 && (
+                  <div className="mt-3 space-y-2 w-full">
+                    {message.toolExecutions.map((execution) => (
+                      <div
+                        key={execution.id}
+                        className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50 px-4 py-3 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/90 shadow-sm">
+                              <Play className="h-4 w-4 text-white" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <div className="text-sm font-semibold text-emerald-800">{execution.toolName}</div>
+                              <div className="text-[11px] text-emerald-700">
+                                工作流：{execution.workflowTitle}
+                                {execution.toolType && ` · ${execution.toolType === 'model' ? 'AI模型' : 'AI工具'}`}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-medium text-emerald-700">
+                            {formatTimestamp(execution.startedAt)} → {formatTimestamp(execution.finishedAt)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-emerald-800 leading-relaxed whitespace-pre-line">
+                          {execution.output}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && (
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-50 to-indigo-50 px-5 py-3 shadow-md border border-violet-200 animate-pulse">
+                <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                <span className="text-sm font-semibold text-violet-700">AI 正在思考...</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {error && (
+            <div className="mx-6 mb-4 flex items-center gap-3 rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-md">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium">{error}</span>
+            </div>
+          )}
+
+          <footer className="border-t border-slate-200 bg-gradient-to-b from-white to-slate-50/50 px-3 py-2.5">
+            {/* 已上传文件列表 */}
+            {uploadedFiles.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {uploadedFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className="inline-flex items-center gap-2 rounded-lg bg-violet-50 border border-violet-200 px-3 py-1.5 text-xs"
+                  >
+                    <File className="h-3.5 w-3.5 text-violet-600" />
+                    <span className="font-medium text-slate-700 max-w-[150px] truncate">{file.name}</span>
+                    <span className="text-slate-500">({formatFileSize(file.size)})</span>
+                    <button
+                      onClick={() => handleFileRemove(index)}
+                      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 text-violet-700 hover:bg-violet-300 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div
+              className="flex items-center gap-3"
+              onDrop={handleFileDrop}
+              onDragOver={handleDragOver}
+            >
+              {/* 隐藏的文件输入 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.webp"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* 输入框容器 - 包含回形针按钮 */}
+              <div className="relative flex-1 h-[90px]">
+                {/* 回形针按钮 - 在输入框左侧内部 */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-all"
+                  title="上传文件"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
+
+                <textarea
+                  value={inputValue}
+                  onChange={(event) => setInputValue(event.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSend()
+                    }
+                  }}
+                  rows={3}
+                  placeholder="✨ 描述你想完成的任务... (支持拖拽文件)"
+                  className="w-full h-full resize-none rounded-xl border-2 border-slate-200 bg-white pl-12 pr-4 py-3.5 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-100 focus:shadow-md focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={loading || !inputValue.trim()}
+                className="inline-flex h-[90px] w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 transition-all hover:from-violet-700 hover:to-indigo-700 hover:shadow-xl hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              >
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </button>
+            </div>
+          </footer>
+        </section>
+
+        {/* 工作流工具箱 */}
+        <section className={panelBaseClass}>
+          <header className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50 px-3 py-2">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">实现工具</h2>
+              <p className="text-[11px] text-slate-600 font-medium mt-0.5">选择并配置工具 · 拖拽排序</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLibrary(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-indigo-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-indigo-100 transition-all duration-200"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              选择已有工具
+            </button>
+          </header>
+
+          <div
+            className="flex-1 space-y-2 overflow-y-auto px-2.5 py-2.5"
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.currentTarget.classList.add('bg-violet-50')
+            }}
+            onDragLeave={(e) => {
+              e.currentTarget.classList.remove('bg-violet-50')
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.currentTarget.classList.remove('bg-violet-50')
+
+              // 尝试获取工作流数据
+              const workflowData = e.dataTransfer.getData('workflow')
+              if (workflowData) {
+                try {
+                  const workflow = JSON.parse(workflowData)
+                  handleAddWorkflow(workflow)
+                } catch (err) {
+                  console.error('Failed to parse workflow data:', err)
+                }
+                return
+              }
+
+              // 尝试获取AI工具数据
+              const aiToolData = e.dataTransfer.getData('ai-tool')
+              if (aiToolData) {
+                try {
+                  const aiTool = JSON.parse(aiToolData)
+                  handleAddAITool(aiTool)
+                } catch (err) {
+                  console.error('Failed to parse AI tool data:', err)
+                }
+              }
+            }}
+          >
+            {workflows.map((workflow) => {
+              const active = selectedWorkflow?.id === workflow.id
+              return (
+                <article
+                  key={workflow.id}
+                  className={cn(
+                    'rounded-xl border-2 bg-white p-3 text-left shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 cursor-pointer',
+                    active
+                      ? 'border-violet-400 bg-gradient-to-br from-violet-50 to-indigo-50 shadow-lg shadow-violet-200/50 ring-2 ring-violet-200'
+                      : 'border-violet-200 hover:border-violet-300'
+                  )}
+                  onClick={() => {
+                    if (active) {
+                      // 如果已选中，则取消选中
+                      setSelectedWorkflow(null)
+                    } else {
+                      // 如果未选中，则选中并取消AI工具的选中
+                      setSelectedWorkflow(workflow)
+                      setSelectedAITool(null)
+                    }
+                  }}
+                >
+                  {/* 标题行：图标 + 标题 + 分类 */}
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <Sparkles className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900 truncate">{workflow.title}</h4>
+                      <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                        {workflow.category}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setWorkflows((prev) => prev.filter((wf) => wf.id !== workflow.id))
+                        if (active) setSelectedWorkflow(null)
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-rose-100 hover:text-rose-600 flex-shrink-0"
+                      title="移除"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 描述 */}
+                  <p className="text-xs text-slate-600 leading-snug mb-2 line-clamp-2">{workflow.description}</p>
+
+                  {/* 使用场景标签 */}
+                  {workflow.useCases && workflow.useCases.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {workflow.useCases.slice(0, 3).map((useCase, ucIdx) => (
+                        <span
+                          key={ucIdx}
+                          className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-violet-600"
+                        >
+                          {useCase}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* AI工具标签（如果有）*/}
+                  {workflow.aiTools && workflow.aiTools.length > 0 && (
+                    <div className="mb-2 flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-medium">集成:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {workflow.aiTools.slice(0, 3).map((tool, toolIdx) => (
+                          <span
+                            key={toolIdx}
+                            className="inline-flex items-center gap-0.5 text-[10px] font-medium text-violet-600"
+                          >
+                            {tool.logo && <span>{tool.logo}</span>}
+                            <span>{tool.name}</span>
+                          </span>
+                        ))}
+                        {workflow.aiTools.length > 3 && (
+                          <span className="text-[10px] text-slate-500">+{workflow.aiTools.length - 3}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 按钮行 */}
+                  <div className="flex items-center justify-between pt-2 border-t border-violet-100">
+                    {active && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-md">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        已选中
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedWorkflowDetail(workflow)
+                      }}
+                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2.5 py-1 text-[10px] font-medium text-violet-600 hover:bg-violet-50 transition-all"
+                    >
+                      <Eye className="h-3 w-3" />
+                      查看详情
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+
+            {/* AI工具列表 */}
+            {aiTools.map((tool) => {
+              const active = selectedAITool?.id === tool.id
+              return (
+                <article
+                  key={tool.id}
+                  className={cn(
+                    'rounded-xl border-2 bg-white p-3 text-left shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 cursor-pointer',
+                    active
+                      ? 'border-cyan-400 bg-gradient-to-br from-cyan-50 to-blue-50 shadow-lg shadow-cyan-200/50 ring-2 ring-cyan-200'
+                      : 'border-cyan-200 hover:border-cyan-300'
+                  )}
+                  onClick={() => {
+                    if (active) {
+                      // 如果已选中，则取消选中
+                      setSelectedAITool(null)
+                    } else {
+                      // 如果未选中，则选中并取消工作流的选中
+                      setSelectedAITool(tool)
+                      setSelectedWorkflow(null)
+                    }
+                  }}
+                >
+                  {/* 标题行：Logo + 名称 + 分类 */}
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <span className="text-lg flex-shrink-0">{tool.logo || '🤖'}</span>
+                      <h4 className="text-sm font-bold text-slate-900 truncate">{tool.name}</h4>
+                      <span className="text-[10px] font-bold text-cyan-600 bg-cyan-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                        {tool.category}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setAITools((prev) => prev.filter((t) => t.id !== tool.id))
+                        if (active) setSelectedAITool(null)
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-rose-100 hover:text-rose-600 flex-shrink-0"
+                      title="移除"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 描述 */}
+                  <p className="text-xs text-slate-600 leading-snug mb-2 line-clamp-2">{tool.description}</p>
+
+                  {/* 能力标签 */}
+                  {tool.capabilities && tool.capabilities.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {tool.capabilities.slice(0, 3).map((capability, capIdx) => (
+                        <span
+                          key={capIdx}
+                          className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-cyan-600"
+                        >
+                          {capability}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 按钮行 */}
+                  <div className="flex items-center justify-between pt-2 border-t border-cyan-100">
+                    {active && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-600 bg-cyan-100 px-2 py-0.5 rounded-md">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        已选中
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedAIToolDetail(tool)
+                      }}
+                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-white px-2.5 py-1 text-[10px] font-medium text-cyan-600 hover:bg-cyan-50 transition-all"
+                    >
+                      <Eye className="h-3 w-3" />
+                      查看详情
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+
+            {workflows.length === 0 && aiTools.length === 0 && (
+              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50/50 to-violet-50/30 px-5 py-6 text-center">
+                <div className="rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 p-2.5 shadow-lg shadow-indigo-500/25 mb-3">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-lg font-bold text-slate-900 mb-2">等待选择工具</p>
+                <p className="text-sm leading-relaxed text-slate-600 max-w-xs mb-3">
+                  在左侧 AI 对话中选择推荐的工作流或AI工具
+                  <br />
+                  或点击右上角 <span className="font-semibold text-indigo-600">+</span> 号手动添加
+                </p>
+                <div className="inline-flex items-center gap-2 text-xs text-indigo-600 font-medium bg-indigo-100 px-3 py-1.5 rounded-lg">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>支持拖拽添加</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <footer className="border-t border-slate-200 bg-gradient-to-b from-white to-slate-50/50 px-3 py-2.5">
+            <button
+              type="button"
+              onClick={handleExecuteWorkflow}
+              disabled={(!selectedWorkflow && !selectedAITool) || isExecuting}
+              className={primaryButtonClasses + ' w-full'}
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  执行中...
+                </>
+              ) : (
+                <>
+                  <Play className="h-5 w-5" />
+                  {selectedWorkflow ? '执行工作流' : selectedAITool ? '执行AI工具' : '选择工具'}
+                </>
+              )}
+            </button>
+          </footer>
+        </section>
+
+        {/* 成果预览 */}
+        <section className={panelBaseClass}>
+          <header className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">成果预览</h2>
+            <p className="text-[11px] text-slate-600 font-medium mt-0.5">查看生成内容 · 下载文件</p>
+          </header>
+
+          <div className="flex-1 space-y-2.5 overflow-y-auto px-2.5 py-2.5">
+            {executionResults.length === 0 && !isExecuting && (
+              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-teal-50/30 px-5 py-6 text-center">
+                <div className="rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 p-2.5 shadow-lg shadow-emerald-500/25 mb-3">
+                  <FileText className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-lg font-bold text-slate-900 mb-2">等待成果预览</p>
+                <p className="text-sm leading-relaxed text-slate-600 max-w-xs mb-3">
+                  选择工作流或AI工具并点击 <span className="font-semibold text-emerald-600">执行</span>
+                  <br />
+                  生成的文本、图片或文件会出现在这里
+                </p>
+                <div className="flex items-center gap-6 text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-emerald-500" />
+                    <span>文本</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Image className="h-4 w-4 text-emerald-500" />
+                    <span>图片</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Download className="h-4 w-4 text-emerald-500" />
+                    <span>文件</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isExecuting && (
+              <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3 border border-violet-200 shadow-md animate-pulse">
+                <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                <span className="text-sm font-semibold text-violet-700">工作流执行中，请稍候…</span>
+              </div>
+            )}
+
+            {executionResults.map((result, idx) => {
+              if (result.type === 'text') {
+                return (
+                  <div
+                    key={`text-${idx}`}
+                    className="animate-in fade-in slide-in-from-bottom-2"
+                  >
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{result.content}</p>
+                  </div>
+                )
+              }
+
+              return (
+                <div
+                  key={`image-${idx}`}
+                  className="animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <img
+                    src={result.content}
+                    alt={result.caption ?? '生成结果'}
+                    className="w-full"
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </main>
+
+      {/* 推荐工作流抽屉 */}
+      {showLibrary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-10 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <header className="flex items-center justify-between border-b-2 border-slate-200 bg-gradient-to-r from-violet-50 to-indigo-50 px-8 py-6">
+              <div className="flex items-center gap-4">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 shadow-lg shadow-violet-500/25">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">用户工作流库</h3>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5">选择工作流添加到实现工具</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLibrary(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-500 shadow-md transition-all hover:bg-slate-100 hover:text-slate-700 hover:scale-110"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+
+            <div className="grid max-h-[60vh] grid-cols-2 gap-5 overflow-y-auto px-8 py-8">
+              {userWorkflows.map((workflow) => (
+                <button
+                  key={workflow.id}
+                  type="button"
+                  onClick={() => handleAddWorkflow({
+                    id: workflow.id,
+                    title: workflow.title,
+                    description: workflow.description,
+                    category: workflow.category,
+                    author: workflow.author?.name
+                  })}
+                  className="group flex flex-col gap-3 h-[140px] rounded-xl border-2 border-slate-200 bg-white p-5 text-left shadow-md transition-all duration-200 hover:-translate-y-1 hover:border-violet-400 hover:scale-[1.02] hover:shadow-xl"
+                >
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-base font-bold text-slate-900 group-hover:text-violet-600 transition-colors line-clamp-1">
+                        {workflow.title}
+                      </h4>
+                      <span className="text-[10px] font-bold text-violet-500 bg-violet-100 px-2 py-0.5 rounded-md flex-shrink-0">
+                        {workflow.category}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-relaxed line-clamp-1">{workflow.description}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 self-start text-[10px] font-semibold text-violet-600 bg-violet-50 px-3 py-1.5 rounded-lg">
+                    <PlusCircle className="h-3 w-3" />
+                    点击添加
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 工作流详情弹窗 */}
+      {selectedWorkflowDetail && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-8 animate-in fade-in duration-200"
+          onClick={() => setSelectedWorkflowDetail(null)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-lg bg-white shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <header className="border-b border-slate-200 px-6 py-4 flex-shrink-0">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-slate-900">{selectedWorkflowDetail.title}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedWorkflowDetail.description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWorkflowDetail(null)}
+                  className="ml-4 inline-flex h-8 w-8 items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Metadata */}
+              <div className="flex items-center gap-4 text-xs text-slate-600">
+                {/* Author */}
+                {selectedWorkflowDetail.author && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-slate-900">{selectedWorkflowDetail.author}</span>
+                    {selectedWorkflowDetail.authorLevel && (
+                      <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700">{selectedWorkflowDetail.authorLevel}</span>
+                    )}
+                    {selectedWorkflowDetail.authorBadge && (
+                      <span className="text-xs">{selectedWorkflowDetail.authorBadge}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Rating */}
+                {selectedWorkflowDetail.rating && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+                    <span className="font-medium">{selectedWorkflowDetail.rating}</span>
+                    {selectedWorkflowDetail.totalReviews && (
+                      <span className="text-slate-500">({selectedWorkflowDetail.totalReviews})</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Usage count */}
+                {selectedWorkflowDetail.usageCount && (
+                  <div className="flex items-center gap-1">
+                    <span>使用 {selectedWorkflowDetail.usageCount} 次</span>
+                  </div>
+                )}
+
+                {/* Update time */}
+                {selectedWorkflowDetail.updatedAt && (
+                  <div className="flex items-center gap-1">
+                    <span>更新于 {selectedWorkflowDetail.updatedAt}</span>
+                  </div>
+                )}
+              </div>
+            </header>
+
+            {/* Content */}
+            <div className="overflow-y-auto px-6 py-4 space-y-4">
+
+              {/* Examples */}
+              {selectedWorkflowDetail.examples && selectedWorkflowDetail.examples.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-slate-900 mb-2">使用案例</h4>
+                  <div className="space-y-2">
+                    {selectedWorkflowDetail.examples.map((example, index) => (
+                      <div key={index} className="p-3 rounded border border-slate-200 bg-slate-50">
+                        <h5 className="text-xs font-medium text-slate-900 mb-1">{example.title}</h5>
+                        <p className="text-xs text-slate-600">{example.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reviews */}
+              {selectedWorkflowDetail.reviews && selectedWorkflowDetail.reviews.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-slate-900 mb-2">用户评价</h4>
+                  <div className="space-y-2">
+                    {selectedWorkflowDetail.reviews.map((review, index) => (
+                      <div key={index} className="p-3 rounded border border-slate-200 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600">
+                              {review.userName.charAt(0)}
+                            </div>
+                            <div>
+                              <span className="text-xs font-medium text-slate-900">{review.userName}</span>
+                              <span className="text-xs text-slate-500 ml-2">{review.date}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-slate-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-600">{review.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 工作流预览区域 */}
+              {selectedWorkflowDetail.nodes && selectedWorkflowDetail.nodes.length > 0 && (
+                <div className="border-t border-slate-200 pt-4">
+                  <div
+                    className="flex items-center gap-2 mb-3 cursor-pointer"
+                    onClick={() => setShowWorkflowPreview(!showWorkflowPreview)}
+                  >
+                    <h4 className="text-sm font-medium text-slate-700">工作流配置</h4>
+                    <button
+                      className="ml-auto text-slate-400 hover:text-slate-600"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowWorkflowPreview(!showWorkflowPreview)
+                      }}
+                    >
+                      {showWorkflowPreview ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  {showWorkflowPreview && (
+                    <div className="flex gap-4 h-[500px]">
+                    {/* 左侧：节点流程图 */}
+                    <div className="w-1/2 bg-slate-50 rounded border border-slate-200 overflow-y-auto p-4">
+                      <div className="space-y-2">
+                        {selectedWorkflowDetail.nodes.map((node, index) => (
+                          <div key={node.id}>
+                            {/* 节点卡片 */}
+                            <div
+                              onClick={() => {
+                                setSelectedNodeId(node.id)
+                                // 初始化编辑参数
+                                if (!editedNodeParams[node.id]) {
+                                  setEditedNodeParams(prev => ({
+                                    ...prev,
+                                    [node.id]: JSON.parse(JSON.stringify(node.params))
+                                  }))
+                                }
+                              }}
+                              className={cn(
+                                "cursor-pointer rounded border p-3 transition-colors",
+                                selectedNodeId === node.id
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">{node.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="font-medium text-sm text-slate-900 truncate">
+                                    {node.name}
+                                  </h5>
+                                  <p className="text-xs text-slate-500 truncate">{node.description}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 连接线 */}
+                            {index < selectedWorkflowDetail.nodes!.length - 1 && (
+                              <div className="flex justify-center py-1">
+                                <div className="w-0.5 h-3 bg-slate-300"></div>
+                              </div>
+                            )}
+                          </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 右侧：节点详情面板 */}
+                  <div className="w-1/2 bg-white rounded border border-slate-200 overflow-y-auto p-4">
+                    {selectedNodeId ? (
+                      (() => {
+                        const selectedNode = selectedWorkflowDetail.nodes!.find(n => n.id === selectedNodeId)
+                        if (!selectedNode) return null
+
+                        const currentParams = editedNodeParams[selectedNodeId] || selectedNode.params
+
+                        return (
+                          <div className="space-y-3">
+                            {/* 节点标题 */}
+                            <div className="pb-3 border-b border-slate-200">
+                              <h5 className="text-sm font-medium text-slate-900">{selectedNode.name}</h5>
+                              <p className="text-xs text-slate-500 mt-0.5">{selectedNode.description}</p>
+                            </div>
+
+                            {/* 模型选择 */}
+                            <div className="space-y-3">
+                              {currentParams.filter(p => p.name === 'model').map((param, idx) => (
+                                <div key={param.name} className="space-y-1.5">
+                                  <label className="text-xs font-medium text-slate-700">
+                                    {param.label}
+                                  </label>
+
+                                  {/* 根据类型渲染不同的输入组件 */}
+                                  {param.type === 'text' && (
+                                    <input
+                                      type="text"
+                                      value={String(param.value)}
+                                      disabled={!param.editable}
+                                      onChange={(e) => {
+                                        const newParams = [...currentParams]
+                                        newParams[idx] = { ...param, value: e.target.value }
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      }}
+                                      placeholder={param.placeholder}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
+                                    />
+                                  )}
+
+                                  {param.type === 'number' && (
+                                    <input
+                                      type="number"
+                                      value={Number(param.value)}
+                                      disabled={!param.editable}
+                                      onChange={(e) => {
+                                        const newParams = [...currentParams]
+                                        newParams[idx] = { ...param, value: Number(e.target.value) }
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
+                                    />
+                                  )}
+
+                                  {param.type === 'textarea' && (
+                                    <textarea
+                                      value={String(param.value)}
+                                      disabled={!param.editable}
+                                      onChange={(e) => {
+                                        const newParams = [...currentParams]
+                                        newParams[idx] = { ...param, value: e.target.value }
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      }}
+                                      placeholder={param.placeholder}
+                                      rows={3}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white resize-none"
+                                    />
+                                  )}
+
+                                  {param.type === 'select' && (
+                                    <select
+                                      value={String(param.value)}
+                                      disabled={!param.editable}
+                                      onChange={(e) => {
+                                        const newParams = [...currentParams]
+                                        newParams[idx] = { ...param, value: e.target.value }
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      }}
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
+                                    >
+                                      {param.options?.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  {param.type === 'boolean' && (
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(param.value)}
+                                        disabled={!param.editable}
+                                        onChange={(e) => {
+                                          const newParams = [...currentParams]
+                                          newParams[idx] = { ...param, value: e.target.checked }
+                                          setEditedNodeParams(prev => ({
+                                            ...prev,
+                                            [selectedNodeId]: newParams
+                                          }))
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-1 focus:ring-blue-200"
+                                      />
+                                      <span className="text-xs text-slate-600">
+                                        {param.value ? '已启用' : '已禁用'}
+                                      </span>
+                                    </label>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 节点指令 */}
+                            {(() => {
+                              const promptParam = currentParams.find(p => p.name === 'prompt')
+                              const promptValue = promptParam ? String(promptParam.value) : ''
+
+                              return (
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-medium text-slate-700">
+                                    节点指令
+                                  </label>
+                                  <textarea
+                                    value={promptValue}
+                                    onChange={(e) => {
+                                      const paramIdx = currentParams.findIndex(p => p.name === 'prompt')
+                                      if (paramIdx !== -1) {
+                                        // 如果已有 prompt 参数，更新它
+                                        const newParams = [...currentParams]
+                                        newParams[paramIdx] = { ...currentParams[paramIdx], value: e.target.value }
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      } else {
+                                        // 如果没有 prompt 参数，添加一个新的
+                                        const newParams = [
+                                          ...currentParams,
+                                          {
+                                            name: 'prompt',
+                                            label: 'Prompt',
+                                            type: 'textarea' as const,
+                                            value: e.target.value,
+                                            editable: true,
+                                            required: false
+                                          }
+                                        ]
+                                        setEditedNodeParams(prev => ({
+                                          ...prev,
+                                          [selectedNodeId]: newParams
+                                        }))
+                                      }
+                                    }}
+                                    placeholder="请输入节点指令..."
+                                    rows={6}
+                                    className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white resize-none font-mono"
+                                  />
+                                </div>
+                              )
+                            })()}
+
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                        <p className="text-xs">选择左侧节点查看配置</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                )}
+              </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-200 px-6 py-3 flex-shrink-0 bg-slate-50">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    // 临时应用工作流（仅当前会话有效）
+                    sessionStorage.setItem(`workflow_${selectedWorkflowDetail.id}`, JSON.stringify({
+                      nodes: selectedWorkflowDetail.nodes,
+                      editedParams: editedNodeParams,
+                      timestamp: new Date().toISOString()
+                    }))
+
+                    // 添加到实现工具
+                    handleAddWorkflow(selectedWorkflowDetail)
+
+                    // 关闭弹窗
+                    setSelectedWorkflowDetail(null)
+
+                    // 不需要 alert，工作流会出现在实现工具中
+                  }}
+                  className="flex-1 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                >
+                  应用到当前会话
+                </button>
+                <button
+                  onClick={() => {
+                    // 永久保存工作流到工作区
+                    const savedWorkflows = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+                    const workflowId = `workflow-${Date.now()}`
+                    const workflowToSave = {
+                      id: workflowId,
+                      originalId: selectedWorkflowDetail.id,
+                      name: `${selectedWorkflowDetail.title} (副本)`,
+                      nodes: selectedWorkflowDetail.nodes?.map(n => ({ ...n })),
+                      editedParams: JSON.parse(JSON.stringify(editedNodeParams)),
+                      createdAt: new Date().toISOString()
+                    }
+                    savedWorkflows.push(workflowToSave)
+                    localStorage.setItem('savedWorkflows', JSON.stringify(savedWorkflows))
+
+                    // 同时应用到当前会话
+                    sessionStorage.setItem(`workflow_${selectedWorkflowDetail.id}`, JSON.stringify({
+                      nodes: selectedWorkflowDetail.nodes,
+                      editedParams: editedNodeParams,
+                      timestamp: new Date().toISOString()
+                    }))
+
+                    // 创建待添加到工作台画布的卡片信息
+                    const pendingCards = JSON.parse(localStorage.getItem('pendingWorkspaceCards') || '[]')
+                    pendingCards.push({
+                      id: workflowId,
+                      name: workflowToSave.name,
+                      color: '#6366f1', // indigo color
+                      description: selectedWorkflowDetail.description || '自定义工作流',
+                      createdAt: new Date().toISOString()
+                    })
+                    localStorage.setItem('pendingWorkspaceCards', JSON.stringify(pendingCards))
+
+                    // 添加到实现工具
+                    handleAddWorkflow(selectedWorkflowDetail)
+
+                    // 关闭弹窗
+                    setSelectedWorkflowDetail(null)
+                  }}
+                  className="flex-1 px-4 py-2 text-xs font-medium text-blue-600 bg-white hover:bg-blue-50 border border-blue-600 rounded transition-colors"
+                >
+                  保存到我的工作流
+                </button>
+                <button
+                  className="px-4 py-2 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 border border-slate-300 rounded transition-colors"
+                >
+                  收藏
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Portal 渲染的两层选择弹窗 */}
+      {showCategorySelector && workflowToSave && buttonPosition && createPortal(
+        <div
+          className="fixed w-72 rounded-xl bg-white shadow-2xl border-2 border-violet-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[9999]"
+          style={{
+            top: `${buttonPosition.top}px`,
+            left: `${buttonPosition.left}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseLeave={() => {
+            setShowCategorySelector(false)
+            setWorkflowToSave(null)
+            setButtonPosition(null)
+            setSelectedRole(null)
+          }}
+        >
+          {selectedRole === null ? (
+            // 第一层：工作角色选择
+            <>
+              {/* 头部 */}
+              <div className="bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">选择工作角色</h3>
+                    <p className="text-[10px] text-violet-100 mt-0.5">第一步：选择你的角色</p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCategorySelector(false)
+                      setWorkflowToSave(null)
+                      setButtonPosition(null)
+                      setSelectedRole(null)
+                    }}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-all"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 角色列表 */}
+              <div className="max-h-80 overflow-y-auto p-2">
+                {workspaceContainers.map((role) => (
+                  <button
+                    key={role.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedRole(role.id)
+                    }}
+                    className="w-full flex items-start gap-3 px-3 py-3 rounded-lg text-left hover:bg-violet-50 transition-all group border-b border-slate-100 last:border-0"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 shadow-md text-xl flex-shrink-0">
+                      {role.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-slate-900 group-hover:text-violet-600 transition-colors">
+                        {role.name}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                        {role.description}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-violet-600 transition-colors flex-shrink-0 rotate-[-90deg]" />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            // 第二层：具体工作选择
+            <>
+              {/* 头部 */}
+              <div className="bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedRole(null)
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-all flex-shrink-0"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-bold text-white truncate">
+                        {workspaceContainers.find(r => r.id === selectedRole)?.name || ''}
+                      </h3>
+                      <p className="text-[10px] text-violet-100 mt-0.5">第二步：选择具体工作</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCategorySelector(false)
+                      setWorkflowToSave(null)
+                      setButtonPosition(null)
+                      setSelectedRole(null)
+                    }}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-all flex-shrink-0 ml-2"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 具体工作列表 */}
+              <div className="max-h-80 overflow-y-auto p-2">
+                {workspaceContainers.find(r => r.id === selectedRole)?.jobs.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSaveToJob(selectedRole, job.id)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-left hover:bg-violet-50 hover:text-violet-600 transition-all group"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-indigo-500 shadow-sm">
+                      <Plus className="h-3.5 w-3.5 text-white" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700 group-hover:text-violet-600">{job.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {/* 对话历史列表 */}
+      {showSessionList && createPortal(
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 bg-black/20 z-[9998] animate-in fade-in duration-200"
+          onClick={() => setShowSessionList(false)}
+        >
+          <div
+            className="fixed top-24 left-1/2 -translate-x-1/2 w-[500px] max-h-[600px] rounded-2xl bg-white shadow-2xl border-2 border-violet-200 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 z-[9999]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 头部 */}
+            <div className="bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold">对话历史</h3>
+                  <p className="text-sm text-violet-100 mt-1">共 {chatSessions.length} 个对话</p>
+                </div>
+                <button
+                  onClick={() => setShowSessionList(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 对话列表 */}
+            <div className="max-h-[500px] overflow-y-auto p-4 space-y-2">
+              {chatSessions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="rounded-full bg-violet-100 p-4 mb-4">
+                    <MessageSquare className="h-8 w-8 text-violet-600" />
+                  </div>
+                  <p className="text-base font-semibold text-slate-900 mb-2">暂无对话记录</p>
+                  <p className="text-sm text-slate-500">开始新对话来创建记录</p>
+                </div>
+              ) : (
+                chatSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => handleSwitchSession(session.id)}
+                    className={cn(
+                      'group relative rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
+                      session.id === currentSessionId
+                        ? 'border-violet-400 bg-gradient-to-r from-violet-50 to-indigo-50 shadow-md'
+                        : 'border-slate-200 bg-white hover:border-violet-300'
+                    )}
+                  >
+                    {/* 当前会话标识 */}
+                    {session.id === currentSessionId && (
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-lg">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
+                          当前
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 对话标题 */}
+                    <h4 className="text-base font-bold text-slate-900 mb-2 pr-16 line-clamp-1">
+                      {session.title || '未命名对话'}
+                    </h4>
+
+                    {/* 对话信息 */}
+                    <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />
+                        <span>{session.messages?.length || 0} 条消息</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>更新于 {new Date(session.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+
+                    {/* 最后一条消息预览 */}
+                    {session.messages && session.messages.length > 0 && (
+                      <p className="text-sm text-slate-600 line-clamp-2 mb-3">
+                        {session.messages[session.messages.length - 1].content}
+                      </p>
+                    )}
+
+                    {/* 删除按钮 */}
+                    <button
+                      onClick={(e) => handleDeleteSession(session.id, e)}
+                      className="absolute bottom-3 right-3 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-50 hover:scale-110 transition-all"
+                      title="删除对话"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* AI工具详情弹窗 */}
+      {selectedAIToolDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-10 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setSelectedAIToolDetail(null)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <header className="flex items-center justify-between border-b-2 border-slate-200 bg-gradient-to-r from-cyan-50 to-blue-50 px-8 py-6 flex-shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/25 text-2xl">
+                  {selectedAIToolDetail.logo || '🤖'}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-1">{selectedAIToolDetail.name}</h3>
+                  <span className="text-xs font-semibold text-cyan-600 bg-cyan-100 px-2.5 py-1 rounded-md border border-cyan-200">
+                    {selectedAIToolDetail.category}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAIToolDetail(null)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-500 shadow-md transition-all hover:bg-slate-100 hover:text-slate-700 hover:scale-110"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+
+            {/* Content */}
+            <div className="overflow-y-auto px-8 py-6 space-y-6">
+              {/* Description */}
+              <div className="relative p-5 rounded-xl bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 border-2 border-cyan-100 shadow-inner">
+                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500 rounded-l-xl"></div>
+                <p className="text-sm text-slate-700 leading-relaxed font-medium pl-3">{selectedAIToolDetail.description}</p>
+              </div>
+
+              {/* Capabilities */}
+              {selectedAIToolDetail.capabilities && selectedAIToolDetail.capabilities.length > 0 && (
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 mb-3">核心能力</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAIToolDetail.capabilities.map((capability, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 rounded-full border-2 border-cyan-200 bg-white px-3 py-1.5 text-xs font-semibold text-cyan-600"
+                      >
+                        {capability}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Use Cases */}
+              {selectedAIToolDetail.useCases && selectedAIToolDetail.useCases.length > 0 && (
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 mb-3">使用场景</h4>
+                  <div className="space-y-2">
+                    {selectedAIToolDetail.useCases.map((useCase, index) => (
+                      <div key={index} className="flex items-center gap-2 p-3 rounded-lg bg-cyan-50 border border-cyan-100">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500 text-white text-xs font-bold flex-shrink-0">
+                          {index + 1}
+                        </div>
+                        <span className="text-sm text-slate-700 font-medium">{useCase}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prompt */}
+              {selectedAIToolDetail.prompt && (
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 mb-3">工具Prompt</h4>
+                  <div className="relative p-4 rounded-xl bg-cyan-50 border-2 border-cyan-100">
+                    <p className="text-sm text-slate-700 leading-relaxed font-mono">{selectedAIToolDetail.prompt}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t-2 border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50 px-8 py-5 flex-shrink-0">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    handleAddAITool(selectedAIToolDetail)
+                    setSelectedAIToolDetail(null)
+                  }}
+                  className="flex-1 relative overflow-hidden group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg hover:shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-200"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <Plus className="h-5 w-5 relative z-10" />
+                  <span className="relative z-10">添加到工具箱</span>
+                </button>
+                <button
+                  className="relative overflow-hidden group inline-flex items-center justify-center gap-2 rounded-xl border-2 border-rose-300 bg-gradient-to-br from-white to-rose-50 px-6 py-3.5 text-sm font-bold text-rose-600 hover:border-rose-400 hover:shadow-lg hover:shadow-rose-200/50 hover:scale-105 transition-all duration-200"
+                >
+                  <Heart className="h-5 w-5 group-hover:fill-rose-600 transition-all" />
+                  <span>收藏</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default AIChatPage

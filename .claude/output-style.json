@@ -1,0 +1,20 @@
+{
+  "theme": {
+    "primary": "#FF8C42",
+    "secondary": "#FFB84D",
+    "accent": "#FFA726",
+    "success": "#FFD54F",
+    "warning": "#FF9800",
+    "error": "#FF6B6B",
+    "info": "#FFAB40",
+    "muted": "#D4A574"
+  },
+  "syntax": {
+    "keyword": "#FF8C42",
+    "string": "#FFD54F",
+    "number": "#FFA726",
+    "comment": "#B8860B",
+    "function": "#FFB84D",
+    "variable": "#FFAB40"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "workflow-platform",
+  "version": "1.0.0",
+  "description": "一个类似 Coze/Dify 的 AI 工作流平台，允许用户通过可视化界面创建、管理和执行 AI 工作流。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

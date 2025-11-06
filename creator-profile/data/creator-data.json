@@ -1,0 +1,392 @@
+{
+  "profile": {
+    "id": "creator_001",
+    "username": "张小明",
+    "avatar": "https://i.pravatar.cc/200?img=33",
+    "badges": [
+      { "type": "senior", "name": "高级创作者", "icon": "🎖️" },
+      { "type": "verified", "name": "认证专家", "icon": "✓" }
+    ],
+    "bio": "专注于 AI 工具开发与工作流设计，帮助用户提高工作效率",
+    "location": "中国·北京",
+    "timezone": "UTC+8",
+    "joinDate": "2023-01-15",
+    "isOnline": true
+  },
+  "stats": {
+    "worksCount": 42,
+    "totalUses": 125000,
+    "likesCount": 8500,
+    "followersCount": 3200,
+    "followingCount": 450,
+    "avgRating": 4.8
+  },
+  "works": [
+    {
+      "id": "work_001",
+      "title": "编辑动画图片",
+      "description": "为静态图片添加动画效果，输出 GIF 或视频，支持多种动画类型和自定义参数",
+      "coverImage": "https://picsum.photos/400/300?random=1",
+      "rating": 4.8,
+      "usesCount": 15600,
+      "updatedAt": "2024-10-20",
+      "tags": ["图片处理", "动画", "GIF"],
+      "featured": true
+    },
+    {
+      "id": "work_002",
+      "title": "智能抠图工具",
+      "description": "AI 驱动的智能抠图，自动识别主体并去除背景",
+      "coverImage": "https://picsum.photos/400/300?random=2",
+      "rating": 4.9,
+      "usesCount": 28900,
+      "updatedAt": "2024-10-28",
+      "tags": ["图片处理", "AI", "抠图"],
+      "featured": true
+    },
+    {
+      "id": "work_003",
+      "title": "文字转语音工具",
+      "description": "将文本转换为自然流畅的语音，支持多种语言和音色",
+      "coverImage": "https://picsum.photos/400/300?random=3",
+      "rating": 4.7,
+      "usesCount": 12300,
+      "updatedAt": "2024-10-15",
+      "tags": ["语音合成", "TTS", "多语言"],
+      "featured": false
+    },
+    {
+      "id": "work_004",
+      "title": "视频字幕生成器",
+      "description": "自动为视频生成字幕，支持语音识别和时间轴同步",
+      "coverImage": "https://picsum.photos/400/300?random=4",
+      "rating": 4.6,
+      "usesCount": 9800,
+      "updatedAt": "2024-10-10",
+      "tags": ["视频处理", "字幕", "语音识别"],
+      "featured": false
+    },
+    {
+      "id": "work_005",
+      "title": "图片风格迁移",
+      "description": "将艺术风格应用到你的照片上，创造独特的艺术作品",
+      "coverImage": "https://picsum.photos/400/300?random=5",
+      "rating": 4.9,
+      "usesCount": 18700,
+      "updatedAt": "2024-10-25",
+      "tags": ["AI", "艺术", "风格迁移"],
+      "featured": true
+    },
+    {
+      "id": "work_006",
+      "title": "PDF 文档解析",
+      "description": "智能解析 PDF 文档，提取文字、表格和图片",
+      "coverImage": "https://picsum.photos/400/300?random=6",
+      "rating": 4.5,
+      "usesCount": 7600,
+      "updatedAt": "2024-10-05",
+      "tags": ["文档处理", "PDF", "OCR"],
+      "featured": false
+    },
+    {
+      "id": "work_007",
+      "title": "数据可视化大师",
+      "description": "将数据转换为精美的图表和可视化效果",
+      "coverImage": "https://picsum.photos/400/300?random=7",
+      "rating": 4.8,
+      "usesCount": 11200,
+      "updatedAt": "2024-10-18",
+      "tags": ["数据可视化", "图表", "分析"],
+      "featured": false
+    },
+    {
+      "id": "work_008",
+      "title": "代码格式化工具",
+      "description": "自动格式化多种编程语言的代码，提升代码可读性",
+      "coverImage": "https://picsum.photos/400/300?random=8",
+      "rating": 4.7,
+      "usesCount": 14500,
+      "updatedAt": "2024-10-22",
+      "tags": ["开发工具", "代码", "格式化"],
+      "featured": false
+    },
+    {
+      "id": "work_009",
+      "title": "AI 文案生成器",
+      "description": "根据关键词生成高质量营销文案和创意内容",
+      "coverImage": "https://picsum.photos/400/300?random=9",
+      "rating": 4.6,
+      "usesCount": 8900,
+      "updatedAt": "2024-10-12",
+      "tags": ["AI", "文案", "营销"],
+      "featured": false
+    }
+  ],
+  "activities": [
+    {
+      "id": "activity_001",
+      "type": "new_work",
+      "content": "发布了新作品《智能抠图工具》",
+      "timestamp": "2024-10-28T10:30:00Z",
+      "likes": 45,
+      "comments": 12,
+      "icon": "🎉",
+      "link": "#work_002"
+    },
+    {
+      "id": "activity_002",
+      "type": "update",
+      "content": "更新了《图片风格迁移》，新增了10种艺术风格",
+      "timestamp": "2024-10-25T14:20:00Z",
+      "likes": 32,
+      "comments": 8,
+      "icon": "🔄",
+      "link": "#work_005"
+    },
+    {
+      "id": "activity_003",
+      "type": "achievement",
+      "content": "获得了"10万使用"成就徽章",
+      "timestamp": "2024-10-22T09:15:00Z",
+      "likes": 128,
+      "comments": 35,
+      "icon": "🏆",
+      "link": null
+    },
+    {
+      "id": "activity_004",
+      "type": "comment",
+      "content": "回复了用户 @李华 的评论：\"感谢支持！我们会持续优化工具性能\"",
+      "timestamp": "2024-10-20T16:45:00Z",
+      "likes": 15,
+      "comments": 3,
+      "icon": "💬",
+      "link": null
+    },
+    {
+      "id": "activity_005",
+      "type": "tip",
+      "content": "分享了使用技巧：《如何用AI工具快速制作动态海报》",
+      "timestamp": "2024-10-18T11:30:00Z",
+      "likes": 67,
+      "comments": 19,
+      "icon": "💡",
+      "link": null
+    },
+    {
+      "id": "activity_006",
+      "type": "discussion",
+      "content": "参与了话题讨论：#AI工具的未来发展趋势",
+      "timestamp": "2024-10-15T13:20:00Z",
+      "likes": 28,
+      "comments": 11,
+      "icon": "🗨️",
+      "link": null
+    }
+  ],
+  "about": {
+    "introduction": "我是一名 AI 产品设计师，拥有5年的产品开发经验。专注于将人工智能技术转化为易用的工具，帮助普通用户解决实际问题。\n\n我相信优秀的工具应该是简单、高效且令人愉悦的。通过不断学习和实践，我致力于创造能够真正提升用户工作效率的产品。\n\n欢迎与我交流探讨 AI 工具开发、工作流优化等话题！",
+    "expertise": ["AI工具开发", "工作流设计", "图像处理", "自然语言处理", "产品设计", "用户体验"],
+    "skills": [
+      { "name": "Python", "level": 9 },
+      { "name": "AI/ML", "level": 8 },
+      { "name": "UI设计", "level": 7 },
+      { "name": "数据分析", "level": 8 },
+      { "name": "前端开发", "level": 6 },
+      { "name": "产品管理", "level": 8 }
+    ],
+    "experience": [
+      {
+        "company": "AI创新实验室",
+        "position": "高级产品设计师",
+        "period": "2022-至今"
+      },
+      {
+        "company": "数字创意公司",
+        "position": "产品经理",
+        "period": "2020-2022"
+      },
+      {
+        "company": "智能科技有限公司",
+        "position": "初级开发工程师",
+        "period": "2019-2020"
+      }
+    ],
+    "achievements": [
+      {
+        "id": "achievement_001",
+        "badge": "10万使用",
+        "description": "作品总使用量超过10万次",
+        "date": "2024-10-22",
+        "icon": "🎯"
+      },
+      {
+        "id": "achievement_002",
+        "badge": "连续创作30天",
+        "description": "连续30天发布或更新作品",
+        "date": "2024-09-15",
+        "icon": "🔥"
+      },
+      {
+        "id": "achievement_003",
+        "badge": "千人关注",
+        "description": "粉丝数突破1000人",
+        "date": "2024-08-10",
+        "icon": "👥"
+      },
+      {
+        "id": "achievement_004",
+        "badge": "热门创作者",
+        "description": "月度作品使用量排名前10",
+        "date": "2024-07-25",
+        "icon": "⭐"
+      }
+    ],
+    "tools": [
+      { "name": "Python", "icon": "🐍" },
+      { "name": "TensorFlow", "icon": "🧠" },
+      { "name": "Figma", "icon": "🎨" },
+      { "name": "Docker", "icon": "🐳" },
+      { "name": "Git", "icon": "📦" },
+      { "name": "VS Code", "icon": "💻" }
+    ]
+  },
+  "collections": [
+    {
+      "id": "collection_001",
+      "workId": "external_001",
+      "workTitle": "照片修复大师",
+      "workAuthor": "王小红",
+      "workCover": "https://picsum.photos/400/300?random=20",
+      "note": "很实用的工作流，值得学习其中的算法实现",
+      "collectedAt": "2024-10-15",
+      "category": "工作流",
+      "tags": ["图片处理", "修复", "AI"]
+    },
+    {
+      "id": "collection_002",
+      "workId": "external_002",
+      "workTitle": "视频剪辑助手",
+      "workAuthor": "李明",
+      "workCover": "https://picsum.photos/400/300?random=21",
+      "note": "UI设计很赞，用户体验流畅",
+      "collectedAt": "2024-10-10",
+      "category": "AI工具",
+      "tags": ["视频处理", "剪辑", "自动化"]
+    },
+    {
+      "id": "collection_003",
+      "workId": "external_003",
+      "workTitle": "AI提示词优化器",
+      "workAuthor": "陈晨",
+      "workCover": "https://picsum.photos/400/300?random=22",
+      "note": "对我的文案生成工具很有启发",
+      "collectedAt": "2024-10-05",
+      "category": "教程",
+      "tags": ["AI", "提示词", "优化"]
+    }
+  ],
+  "followers": [
+    {
+      "id": "user_001",
+      "username": "李华",
+      "avatar": "https://i.pravatar.cc/100?img=1",
+      "bio": "设计师 | 创意工作者",
+      "isFollowing": true
+    },
+    {
+      "id": "user_002",
+      "username": "王芳",
+      "avatar": "https://i.pravatar.cc/100?img=5",
+      "bio": "产品经理",
+      "isFollowing": false
+    },
+    {
+      "id": "user_003",
+      "username": "张伟",
+      "avatar": "https://i.pravatar.cc/100?img=12",
+      "bio": "AI 爱好者",
+      "isFollowing": true
+    }
+  ],
+  "following": [
+    {
+      "id": "creator_002",
+      "username": "刘小红",
+      "avatar": "https://i.pravatar.cc/100?img=9",
+      "bio": "视频创作专家",
+      "isFollowing": true
+    },
+    {
+      "id": "creator_003",
+      "username": "赵强",
+      "avatar": "https://i.pravatar.cc/100?img=15",
+      "bio": "数据可视化达人",
+      "isFollowing": true
+    }
+  ],
+  "similarCreators": [
+    {
+      "id": "creator_004",
+      "username": "周敏",
+      "avatar": "https://i.pravatar.cc/100?img=20",
+      "bio": "专注图像处理与AI应用",
+      "followersCount": 2800,
+      "isFollowing": false
+    },
+    {
+      "id": "creator_005",
+      "username": "吴磊",
+      "avatar": "https://i.pravatar.cc/100?img=25",
+      "bio": "工作流自动化专家",
+      "followersCount": 3500,
+      "isFollowing": false
+    },
+    {
+      "id": "creator_006",
+      "username": "郑丽",
+      "avatar": "https://i.pravatar.cc/100?img=30",
+      "bio": "AI工具开发者",
+      "followersCount": 4200,
+      "isFollowing": true
+    }
+  ],
+  "charts": {
+    "categoryDistribution": {
+      "工作流": 18,
+      "AI工具": 15,
+      "模板": 6,
+      "其他": 3
+    },
+    "monthlyPublications": [
+      { "month": "2023-11", "count": 2 },
+      { "month": "2023-12", "count": 3 },
+      { "month": "2024-01", "count": 4 },
+      { "month": "2024-02", "count": 3 },
+      { "month": "2024-03", "count": 5 },
+      { "month": "2024-04", "count": 4 },
+      { "month": "2024-05", "count": 6 },
+      { "month": "2024-06", "count": 3 },
+      { "month": "2024-07", "count": 4 },
+      { "month": "2024-08", "count": 2 },
+      { "month": "2024-09", "count": 3 },
+      { "month": "2024-10", "count": 3 }
+    ],
+    "followersGrowth": [
+      { "month": "2024-05", "count": 1200 },
+      { "month": "2024-06", "count": 1500 },
+      { "month": "2024-07", "count": 1900 },
+      { "month": "2024-08", "count": 2300 },
+      { "month": "2024-09", "count": 2800 },
+      { "month": "2024-10", "count": 3200 }
+    ],
+    "usageTrend": [
+      { "month": "2024-05", "count": 45000 },
+      { "month": "2024-06", "count": 62000 },
+      { "month": "2024-07", "count": 78000 },
+      { "month": "2024-08", "count": 89000 },
+      { "month": "2024-09", "count": 105000 },
+      { "month": "2024-10", "count": 125000 }
+    ]
+  }
+}

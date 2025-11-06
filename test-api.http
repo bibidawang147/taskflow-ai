@@ -1,0 +1,49 @@
+### 测试后端 API
+### 你可以用 VS Code 的 REST Client 插件运行这些请求
+### 或者直接复制到 Postman 中测试
+
+### 1. 健康检查
+GET http://localhost:8000/health
+
+### 2. 用户注册
+POST http://localhost:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "123456",
+  "name": "测试用户"
+}
+
+### 3. 用户登录（先运行注册，然后运行这个）
+POST http://localhost:8000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "123456"
+}
+
+### 保存返回的 token，用于下面的请求
+### 把下面的 YOUR_TOKEN 替换成登录返回的 token
+
+### 4. 获取当前用户信息
+GET http://localhost:8000/api/auth/profile
+Authorization: Bearer YOUR_TOKEN
+
+### 5. 获取工作流列表
+GET http://localhost:8000/api/workflows
+
+### 6. 创建工作流
+POST http://localhost:8000/api/workflows
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+
+{
+  "title": "我的第一个工作流",
+  "description": "这是一个测试工作流",
+  "config": {
+    "nodes": [],
+    "edges": []
+  }
+}

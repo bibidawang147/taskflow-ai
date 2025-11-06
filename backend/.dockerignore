@@ -1,0 +1,57 @@
+# Node modules
+node_modules
+npm-debug.log
+yarn-error.log
+
+# 环境变量（安全）
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# 构建产物
+dist
+
+# 开发工具
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 测试
+coverage
+*.test.ts
+*.spec.ts
+test
+tests
+
+# 日志
+logs
+*.log
+
+# OS 文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+tmp
+
+# 数据库文件（开发用）
+*.db
+*.db-journal
+
+# 文档
+README.md
+docs
+*.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# 调试文件
+*.map

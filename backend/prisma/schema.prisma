@@ -1,0 +1,389 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // 开发环境可选使用 SQLite
+  // provider = "sqlite"
+  // url      = "file:./dev.db"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  password    String
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 用户创建的工作流
+  workflows   Workflow[]
+
+  // 工作流执行历史
+  executions  WorkflowExecution[]
+
+  // 评论
+  comments    Comment[]
+
+  // 评分
+  ratings     Rating[]
+
+  // 收藏的工作流
+  favorites   Favorite[]
+
+  // 工作项使用记录
+  workItemUsage WorkItemUsage[]
+
+  // 用户积分和余额
+  balance       UserBalance?
+
+  // 使用日志
+  usageLogs     UsageLog[]
+
+  // 充值订单
+  rechargeOrders RechargeOrder[]
+
+  // 用户等级
+  tier          String   @default("free") // free, pro, enterprise
+
+  // 工作台布局
+  workspaceLayout WorkspaceLayout?
+
+  @@map("users")
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  thumbnail   String?
+  isPublic    Boolean  @default(false)
+  isTemplate  Boolean  @default(false)
+  isDraft     Boolean  @default(true)  // 是否为草稿
+  category    String?
+  tags        String?   // 使用逗号分隔的字符串存储标签
+
+  // 工作流配置（JSON格式存储节点和连接信息）
+  config      Json
+
+  // 版本控制
+  version     String   @default("1.0.0")
+
+  // 使用统计
+  usageCount  Int      @default(0)     // 使用次数
+  rating      Float?                   // 平均评分（1-5分）
+
+  // 原始来源信息（用于逆向生成工作流功能）
+  sourceType     String?  // 'url' | 'text' | 'image' | 'video' | 'pdf' | 'ppt' | 'code' | null
+  sourceUrl      String?  // 如果是从URL生成，保存原始URL
+  sourceContent  String?  // 文本内容或Base64编码的小文件
+  sourceFilePath String?  // 本地文件存储路径（用于较大文件）
+  sourceTitle    String?  // 原始标题或文件名
+  sourceMeta     Json?    // 元数据：{ fileType, fileSize, dimensions, duration, etc. }
+
+  // 示例执行数据（帮助用户理解工作流如何使用）
+  exampleInput  Json?    // 示例输入数据
+  exampleOutput Json?    // 示例输出结果
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 作者
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // 工作流节点
+  nodes       WorkflowNode[]
+
+  // 执行历史
+  executions  WorkflowExecution[]
+
+  // 评论
+  comments    Comment[]
+
+  // 评分
+  ratings     Rating[]
+
+  // 收藏
+  favorites   Favorite[]
+
+  @@map("workflows")
+}
+
+model WorkflowNode {
+  id          String   @id @default(cuid())
+  type        String   // input, llm, tool, condition, output
+  label       String
+  position    Json     // 节点在编辑器中的位置
+  config      Json     // 节点配置
+  
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workflow_nodes")
+}
+
+model WorkflowExecution {
+  id          String   @id @default(cuid())
+  status      String   // pending, running, completed, failed
+  input       Json?    // 输入数据
+  output      Json?    // 输出数据
+  error       String?  // 错误信息
+  duration    Int?     // 执行时长(毫秒)
+  progress    String?  // 当前执行进度（当前节点ID或描述）
+  nodeResults Json?    // 每个节点的执行结果 { nodeId: result }
+
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id])
+
+  // 执行步骤详情
+  steps       ExecutionStep[]
+
+  @@map("workflow_executions")
+}
+
+model ExecutionStep {
+  id          String   @id @default(cuid())
+  stepIndex   Int      // 步骤序号
+  nodeId      String   // 对应的节点ID
+  nodeType    String   // 节点类型
+  status      String   // pending, running, completed, failed
+  input       Json?    // 该步骤的输入
+  output      Json?    // 该步骤的输出
+  error       String?  // 错误信息
+  duration    Int?     // 执行时长(毫秒)
+  
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  executionId String
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("execution_steps")
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  icon        String?
+  
+  // 工具配置schema
+  configSchema Json
+  
+  // API配置
+  apiConfig   Json?
+  
+  isBuiltIn   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tools")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  // 回复功能
+  parentId    String?
+  parent      Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Rating {
+  id          String   @id @default(cuid())
+  score       Int      // 1-5分
+  review      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  // 确保一个用户只能对一个工作流评分一次
+  @@unique([userId, workflowId])
+  @@map("ratings")
+}
+
+model Favorite {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  // 确保一个用户只能收藏一个工作流一次
+  @@unique([userId, workflowId])
+  @@map("favorites")
+}
+
+// 工作项（日常工作功能）
+model WorkItem {
+  id          String   @id @default(cuid())
+  name        String   // 工作项名称，如 "文章撰写"
+  icon        String   // 图标，如 "📝"
+  category    String   // 分类，如 "text"
+  description String?  // 描述
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 使用记录
+  usageStats  WorkItemUsage[]
+
+  @@map("work_items")
+}
+
+// 工作项使用记录
+model WorkItemUsage {
+  id          String   @id @default(cuid())
+  userId      String
+  workItemId  String
+  usedAt      DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workItem    WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workItemId, usedAt])
+  @@map("work_item_usage")
+}
+
+// 用户积分余额
+model UserBalance {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  coins         Int      @default(0)      // 积分余额（1000 coins = 1 元）
+  freeQuota     Int      @default(10000)  // 每日免费额度
+  usedToday     Int      @default(0)      // 今日已用
+  quotaResetAt  DateTime                  // 额度重置时间
+  totalRecharged Float   @default(0)      // 累计充值金额
+  totalConsumed  Int     @default(0)      // 累计消耗积分
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_balance")
+}
+
+// AI 使用日志
+model UsageLog {
+  id            String   @id @default(cuid())
+  userId        String
+  workflowId    String?
+  executionId   String?  // 关联到工作流执行
+  provider      String   // 'openai', 'anthropic', 'doubao', 'qwen', 'zhipu'
+  model         String   // 'gpt-4o', 'claude-3.5-sonnet', 'doubao-pro'
+  inputTokens   Int
+  outputTokens  Int
+  totalTokens   Int
+  cost          Int      // 花费的积分
+  requestType   String   // 'chat', 'embedding', 'image'
+  status        String   // 'success', 'failed'
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([workflowId, createdAt])
+  @@map("usage_logs")
+}
+
+// 充值订单
+model RechargeOrder {
+  id            String   @id @default(cuid())
+  userId        String
+  orderNo       String   @unique  // 订单号
+  amount        Float    // 充值金额（人民币）
+  coins         Int      // 获得的积分
+  bonusCoins    Int      @default(0)  // 赠送的积分
+  status        String   // 'pending', 'success', 'failed', 'refunded'
+  paymentMethod String?  // 'wechat', 'alipay', 'stripe'
+  paymentId     String?  // 第三方支付ID
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([orderNo])
+  @@map("recharge_orders")
+}
+
+// 模型定价配置
+model ModelPricing {
+  id            String   @id @default(cuid())
+  provider      String   // 'openai', 'anthropic', 'doubao', 'qwen', 'zhipu'
+  modelId       String   // 模型ID，如 'gpt-4o'
+  modelName     String   // 显示名称，如 'GPT-4o'
+  description   String?  // 模型描述
+  inputPrice    Int      // 每1K tokens 输入价格（积分）
+  outputPrice   Int      // 每1K tokens 输出价格（积分）
+  category      String   // 'text', 'image', 'embedding'
+  maxTokens     Int?     // 最大token数
+  features      Json?    // 特性说明，如 {vision: true, functionCalling: true}
+  isActive      Boolean  @default(true)
+  allowedTiers  String   @default("free,pro,enterprise") // 允许使用的用户等级
+  sortOrder     Int      @default(0)  // 排序
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, modelId])
+  @@index([isActive, category])
+  @@map("model_pricing")
+}
+
+// 工作台布局配置
+model WorkspaceLayout {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  layout      Json     // 存储卡片布局配置
+  zoom        Float    @default(1.0)  // 缩放比例
+  snapshot    Json?    // 完整的工作台状态快照
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_layouts")
+}

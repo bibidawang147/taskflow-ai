@@ -1,0 +1,245 @@
+### AI 积分系统 API 测试
+### 使用 VS Code REST Client 插件运行
+
+@baseUrl = http://localhost:5000/api
+@token = YOUR_JWT_TOKEN_HERE
+
+### ==================== 用户认证 ====================
+
+### 1. 注册新用户（会自动获得 50000 积分）
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "测试用户",
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### 2. 登录
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### ==================== 积分管理 ====================
+
+### 3. 获取用户余额
+GET {{baseUrl}}/credit/balance
+Authorization: Bearer {{token}}
+
+### 4. 获取使用统计（最近7天）
+GET {{baseUrl}}/credit/usage-stats?days=7
+Authorization: Bearer {{token}}
+
+### 5. 获取充值套餐
+GET {{baseUrl}}/credit/plans
+Authorization: Bearer {{token}}
+
+### 6. 创建充值订单（充值 50 元）
+POST {{baseUrl}}/credit/recharge
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "amount": 50,
+  "paymentMethod": "wechat"
+}
+
+### 7. 模拟支付回调（测试用，实际生产环境需要验证签名）
+POST {{baseUrl}}/credit/payment-callback
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "orderNo": "YOUR_ORDER_NO_HERE",
+  "paymentId": "wx_payment_123456"
+}
+
+### 8. 升级到 Pro 会员
+POST {{baseUrl}}/credit/upgrade-tier
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "tier": "pro"
+}
+
+### ==================== AI 服务 ====================
+
+### 9. 获取可用模型列表
+GET {{baseUrl}}/ai/models
+Authorization: Bearer {{token}}
+
+### 10. AI 对话 - GPT-4o Mini（免费用户可用）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，请用一句话介绍你自己"
+    }
+  ],
+  "temperature": 0.7,
+  "maxTokens": 100
+}
+
+### 11. AI 对话 - Claude 3.5 Haiku（免费用户可用）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "anthropic",
+  "model": "claude-3-5-haiku-20241022",
+  "messages": [
+    {
+      "role": "user",
+      "content": "解释一下什么是量子计算"
+    }
+  ],
+  "temperature": 0.7,
+  "maxTokens": 200
+}
+
+### 12. AI 对话 - 豆包 Pro（免费用户可用）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "doubao",
+  "model": "doubao-pro-32k",
+  "messages": [
+    {
+      "role": "user",
+      "content": "帮我写一首关于春天的诗"
+    }
+  ],
+  "temperature": 0.9,
+  "maxTokens": 300
+}
+
+### 13. AI 对话 - GPT-4o（需要 Pro 会员）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "user",
+      "content": "分析一下 2024 年人工智能的发展趋势"
+    }
+  ],
+  "temperature": 0.7,
+  "maxTokens": 500
+}
+
+### 14. AI 对话 - 带工作流信息
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "帮我生成一个产品介绍"
+    }
+  ],
+  "workflowId": "workflow_abc123",
+  "executionId": "execution_def456",
+  "temperature": 0.8,
+  "maxTokens": 400
+}
+
+### 15. 测试 AI 连接
+POST {{baseUrl}}/ai/test-connection
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai"
+}
+
+### ==================== 工作流测试 ====================
+
+### 16. 多轮对话示例
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "我想开一家咖啡店"
+    },
+    {
+      "role": "assistant",
+      "content": "开咖啡店是个不错的想法！需要考虑选址、装修、设备采购等..."
+    },
+    {
+      "role": "user",
+      "content": "帮我列一个启动资金预算清单"
+    }
+  ],
+  "temperature": 0.7,
+  "maxTokens": 600
+}
+
+### ==================== 错误测试 ====================
+
+### 17. 测试积分不足（将 maxTokens 设得很大）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "user",
+      "content": "写一篇10000字的论文"
+    }
+  ],
+  "maxTokens": 10000
+}
+
+### 18. 测试等级限制（免费用户调用高级模型）
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "anthropic",
+  "model": "claude-3-opus-20240229",
+  "messages": [
+    {
+      "role": "user",
+      "content": "测试"
+    }
+  ]
+}
+
+### ==================== 管理接口 ====================
+
+### 19. 获取用户资料（含会员等级）
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{token}}

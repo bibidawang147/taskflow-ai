@@ -1,0 +1,700 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { exploreThemes } from '../data/exploreThemes'
+import { popularWorkPackages } from '../data/popularWorkPackages'
+import { WorkPackage } from '../types/workPackage'
+import PopularWorkPackageCard from '../components/PopularWorkPackageCard'
+import WorkPackageDetailModal from '../components/WorkPackageDetailModal'
+import WorkPackageImportModal from '../components/WorkPackageImportModal'
+
+export default function ExplorePage() {
+  const navigate = useNavigate()
+  const [selectedPackageForDetail, setSelectedPackageForDetail] = useState<WorkPackage | null>(null)
+  const [selectedPackageForImport, setSelectedPackageForImport] = useState<WorkPackage | null>(null)
+
+  // 创作者排行榜
+  const creatorsRanking = [
+    { rank: 1, name: 'AI工作流大师', avatar: '👨‍💼', workflows: 156, followers: 12500, trend: 'up' },
+    { rank: 2, name: '效率提升专家', avatar: '👩‍💻', workflows: 142, followers: 10200, trend: 'up' },
+    { rank: 3, name: '自媒体老司机', avatar: '🧑‍🎨', workflows: 128, followers: 9800, trend: 'same' },
+    { rank: 4, name: '数据分析师张三', avatar: '📊', workflows: 115, followers: 8600, trend: 'down' },
+    { rank: 5, name: '电商运营达人', avatar: '🛍️', workflows: 98, followers: 7500, trend: 'up' },
+    { rank: 6, name: '一人公司创始人', avatar: '🚀', workflows: 87, followers: 6900, trend: 'up' },
+    { rank: 7, name: '产品经理小李', avatar: '💼', workflows: 76, followers: 5800, trend: 'same' },
+    { rank: 8, name: 'AI应用开发者', avatar: '🤖', workflows: 69, followers: 5200, trend: 'up' },
+    { rank: 9, name: '内容创作者王五', avatar: '✍️', workflows: 61, followers: 4700, trend: 'down' },
+    { rank: 10, name: '营销策划专家', avatar: '📢', workflows: 54, followers: 4100, trend: 'same' }
+  ]
+
+  // 工作流排行榜
+  const workflowsRanking = [
+    { rank: 1, name: '公众号爆款文章生成器', uses: 25600, likes: 8900, author: 'AI工作流大师', category: '自媒体', trend: 'up' },
+    { rank: 2, name: '智能客服机器人', uses: 22100, likes: 7800, author: '电商运营达人', category: '电商', trend: 'up' },
+    { rank: 3, name: '视频脚本一键生成', uses: 19800, likes: 7200, author: '自媒体老司机', category: '自媒体', trend: 'same' },
+    { rank: 4, name: 'AI去痕迹内容优化', uses: 18500, likes: 6700, author: 'AI工作流大师', category: '内容创作', trend: 'up' },
+    { rank: 5, name: '数据可视化报表', uses: 16200, likes: 6100, author: '数据分析师张三', category: '数据分析', trend: 'down' },
+    { rank: 6, name: '会议纪要自动生成', uses: 14900, likes: 5600, author: '效率提升专家', category: '工作效率', trend: 'up' },
+    { rank: 7, name: '小红书种草文案', uses: 13700, likes: 5300, author: '自媒体老司机', category: '自媒体', trend: 'up' },
+    { rank: 8, name: '竞品分析助手', uses: 12400, likes: 4900, author: '产品经理小李', category: '商业分析', trend: 'same' },
+    { rank: 9, name: '抖音短视频脚本', uses: 11800, likes: 4600, author: '内容创作者王五', category: '自媒体', trend: 'up' },
+    { rank: 10, name: '邮件智能分类', uses: 10500, likes: 4200, author: '效率提升专家', category: '工作效率', trend: 'down' }
+  ]
+
+  // AI工具排行榜
+  const toolsRanking = [
+    { rank: 1, name: 'ChatGPT-4', uses: 156000, rating: 4.9, category: 'AI对话', provider: 'OpenAI', trend: 'up' },
+    { rank: 2, name: 'Midjourney', uses: 142000, rating: 4.8, category: '图像生成', provider: 'Midjourney', trend: 'up' },
+    { rank: 3, name: 'Claude 3', uses: 128000, rating: 4.9, category: 'AI助手', provider: 'Anthropic', trend: 'up' },
+    { rank: 4, name: 'Stable Diffusion', uses: 115000, rating: 4.7, category: '图像生成', provider: 'Stability AI', trend: 'same' },
+    { rank: 5, name: 'GitHub Copilot', uses: 98000, rating: 4.8, category: '代码助手', provider: 'GitHub', trend: 'up' },
+    { rank: 6, name: 'Notion AI', uses: 87000, rating: 4.6, category: '写作助手', provider: 'Notion', trend: 'down' },
+    { rank: 7, name: 'Runway ML', uses: 76000, rating: 4.7, category: '视频编辑', provider: 'Runway', trend: 'up' },
+    { rank: 8, name: 'Jasper AI', uses: 69000, rating: 4.5, category: '营销文案', provider: 'Jasper', trend: 'same' },
+    { rank: 9, name: 'Grammarly', uses: 61000, rating: 4.8, category: '写作助手', provider: 'Grammarly', trend: 'up' },
+    { rank: 10, name: 'DeepL', uses: 54000, rating: 4.9, category: '翻译工具', provider: 'DeepL', trend: 'up' }
+  ]
+
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case 'up': return '📈'
+      case 'down': return '📉'
+      default: return '➖'
+    }
+  }
+
+  const getTrendColor = (trend: string) => {
+    switch (trend) {
+      case 'up': return '#10b981'
+      case 'down': return '#ef4444'
+      default: return '#6b7280'
+    }
+  }
+
+  const handleViewDetails = (pkg: WorkPackage) => {
+    setSelectedPackageForDetail(pkg)
+  }
+
+  const handleImportClick = (pkg: WorkPackage) => {
+    setSelectedPackageForImport(pkg)
+  }
+
+  const handleConfirmImport = (targetModule: string) => {
+    if (selectedPackageForImport) {
+      // 这里可以实现实际的导入逻辑，比如保存到 localStorage 或发送到后端
+      console.log(`导入工作包 ${selectedPackageForImport.name} 到模块 ${targetModule}`)
+      alert(`成功导入「${selectedPackageForImport.name}」到「${targetModule}」模块！\n\n请前往「我的工作台」查看。`)
+      setSelectedPackageForImport(null)
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+      {/* 页面标题 */}
+      <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
+        <h1 style={{
+          fontSize: '2.5rem',
+          fontWeight: '700',
+          background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          marginBottom: '0.5rem'
+        }}>
+          探索工作流世界
+        </h1>
+        <p style={{ fontSize: '1.125rem', color: '#6b7280' }}>
+          发现优质工作流、学习最佳实践、提升工作效率
+        </p>
+      </div>
+
+      {/* 排行榜区域 - 三列并排展示 */}
+      <div style={{ marginBottom: '3rem' }}>
+        <h2 style={{
+          fontSize: '1.5rem',
+          fontWeight: '600',
+          color: '#1f2937',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>🏆</span>
+          热门排行榜
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '1.5rem'
+        }}>
+          {/* 工作流排行榜 */}
+          <div style={{
+            <div
+              key={theme.id}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '16px',
+                border: '1px solid #e5e7eb',
+                padding: '1.5rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                transition: 'all 0.3s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = `0 8px 32px ${theme.color}20`
+                e.currentTarget.style.transform = 'translateY(-2px)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }}
+            >
+              {/* 主题头部 */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                  <div style={{
+                    width: '56px',
+                    height: '56px',
+                    backgroundColor: `${theme.color}15`,
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '28px'
+                  }}>
+                    {theme.icon}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{
+                      fontSize: '1.25rem',
+                      fontWeight: '600',
+                      color: '#1f2937',
+                      margin: '0 0 0.25rem 0'
+                    }}>
+                      {theme.name}
+                    </h3>
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      margin: 0
+                    }}>
+                      {theme.description}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/explore/theme/${theme.id}`)}
+                  style={{
+                    border: 'none',
+                    backgroundColor: `${theme.color}10`,
+                    color: theme.color,
+                    padding: '0.35rem 0.9rem',
+                    borderRadius: '999px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${theme.color}20`
+                    e.currentTarget.style.transform = 'translateX(2px)'
+                    e.currentTarget.style.boxShadow = `0 6px 18px ${theme.color}25`
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = `${theme.color}10`
+                    e.currentTarget.style.transform = 'translateX(0)'
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.08)'
+                  }}
+                >
+                  更多
+                  <span style={{ fontSize: '14px' }}>→</span>
+                </button>
+              </div>
+
+              {/* 子分类网格 */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '0.75rem'
+              }}>
+                {theme.subcategories.map(sub => (
+                  <div
+                    key={sub.id}
+                    onClick={() => navigate(`/explore/theme/${theme.id}?focus=${sub.id}`)}
+                    style={{
+                      padding: '0.75rem',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = `${theme.color}10`
+                      e.currentTarget.style.transform = 'scale(1.02)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f9fafb'
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '18px' }}>{sub.icon}</span>
+                      <span style={{ fontSize: '14px', fontWeight: '500', color: '#1f2937' }}>
+                        {sub.name}
+                      </span>
+                    </div>
+                    <span style={{
+                      fontSize: '12px',
+                      color: theme.color,
+                      fontWeight: '600',
+                      backgroundColor: `${theme.color}15`,
+                      padding: '2px 8px',
+                      borderRadius: '12px'
+                    }}>
+                      {sub.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 爆款工作包区域 */}
+      <div style={{ marginBottom: '3rem' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1.5rem'
+        }}>
+          <h2 style={{
+            fontSize: '1.5rem',
+            fontWeight: '600',
+            color: '#1f2937',
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <span>🔥</span>
+            爆款工作包
+            <span style={{
+              fontSize: '12px',
+              fontWeight: '500',
+              color: '#ef4444',
+              backgroundColor: '#fee2e2',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              marginLeft: '0.5rem'
+            }}>
+              HOT
+            </span>
+          </h2>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>
+            精选优质工作包，一键导入到你的工作台
+          </p>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+          gap: '1.5rem'
+        }}>
+          {popularWorkPackages.slice(0, 6).map(pkg => (
+            <PopularWorkPackageCard
+              key={pkg.id}
+              workPackage={pkg}
+              onViewDetails={handleViewDetails}
+              onImport={handleImportClick}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 主题分类区域 */}
+      <div style={{ marginBottom: '3rem' }}>
+        <h2 style={{
+          fontSize: '1.5rem',
+          fontWeight: '600',
+          color: '#1f2937',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>🏆</span>
+          热门排行榜
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '1.5rem'
+        }}>
+          {/* 工作流排行榜 */}
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          }}>
+            {/* 标题 */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '2px solid #f3f4f6',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              color: 'white'
+            }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>🔥</span>
+                工作流排行
+              </div>
+            </div>
+
+            {/* 列表 */}
+            <div>
+              {workflowsRanking.slice(0, 5).map((item, index) => (
+                <div
+                  key={item.rank}
+                  onClick={() => navigate(`/workflow/${item.rank}`)}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderBottom: index < 4 ? '1px solid #f3f4f6' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'white'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    {/* 排名 */}
+                    <div style={{
+                      minWidth: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      backgroundColor: item.rank <= 3 ? '#fef3c7' : '#f3f4f6',
+                      color: item.rank <= 3 ? '#92400e' : '#6b7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: '700'
+                    }}>
+                      {item.rank <= 3 ? ['🥇', '🥈', '🥉'][item.rank - 1] : item.rank}
+                    </div>
+
+                    {/* 工作流信息 */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1f2937',
+                        marginBottom: '0.25rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '0.25rem' }}>
+                        by {item.author}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '11px', color: '#9ca3af' }}>
+                        <span>📊 {(item.uses / 1000).toFixed(1)}k 使用</span>
+                        <span>❤️ {(item.likes / 1000).toFixed(1)}k</span>
+                        <span style={{ color: getTrendColor(item.trend) }}>
+                          {getTrendIcon(item.trend)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 查看更多 */}
+            <div style={{
+              padding: '0.75rem',
+              textAlign: 'center',
+              borderTop: '1px solid #f3f4f6',
+              backgroundColor: '#fafafa'
+            }}>
+              <button style={{
+                fontSize: '13px',
+                color: '#8b5cf6',
+                fontWeight: '600',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer'
+              }}>
+                查看完整榜单 →
+              </button>
+            </div>
+          </div>
+
+          {/* 创作者排行榜 */}
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          }}>
+            {/* 标题 */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '2px solid #f3f4f6',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: 'white'
+            }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>👑</span>
+                创作者排行
+              </div>
+            </div>
+
+            {/* 列表 */}
+            <div>
+              {creatorsRanking.slice(0, 5).map((item, index) => (
+                <div
+                  key={item.rank}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderBottom: index < 4 ? '1px solid #f3f4f6' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'white'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {/* 排名 */}
+                    <div style={{
+                      minWidth: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      backgroundColor: item.rank <= 3 ? '#fef3c7' : '#f3f4f6',
+                      color: item.rank <= 3 ? '#92400e' : '#6b7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: '700'
+                    }}>
+                      {item.rank <= 3 ? ['🥇', '🥈', '🥉'][item.rank - 1] : item.rank}
+                    </div>
+
+                    {/* 头像 */}
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ddd6fe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      flexShrink: 0
+                    }}>
+                      {item.avatar}
+                    </div>
+
+                    {/* 创作者信息 */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1f2937',
+                        marginBottom: '0.25rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '11px', color: '#9ca3af' }}>
+                        <span>📝 {item.workflows} 工作流</span>
+                        <span>👥 {(item.followers / 1000).toFixed(1)}k</span>
+                        <span style={{ color: getTrendColor(item.trend) }}>
+                          {getTrendIcon(item.trend)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 查看更多 */}
+            <div style={{
+              padding: '0.75rem',
+              textAlign: 'center',
+              borderTop: '1px solid #f3f4f6',
+              backgroundColor: '#fafafa'
+            }}>
+              <button style={{
+                fontSize: '13px',
+                color: '#10b981',
+                fontWeight: '600',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer'
+              }}>
+                查看完整榜单 →
+              </button>
+            </div>
+          </div>
+
+          {/* AI工具排行榜 */}
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          }}>
+            {/* 标题 */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '2px solid #f3f4f6',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: 'white'
+            }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>🤖</span>
+                AI工具排行
+              </div>
+            </div>
+
+            {/* 列表 */}
+            <div>
+              {toolsRanking.slice(0, 5).map((item, index) => (
+                <div
+                  key={item.rank}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderBottom: index < 4 ? '1px solid #f3f4f6' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'white'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                    {/* 排名 */}
+                    <div style={{
+                      minWidth: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      backgroundColor: item.rank <= 3 ? '#fef3c7' : '#f3f4f6',
+                      color: item.rank <= 3 ? '#92400e' : '#6b7280',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: '700'
+                    }}>
+                      {item.rank <= 3 ? ['🥇', '🥈', '🥉'][item.rank - 1] : item.rank}
+                    </div>
+
+                    {/* 工具信息 */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#1f2937',
+                        marginBottom: '0.25rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '0.25rem' }}>
+                        {item.provider}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '11px', color: '#9ca3af' }}>
+                        <span>⭐ {item.rating}</span>
+                        <span>📊 {(item.uses / 1000).toFixed(0)}k</span>
+                        <span style={{ color: getTrendColor(item.trend) }}>
+                          {getTrendIcon(item.trend)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 查看更多 */}
+            <div style={{
+              padding: '0.75rem',
+              textAlign: 'center',
+              borderTop: '1px solid #f3f4f6',
+              backgroundColor: '#fafafa'
+            }}>
+              <button style={{
+                fontSize: '13px',
+                color: '#3b82f6',
+                fontWeight: '600',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer'
+              }}>
+                查看完整榜单 →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 工作包详情弹窗 */}
+      {selectedPackageForDetail && (
+        <WorkPackageDetailModal
+          workPackage={selectedPackageForDetail}
+          onClose={() => setSelectedPackageForDetail(null)}
+          onImport={(pkg) => {
+            setSelectedPackageForDetail(null)
+            handleImportClick(pkg)
+          }}
+        />
+      )}
+
+      {/* 导入选择位置弹窗 */}
+      {selectedPackageForImport && (
+        <WorkPackageImportModal
+          workPackage={selectedPackageForImport}
+          onClose={() => setSelectedPackageForImport(null)}
+          onConfirm={handleConfirmImport}
+        />
+      )}
+    </div>
+  )
+}

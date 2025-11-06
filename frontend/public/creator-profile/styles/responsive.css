@@ -1,0 +1,730 @@
+/* ========================================
+   平板设备 (768px - 1199px)
+   ======================================== */
+@media (max-width: 1199px) {
+    .container {
+        padding: var(--spacing-md);
+    }
+
+    /* 主内容区改为单列布局 */
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+
+    /* 侧边栏移到底部，改为横向布局 */
+    .sidebar {
+        flex-direction: row;
+        overflow-x: auto;
+    }
+
+    .sidebar-card {
+        min-width: 300px;
+    }
+
+    /* 统计面板调整 */
+    .stats-panel {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* 作品网格调整 - 2列布局，调整连接线 */
+    .works-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* 平板端每行2个卡片，隐藏第2、4、6...个卡片的连接线 */
+    .works-grid .work-card:nth-child(2n)::after {
+        display: none;
+    }
+
+    /* 重置桌面端的规则 */
+    .works-grid .work-card:nth-child(3n)::after {
+        display: block;
+    }
+
+    /* 作品统计图表 */
+    .works-stats {
+        grid-template-columns: 1fr;
+    }
+
+    /* 工具网格 */
+    .tools-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+
+    /* 成就网格 */
+    .achievements-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* 精选作品 */
+    .featured-works {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* 收藏网格 */
+    .collections-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ========================================
+   小平板设备 (600px - 767px)
+   ======================================== */
+@media (max-width: 767px) {
+    /* 容器 */
+    .container {
+        padding: var(--spacing-sm);
+    }
+
+    /* 头部信息区 */
+    .creator-header {
+        padding: var(--spacing-lg);
+    }
+
+    /* 个人资料卡片堆叠显示 */
+    .profile-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .profile-avatar img {
+        width: 140px;
+        height: 140px;
+    }
+
+    .profile-info {
+        align-items: center;
+    }
+
+    .profile-name-row {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .creator-name {
+        font-size: 24px;
+    }
+
+    .profile-meta {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    /* 统计面板 2x3 布局 */
+    .stats-panel {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+
+    .stat-value {
+        font-size: 24px;
+    }
+
+    .stat-label {
+        font-size: 13px;
+    }
+
+    /* 快速操作按钮 - 在平板端保持右上角，调整间距 */
+    .action-buttons {
+        position: absolute;
+        top: var(--spacing-lg);
+        right: var(--spacing-lg);
+        gap: var(--spacing-xs);
+    }
+
+    .action-buttons .btn {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .action-buttons .btn-icon {
+        padding: 10px;
+    }
+
+    /* 标签页导航 */
+    .tabs-nav {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding: var(--spacing-xs);
+    }
+
+    .tab-btn {
+        padding: 10px 20px;
+        font-size: 14px;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+    /* 标签页内容 */
+    .tabs-content {
+        padding: var(--spacing-lg);
+    }
+
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .panel-header h2 {
+        font-size: 20px;
+    }
+
+    /* 作品网格单列 - 隐藏所有连接线 */
+    .works-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* 手机端隐藏所有工作流连接箭头 */
+    .work-card::after {
+        display: none !important;
+    }
+
+    /* 调整节点序号标识位置 */
+    .work-card-body::before {
+        top: -35px;
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+        border-width: 2px;
+    }
+
+    /* 作品卡片在列表视图下堆叠 */
+    .works-grid.list-view .work-card {
+        flex-direction: column;
+    }
+
+    .works-grid.list-view .work-card-cover {
+        width: 100%;
+        height: 200px;
+    }
+
+    /* 时间线 */
+    .timeline {
+        padding-left: 30px;
+    }
+
+    .timeline::before {
+        left: 10px;
+    }
+
+    .timeline-icon {
+        left: -30px;
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+    }
+
+    /* 关于页面 */
+    .about-section h3 {
+        font-size: 16px;
+    }
+
+    .introduction {
+        font-size: 14px;
+    }
+
+    /* 工具网格 */
+    .tools-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* 成就网格 */
+    .achievements-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* 精选作品 */
+    .featured-works {
+        grid-template-columns: 1fr;
+    }
+
+    /* 收藏导航 */
+    .collections-nav {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+
+    .collection-filter {
+        white-space: nowrap;
+    }
+
+    /* 收藏网格 */
+    .collections-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* 侧边栏 */
+    .sidebar {
+        flex-direction: column;
+    }
+
+    .sidebar-card {
+        min-width: auto;
+    }
+
+    /* 模态框 */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+    }
+
+    .modal-header {
+        padding: var(--spacing-md);
+    }
+
+    .modal-header h3 {
+        font-size: 18px;
+    }
+
+    .modal-body {
+        padding: var(--spacing-md);
+    }
+
+    /* 分享按钮组 */
+    .share-link {
+        flex-direction: column;
+    }
+
+    .share-social {
+        flex-direction: column;
+    }
+
+    /* 用户列表 */
+    .users-list {
+        max-height: 300px;
+    }
+}
+
+/* ========================================
+   手机设备 (< 600px)
+   ======================================== */
+@media (max-width: 599px) {
+    /* 容器 */
+    .container {
+        padding: var(--spacing-xs);
+    }
+
+    /* 头部 */
+    .creator-header {
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+    }
+
+    /* 头像 */
+    .profile-avatar img {
+        width: 100px;
+        height: 100px;
+    }
+
+    .online-indicator {
+        width: 18px;
+        height: 18px;
+        border-width: 3px;
+    }
+
+    /* 徽章 */
+    .badges {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .badge {
+        font-size: 12px;
+        padding: 3px 10px;
+    }
+
+    /* 创作者名称 */
+    .creator-name {
+        font-size: 20px;
+    }
+
+    /* 简介 */
+    .creator-bio {
+        font-size: 14px;
+    }
+
+    /* 统计面板 */
+    .stats-panel {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md) 0;
+    }
+
+    .stat-value {
+        font-size: 20px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+    }
+
+    /* 按钮 - 在手机端移到卡片内部底部 */
+    .action-buttons {
+        position: static; /* 取消绝对定位 */
+        margin-top: var(--spacing-lg);
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+    }
+
+    .action-buttons .btn {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    .action-buttons .btn-icon {
+        flex: 0 0 auto;
+        min-width: auto;
+        padding: 10px;
+    }
+
+    /* 标签页导航 */
+    .tabs-nav {
+        padding: 4px;
+        gap: 4px;
+    }
+
+    .tab-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* 标签页内容 */
+    .tabs-content {
+        padding: var(--spacing-md);
+        border-radius: var(--radius-md);
+    }
+
+    /* 面板标题 */
+    .panel-header h2 {
+        font-size: 18px;
+    }
+
+    .panel-header .count {
+        font-size: 16px;
+    }
+
+    /* 作品统计图表 */
+    .works-stats {
+        gap: var(--spacing-md);
+    }
+
+    .chart-container {
+        padding: var(--spacing-md);
+    }
+
+    .chart-container h3 {
+        font-size: 14px;
+    }
+
+    /* 作品卡片 */
+    .work-card-cover {
+        height: 180px;
+    }
+
+    .work-card-body {
+        padding: var(--spacing-sm);
+    }
+
+    .work-card-title {
+        font-size: 15px;
+    }
+
+    .work-card-description {
+        font-size: 13px;
+    }
+
+    .work-card-tags {
+        gap: 4px;
+    }
+
+    .tag {
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+
+    /* 时间线 */
+    .timeline {
+        padding-left: 25px;
+    }
+
+    .timeline-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+        left: -25px;
+    }
+
+    .timeline-card {
+        padding: var(--spacing-sm);
+    }
+
+    .timeline-content {
+        font-size: 14px;
+    }
+
+    .timeline-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+
+    /* 关于页面 */
+    .about-content {
+        gap: var(--spacing-lg);
+    }
+
+    .about-section h3 {
+        font-size: 15px;
+    }
+
+    .expertise-tags {
+        gap: 6px;
+    }
+
+    .expertise-tag {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+
+    /* 工具网格 */
+    .tools-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--spacing-sm);
+    }
+
+    .tool-item {
+        padding: var(--spacing-sm);
+    }
+
+    .tool-icon {
+        font-size: 28px;
+    }
+
+    .tool-name {
+        font-size: 12px;
+    }
+
+    /* 经验 */
+    .experience-item {
+        padding: var(--spacing-sm);
+    }
+
+    .experience-company {
+        font-size: 15px;
+    }
+
+    .experience-position {
+        font-size: 13px;
+    }
+
+    /* 成就 */
+    .achievement-icon {
+        font-size: 32px;
+    }
+
+    .achievement-badge {
+        font-size: 14px;
+    }
+
+    /* 收藏 */
+    .collection-work-cover {
+        height: 140px;
+    }
+
+    /* 侧边栏卡片 */
+    .sidebar-card {
+        padding: var(--spacing-md);
+    }
+
+    .sidebar-card h3 {
+        font-size: 15px;
+    }
+
+    /* 相似创作者 */
+    .similar-creator-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .similar-creator-name {
+        font-size: 13px;
+    }
+
+    .similar-creator-bio {
+        font-size: 11px;
+    }
+
+    .similar-creator-follow {
+        padding: 5px 12px;
+        font-size: 12px;
+    }
+
+    /* 图表容器 */
+    .chart-container-small {
+        height: 180px;
+    }
+
+    /* Toast */
+    .toast {
+        top: 10px;
+        width: calc(100% - 20px);
+        max-width: none;
+        font-size: 13px;
+        padding: 10px 16px;
+    }
+}
+
+/* ========================================
+   超小屏幕 (< 400px)
+   ======================================== */
+@media (max-width: 399px) {
+    /* 头像 */
+    .profile-avatar img {
+        width: 80px;
+        height: 80px;
+    }
+
+    /* 创作者名称 */
+    .creator-name {
+        font-size: 18px;
+    }
+
+    /* 统计面板 - 更紧凑 */
+    .stat-value {
+        font-size: 18px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+    }
+
+    /* 工具网格 - 2列布局 */
+    .tools-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* 模态框 */
+    .modal-content {
+        width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .modal-body {
+        max-height: calc(100vh - 70px);
+    }
+}
+
+/* ========================================
+   横屏手机 (landscape)
+   ======================================== */
+@media (max-height: 600px) and (orientation: landscape) {
+    .profile-card {
+        flex-direction: row;
+        text-align: left;
+    }
+
+    .profile-avatar img {
+        width: 100px;
+        height: 100px;
+    }
+
+    .stats-panel {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .modal-content {
+        max-height: 95vh;
+    }
+
+    .modal-body {
+        max-height: calc(95vh - 80px);
+    }
+
+    .users-list {
+        max-height: 250px;
+    }
+}
+
+/* ========================================
+   打印样式
+   ======================================== */
+@media print {
+    .action-buttons,
+    .tabs-nav,
+    .view-toggle,
+    .sidebar,
+    .modal,
+    .toast,
+    .work-card-actions,
+    .timeline-interactions {
+        display: none !important;
+    }
+
+    .container {
+        max-width: none;
+        padding: 0;
+    }
+
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+
+    .creator-header,
+    .tabs-content {
+        box-shadow: none;
+        border: 1px solid var(--color-border);
+    }
+
+    .tab-panel {
+        display: block !important;
+    }
+
+    .works-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+    }
+
+    .work-card:hover {
+        transform: none;
+        box-shadow: none;
+    }
+}
+
+/* ========================================
+   高对比度模式
+   ======================================== */
+@media (prefers-contrast: high) {
+    :root {
+        --color-border: #000000;
+        --color-text-secondary: #333333;
+        --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn {
+        border: 2px solid currentColor;
+    }
+
+    .work-card,
+    .timeline-card,
+    .sidebar-card {
+        border: 2px solid var(--color-border);
+    }
+}
+
+/* ========================================
+   减少动画模式
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

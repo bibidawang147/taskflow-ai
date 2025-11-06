@@ -1,0 +1,116 @@
+{
+  "sources": [
+    {
+      "name": "中文AI教程资源",
+      "articles": [
+        {
+          "url": "https://sspai.com/post/80456",
+          "category": "内容创作",
+          "description": "ChatGPT写作技巧 - 少数派"
+        },
+        {
+          "url": "https://sspai.com/post/79899",
+          "category": "办公效率",
+          "description": "AI工作流自动化 - 少数派"
+        },
+        {
+          "url": "https://sspai.com/post/81234",
+          "category": "设计",
+          "description": "Midjourney实战教程 - 少数派"
+        }
+      ]
+    },
+    {
+      "name": "英文优质教程",
+      "articles": [
+        {
+          "url": "https://www.lennysnewsletter.com/p/how-to-use-chatgpt-to-10x-your-productivity",
+          "category": "办公效率",
+          "description": "ChatGPT 10x生产力"
+        },
+        {
+          "url": "https://github.blog/2023-06-20-how-to-write-better-prompts-for-github-copilot/",
+          "category": "编程开发",
+          "description": "GitHub Copilot提示词优化"
+        },
+        {
+          "url": "https://stable-diffusion-art.com/beginners-guide/",
+          "category": "设计",
+          "description": "Stable Diffusion新手指南"
+        }
+      ]
+    },
+    {
+      "name": "官方文档",
+      "articles": [
+        {
+          "url": "https://docs.midjourney.com/docs/quick-start",
+          "category": "设计",
+          "description": "Midjourney快速入门"
+        },
+        {
+          "url": "https://platform.openai.com/docs/guides/prompt-engineering",
+          "category": "办公效率",
+          "description": "OpenAI提示词工程"
+        },
+        {
+          "url": "https://www.anthropic.com/index/100k-context-windows",
+          "category": "办公效率",
+          "description": "Claude长文本处理"
+        }
+      ]
+    },
+    {
+      "name": "知乎专栏",
+      "articles": [
+        {
+          "url": "https://zhuanlan.zhihu.com/p/620215855",
+          "category": "内容创作",
+          "description": "ChatGPT自媒体写作"
+        },
+        {
+          "url": "https://zhuanlan.zhihu.com/p/615297524",
+          "category": "编程开发",
+          "description": "AI辅助编程实战"
+        }
+      ]
+    },
+    {
+      "name": "推荐博客",
+      "articles": [
+        {
+          "url": "https://www.notion.so/blog/ai-writing-assistant",
+          "category": "内容创作",
+          "description": "Notion AI写作助手"
+        },
+        {
+          "url": "https://gamma.app/docs/How-to-use-Gamma-AI",
+          "category": "办公效率",
+          "description": "Gamma AI演示文稿"
+        },
+        {
+          "url": "https://runwayml.com/ai-magic-tools/",
+          "category": "内容创作",
+          "description": "Runway AI视频工具"
+        }
+      ]
+    }
+  ],
+  "备注": {
+    "使用说明": "可以在这里添加更多优质的AI教程文章URL",
+    "分类选项": [
+      "办公效率",
+      "内容创作",
+      "设计",
+      "编程开发",
+      "学习提升",
+      "数据分析"
+    ],
+    "文章要求": [
+      "包含明确的步骤或流程",
+      "AI工具使用相关",
+      "内容质量高，结构清晰",
+      "可公开访问的URL"
+    ]
+  }
+}

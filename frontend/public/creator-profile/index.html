@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创作者主页 - 张小明</title>
+
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- 加载中提示 -->
+    <div id="loading-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+        <div style="text-align: center;">
+            <div style="width: 50px; height: 50px; border: 4px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+            <p style="color: #6b7280; font-size: 16px; margin: 0;">正在加载创作者信息...</p>
+            <p id="loading-error" style="color: #ef4444; font-size: 14px; margin-top: 10px; display: none;"></p>
+            <a href="/creator-profile/debug.html" style="color: #6366f1; font-size: 13px; margin-top: 10px; display: none;" id="debug-link">查看调试信息</a>
+        </div>
+    </div>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- 主容器 -->
+    <div class="container" style="opacity: 0; transition: opacity 0.3s;">
+        <!-- 返回导航 -->
+        <div style="margin-bottom: 20px;">
+            <a href="javascript:history.back()" style="display: inline-flex; align-items: center; gap: 8px; color: #6366f1; text-decoration: none; font-size: 14px; font-weight: 500; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0a8 8 0 110 16A8 8 0 018 0zM4.5 7.5l3-3 .707.707L6.414 7H10.5v1H6.414l1.793 1.793-.707.707-3-3z"/>
+                </svg>
+                返回探索页
+            </a>
+        </div>
+
+        <!-- 头部信息区 -->
+        <header class="creator-header">
+            <!-- 快速操作按钮组 - 移到右上角 -->
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="follow-btn">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/>
+                    </svg>
+                    关注
+                </button>
+                <button class="btn btn-secondary" id="message-btn">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2.678 11.894a1 1 0 01.287.801 10.97 10.97 0 01-.398 2c1.395-.323 2.247-.697 2.634-.893a1 1 0 01.71-.074A8.06 8.06 0 008 14c3.996 0 7-2.807 7-6 0-3.192-3.004-6-7-6S1 4.808 1 8c0 1.468.617 2.83 1.678 3.894z"/>
+                    </svg>
+                    私信
+                </button>
+                <button class="btn btn-secondary" id="share-btn">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11 2.5a2.5 2.5 0 11.603 1.628l-6.718 3.12a2.499 2.499 0 010 1.504l6.718 3.12a2.5 2.5 0 11-.488.876l-6.718-3.12a2.5 2.5 0 110-3.256l6.718-3.12A2.5 2.5 0 0111 2.5z"/>
+                    </svg>
+                    分享
+                </button>
+                <button class="btn btn-icon" id="more-btn">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3 9.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 个人资料卡片 -->
+            <div class="profile-card">
+                <div class="profile-avatar">
+                    <img id="creator-avatar" src="" alt="创作者头像">
+                    <span class="online-indicator" id="online-status"></span>
+                </div>
+
+                <div class="profile-info">
+                    <div class="profile-name-row">
+                        <h1 id="creator-name" class="creator-name"></h1>
+                        <div id="creator-badges" class="badges"></div>
+                    </div>
+
+                    <p id="creator-bio" class="creator-bio"></p>
+
+                    <div class="profile-meta">
+                        <span class="meta-item">
+                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 0a8 8 0 110 16A8 8 0 018 0zm0 1a7 7 0 100 14A7 7 0 008 1zm3.5 6.5a.5.5 0 010 1h-4a.5.5 0 01-.5-.5v-3a.5.5 0 011 0V7h3.5z"/>
+                            </svg>
+                            <span id="creator-location"></span>
+                        </span>
+                        <span class="meta-item">
+                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M3.5 0a.5.5 0 01.5.5V1h8V.5a.5.5 0 011 0V1h1a2 2 0 012 2v11a2 2 0 01-2 2H2a2 2 0 01-2-2V3a2 2 0 012-2h1V.5a.5.5 0 01.5-.5z"/>
+                            </svg>
+                            <span id="creator-join-date"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计数据面板 -->
+            <div class="stats-panel">
+                <div class="stat-item">
+                    <div class="stat-value" data-target="0" id="stat-works">0</div>
+                    <div class="stat-label">创作数量</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" data-target="0" id="stat-uses">0</div>
+                    <div class="stat-label">总使用次数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" data-target="0" id="stat-likes">0</div>
+                    <div class="stat-label">获赞数量</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" data-target="0" id="stat-followers">0</div>
+                    <div class="stat-label">粉丝数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" data-target="0" id="stat-following">0</div>
+                    <div class="stat-label">关注数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">
+                        <span id="stat-rating">0</span>
+                        <svg class="icon star" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                        </svg>
+                    </div>
+                    <div class="stat-label">平均评分</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧内容区 -->
+            <div class="content-left">
+                <!-- 导航标签页 -->
+                <nav class="tabs-nav">
+                    <button class="tab-btn active" data-tab="works">作品</button>
+                    <button class="tab-btn" data-tab="activities">动态</button>
+                    <button class="tab-btn" data-tab="about">关于</button>
+                    <button class="tab-btn" data-tab="collections">收藏</button>
+                </nav>
+
+                <!-- 标签页内容 -->
+                <div class="tabs-content">
+                    <!-- 作品页 -->
+                    <div class="tab-panel active" id="works-panel">
+                        <!-- 视图切换和统计 -->
+                        <div class="panel-header">
+                            <h2>作品 <span class="count" id="works-count">0</span></h2>
+                            <div class="view-toggle">
+                                <button class="view-btn active" data-view="grid" title="网格视图">
+                                    <svg class="icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M2 2h6v6H2V2zm10 0h6v6h-6V2zM2 12h6v6H2v-6zm10 0h6v6h-6v-6z"/>
+                                    </svg>
+                                </button>
+                                <button class="view-btn" data-view="list" title="列表视图">
+                                    <svg class="icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M2 4h16v2H2V4zm0 5h16v2H2V9zm0 5h16v2H2v-2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 作品列表 -->
+                        <div class="works-grid" id="works-list"></div>
+                    </div>
+
+                    <!-- 动态页 -->
+                    <div class="tab-panel" id="activities-panel">
+                        <div class="panel-header">
+                            <h2>动态</h2>
+                        </div>
+
+                        <!-- 时间线 -->
+                        <div class="timeline" id="activities-timeline"></div>
+                    </div>
+
+                    <!-- 关于页 -->
+                    <div class="tab-panel" id="about-panel">
+                        <div class="panel-header">
+                            <h2>关于</h2>
+                        </div>
+
+                        <div class="about-content">
+                            <!-- 个人介绍 -->
+                            <section class="about-section">
+                                <h3>个人介绍</h3>
+                                <div class="introduction" id="creator-introduction"></div>
+                            </section>
+
+                            <!-- 擅长领域 -->
+                            <section class="about-section">
+                                <h3>擅长领域</h3>
+                                <div class="expertise-tags" id="expertise-tags"></div>
+                            </section>
+
+                            <!-- 技能雷达图 -->
+                            <section class="about-section">
+                                <h3>专业技能</h3>
+                                <div class="chart-container chart-radar">
+                                    <canvas id="skills-chart"></canvas>
+                                </div>
+                            </section>
+
+                            <!-- 常用工具 -->
+                            <section class="about-section">
+                                <h3>常用工具</h3>
+                                <div class="tools-grid" id="tools-grid"></div>
+                            </section>
+
+                            <!-- 工作经验 -->
+                            <section class="about-section">
+                                <h3>工作经验</h3>
+                                <div class="experience-list" id="experience-list"></div>
+                            </section>
+
+                            <!-- 成就展示 -->
+                            <section class="about-section">
+                                <h3>成就与荣誉</h3>
+                                <div class="achievements-grid" id="achievements-grid"></div>
+                            </section>
+
+                            <!-- 精选作品 -->
+                            <section class="about-section">
+                                <h3>精选作品</h3>
+                                <div class="featured-works" id="featured-works"></div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <!-- 收藏页 -->
+                    <div class="tab-panel" id="collections-panel">
+                        <div class="panel-header">
+                            <h2>收藏 <span class="count" id="collections-count">0</span></h2>
+                        </div>
+
+                        <!-- 收藏分类 -->
+                        <div class="collections-nav">
+                            <button class="collection-filter active" data-filter="all">全部</button>
+                            <button class="collection-filter" data-filter="工作流">工作流</button>
+                            <button class="collection-filter" data-filter="AI工具">AI工具</button>
+                            <button class="collection-filter" data-filter="教程">教程</button>
+                        </div>
+
+                        <!-- 收藏列表 -->
+                        <div class="collections-grid" id="collections-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧边栏 -->
+            <aside class="sidebar">
+                <!-- 创作者标签 -->
+                <div class="sidebar-card">
+                    <h3>创作者标签</h3>
+                    <div class="creator-tags" id="creator-tags"></div>
+                </div>
+
+                <!-- 相似创作者推荐 -->
+                <div class="sidebar-card">
+                    <h3>相似创作者</h3>
+                    <div class="similar-creators" id="similar-creators"></div>
+                </div>
+
+                <!-- 数据趋势 -->
+                <div class="sidebar-card">
+                    <h3>粉丝增长趋势</h3>
+                    <div class="chart-container-small">
+                        <canvas id="followers-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="sidebar-card">
+                    <h3>使用量趋势</h3>
+                    <div class="chart-container-small">
+                        <canvas id="usage-chart"></canvas>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- 分享弹窗 -->
+    <div class="modal" id="share-modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>分享创作者主页</h3>
+                <button class="modal-close" id="close-share-modal">
+                    <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="share-link">
+                    <input type="text" id="share-link-input" readonly value="">
+                    <button class="btn btn-primary" id="copy-link-btn">复制链接</button>
+                </div>
+                <div class="share-social">
+                    <button class="social-btn">
+                        <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/>
+                        </svg>
+                        Twitter
+                    </button>
+                    <button class="social-btn">
+                        <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>
+                        </svg>
+                        Facebook
+                    </button>
+                    <button class="social-btn">
+                        <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/>
+                        </svg>
+                        LinkedIn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 粉丝/关注列表弹窗 -->
+    <div class="modal" id="users-modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="users-modal-title">粉丝列表</h3>
+                <button class="modal-close" id="close-users-modal">
+                    <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="users-tabs">
+                    <button class="users-tab active" data-type="followers">粉丝</button>
+                    <button class="users-tab" data-type="following">关注</button>
+                </div>
+                <div class="users-search">
+                    <input type="text" placeholder="搜索用户..." id="users-search-input">
+                </div>
+                <div class="users-list" id="users-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- JavaScript Files -->
+    <script src="scripts/main.js"></script>
+    <script src="scripts/tabs.js"></script>
+    <script src="scripts/charts.js"></script>
+    <script src="scripts/interactions.js"></script>
+</body>
+</html>

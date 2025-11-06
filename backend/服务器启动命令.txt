@@ -1,0 +1,20 @@
+# 阿里云服务器启动数据库命令
+# 复制时注意：每个命令是完整一行，不要分行！
+
+# 1. 清理旧容器
+podman rm -f workflow-postgres
+
+# 2. 启动 PostgreSQL（完整一行，从 podman 到 alpine）
+podman run -d --name workflow-postgres -e POSTGRES_DB=workflow_platform -e POSTGRES_USER=workflow_user -e POSTGRES_PASSWORD='WorkflowSecure2024!@#' -p 5432:5432 postgres:16-alpine
+
+# 3. 清理旧 Redis
+podman rm -f workflow-redis
+
+# 4. 启动 Redis
+podman run -d --name workflow-redis -p 6379:6379 redis:7-alpine
+
+# 5. 查看运行状态
+podman ps
+
+# 6. 测试连接
+podman exec workflow-postgres pg_isready -U workflow_user

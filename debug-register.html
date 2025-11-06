@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试版注册页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #faf7ff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #8b5cf6;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #7c3aed;
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .debug-log {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .debug-log h3 {
+            margin-bottom: 15px;
+            color: #1f2937;
+        }
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .log-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .log-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .log-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .result.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .result.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 调试版注册页面</h1>
+
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">用户名</label>
+                <input type="text" id="name" name="name" value="debuguser" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">邮箱</label>
+                <input type="email" id="email" name="email" value="debug@test.com" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" value="Test123456" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">确认密码</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" value="Test123456" required>
+            </div>
+
+            <button type="submit" id="submitBtn">注册</button>
+        </form>
+
+        <div id="result"></div>
+
+        <div class="debug-log">
+            <h3>📋 调试日志</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('logContainer');
+        const resultDiv = document.getElementById('result');
+        const form = document.getElementById('registerForm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.insertBefore(entry, logContainer.firstChild);
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+
+        // 页面加载
+        log('页面加载完成', 'info');
+        log('当前URL: ' + window.location.href, 'info');
+        log('API地址将使用: http://47.93.218.80/api/auth/register', 'info');
+
+        // 表单提交
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            log('表单提交开始', 'info');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '注册中...';
+            resultDiv.innerHTML = '';
+
+            const formData = {
+                name: document.getElementById('name').value + Date.now(), // 避免重复
+                email: Date.now() + document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            log('准备数据: ' + JSON.stringify(formData), 'info');
+
+            try {
+                log('发送请求到 http://47.93.218.80/api/auth/register', 'info');
+
+                const response = await fetch('http://47.93.218.80/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                log(`响应状态: ${response.status} ${response.statusText}`, 'info');
+                log('响应头: ' + JSON.stringify([...response.headers]), 'info');
+
+                const data = await response.json();
+                log('响应数据: ' + JSON.stringify(data), 'info');
+
+                if (response.ok) {
+                    log('✅ 注册成功！', 'success');
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 注册成功！</strong><br><br>
+                        用户ID: ${data.user?.id}<br>
+                        用户名: ${data.user?.name}<br>
+                        邮箱: ${data.user?.email}<br>
+                        Token: ${data.token?.substring(0, 30)}...
+                    `;
+                } else {
+                    log('❌ 注册失败: ' + (data.error || data.message), 'error');
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <strong>❌ 注册失败</strong><br><br>
+                        状态码: ${response.status}<br>
+                        错误: ${data.error || data.message || JSON.stringify(data)}
+                    `;
+                }
+            } catch (error) {
+                log('❌ 网络错误: ' + error.message, 'error');
+                console.error('完整错误:', error);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ 请求失败</strong><br><br>
+                    错误类型: ${error.name}<br>
+                    错误信息: ${error.message}<br><br>
+                    可能原因：<br>
+                    1. 网络连接问题<br>
+                    2. CORS跨域问题<br>
+                    3. 服务器未响应<br><br>
+                    <strong>请查看上方调试日志获取详细信息</strong>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '注册';
+            }
+        });
+
+        // 监听所有网络错误
+        window.addEventListener('error', (e) => {
+            log('页面错误: ' + e.message, 'error');
+        });
+
+        // 监听未捕获的Promise错误
+        window.addEventListener('unhandledrejection', (e) => {
+            log('未处理的Promise错误: ' + e.reason, 'error');
+        });
+
+        log('事件监听器已设置', 'info');
+    </script>
+</body>
+</html>

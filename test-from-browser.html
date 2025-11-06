@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>注册功能诊断测试</h1>
+
+    <form id="testForm">
+        <label for="name">用户名：</label>
+        <input type="text" id="name" value="testuser" required>
+
+        <label for="email">邮箱：</label>
+        <input type="email" id="email" value="test@example.com" required>
+
+        <label for="password">密码：</label>
+        <input type="password" id="password" value="Test123456" required>
+
+        <br><br>
+        <button type="submit">测试注册</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="result">正在测试...</div>';
+
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            const testData = {
+                name: name + Date.now(), // 添加时间戳避免重复
+                email: Date.now() + email,
+                password: password
+            };
+
+            try {
+                console.log('发送请求到:', 'http://47.93.218.80/api/auth/register');
+                console.log('请求数据:', testData);
+
+                const response = await fetch('http://47.93.218.80/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                console.log('响应状态:', response.status);
+                console.log('响应头:', [...response.headers]);
+
+                const data = await response.json();
+                console.log('响应数据:', data);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ 注册成功！</strong><br><br>
+                            状态码: ${response.status}<br>
+                            消息: ${data.message}<br>
+                            用户ID: ${data.user?.id}<br>
+                            用户名: ${data.user?.name}<br>
+                            邮箱: ${data.user?.email}<br>
+                            Token: ${data.token?.substring(0, 50)}...
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ 注册失败</strong><br><br>
+                            状态码: ${response.status}<br>
+                            错误: ${data.error || data.message || JSON.stringify(data)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('请求失败:', error);
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ 网络错误</strong><br><br>
+                        错误类型: ${error.name}<br>
+                        错误信息: ${error.message}<br><br>
+                        <strong>可能的原因：</strong><br>
+                        1. CORS 跨域问题<br>
+                        2. 网络连接问题<br>
+                        3. 服务器未响应<br><br>
+                        <strong>请检查浏览器控制台(F12)的详细错误信息</strong>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

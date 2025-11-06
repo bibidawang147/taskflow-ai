@@ -1,0 +1,161 @@
+/* 可读性优化 - 全局样式 */
+
+/* 增大基础字体 */
+body {
+  font-size: 17px !important;
+  line-height: 1.7 !important;
+  letter-spacing: 0.01em;
+}
+
+/* 标题更大更清晰 */
+h1 {
+  font-size: 2.75rem !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+  margin-bottom: 1rem !important;
+}
+
+h2 {
+  font-size: 2rem !important;
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.875rem !important;
+}
+
+h3 {
+  font-size: 1.5rem !important;
+  line-height: 1.4 !important;
+  font-weight: 600 !important;
+}
+
+/* 段落间距 */
+p {
+  margin-bottom: 1rem !important;
+  line-height: 1.8 !important;
+}
+
+/* 卡片增加内边距 */
+.shadow-sm, .shadow, .shadow-lg {
+  padding: 2rem !important;
+}
+
+/* 按钮更大 */
+button {
+  padding: 0.875rem 1.75rem !important;
+  font-size: 1.0625rem !important;
+  font-weight: 600 !important;
+  min-height: 48px;
+}
+
+/* 输入框更大 */
+input, textarea, select {
+  padding: 1rem !important;
+  font-size: 1.0625rem !important;
+  line-height: 1.6 !important;
+}
+
+/* 链接更明显 */
+a {
+  font-weight: 500;
+  text-decoration-thickness: 2px;
+}
+
+/* 数字更醒目 */
+.text-2xl {
+  font-size: 2.5rem !important;
+  font-weight: 800 !important;
+}
+
+.text-3xl {
+  font-size: 3rem !important;
+  font-weight: 800 !important;
+}
+
+.text-4xl {
+  font-size: 3.5rem !important;
+  font-weight: 900 !important;
+}
+
+/* 小字稍大一点 */
+.text-sm {
+  font-size: 0.9375rem !important;
+}
+
+.text-xs {
+  font-size: 0.875rem !important;
+}
+
+/* 增加卡片间距 */
+.space-y-4 > * + * {
+  margin-top: 1.5rem !important;
+}
+
+.space-y-6 > * + * {
+  margin-top: 2.5rem !important;
+}
+
+.gap-4 {
+  gap: 1.5rem !important;
+}
+
+.gap-6 {
+  gap: 2.5rem !important;
+}
+
+/* 聊天消息气泡更大 */
+.rounded-2xl {
+  padding: 1.75rem 2rem !important;
+  font-size: 1.125rem !important;
+  line-height: 1.8 !important;
+}
+
+/* 图标稍大 */
+svg {
+  min-width: 20px !important;
+  min-height: 20px !important;
+}
+
+/* 更强的对比度 */
+.text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.text-gray-500 {
+  color: #6b7280 !important;
+}
+
+.bg-gray-50 {
+  background-color: #fafafa !important;
+}
+
+/* 卡片圆角 */
+.rounded-xl, .rounded-lg {
+  border-radius: 20px !important;
+}
+
+/* 统计数字特别大 */
+.stat-number {
+  font-size: 4rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  body {
+    font-size: 16px !important;
+  }
+
+  h1 {
+    font-size: 2.25rem !important;
+  }
+
+  h2 {
+    font-size: 1.75rem !important;
+  }
+
+  .stat-number {
+    font-size: 3rem !important;
+  }
+}
