@@ -1801,10 +1801,28 @@ router.post('/proxy-image', authenticateToken, async (req: AuthenticatedRequest,
 
     // 使用 Puppeteer 下载图片（绕过防盗链）
     const puppeteer = require('puppeteer')
+    const fs = require('fs')
     let browser = null
 
     try {
+      // 在Linux服务器上优先使用系统安装的 Chromium
+      let executablePath: string | undefined = undefined
+      const chromiumPaths = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable'
+      ]
+
+      for (const path of chromiumPaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path
+          break
+        }
+      }
+
       browser = await puppeteer.launch({
+        executablePath, // 如果找到系统Chromium，使用它；否则使用Puppeteer下载的Chrome
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       })

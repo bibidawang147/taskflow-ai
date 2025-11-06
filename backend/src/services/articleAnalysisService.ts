@@ -616,7 +616,28 @@ ${truncatedContent}${imagesList}
       console.log('[Puppeteer] 启动浏览器...')
 
       // 启动 Puppeteer 浏览器
+      // 在Linux服务器上优先使用系统安装的 Chromium
+      const fs = require('fs')
+      let executablePath: string | undefined = undefined
+
+      // 检查常见的系统Chromium路径
+      const chromiumPaths = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable'
+      ]
+
+      for (const path of chromiumPaths) {
+        if (fs.existsSync(path)) {
+          executablePath = path
+          console.log('[Puppeteer] 使用系统 Chromium:', path)
+          break
+        }
+      }
+
       browser = await puppeteer.launch({
+        executablePath, // 如果找到系统Chromium，使用它；否则使用Puppeteer下载的Chrome
         headless: true, // 无头模式
         args: [
           '--no-sandbox',
