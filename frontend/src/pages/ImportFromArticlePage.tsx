@@ -12,6 +12,7 @@ export default function ImportFromArticlePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [pastedImages, setPastedImages] = useState<string[]>([])
+  const [pastedVideos, setPastedVideos] = useState<Array<{url: string, poster?: string, type: string}>>([])
   const contentEditableRef = useRef<HTMLDivElement>(null)
 
   // 处理富文本粘贴
@@ -86,6 +87,41 @@ export default function ImportFromArticlePage() {
               } catch (err: any) {
                 console.log('⚠️ 无法下载图片:', err.message)
               }
+            }
+          })
+        }
+
+        // 3. 识别视频（<video> 标签和 <iframe> 嵌入）
+        const videos = doc.querySelectorAll('video')
+        const iframes = doc.querySelectorAll('iframe')
+
+        if (videos.length > 0) {
+          console.log(`🎬 检测到 ${videos.length} 个视频`)
+          videos.forEach((video) => {
+            const src = video.getAttribute('src')
+            const poster = video.getAttribute('poster')
+            if (src) {
+              setPastedVideos(prev => [...prev, {
+                url: src,
+                poster: poster || undefined,
+                type: 'video'
+              }])
+              console.log('✅ 识别视频:', src.substring(0, 50) + '...')
+            }
+          })
+        }
+
+        if (iframes.length > 0) {
+          console.log(`📺 检测到 ${iframes.length} 个嵌入式视频`)
+          iframes.forEach((iframe) => {
+            const src = iframe.getAttribute('src')
+            // 过滤掉非视频的 iframe（如广告）
+            if (src && (src.includes('video') || src.includes('player') || src.includes('v.qq.com') || src.includes('mp.weixin.qq.com'))) {
+              setPastedVideos(prev => [...prev, {
+                url: src,
+                type: 'iframe'
+              }])
+              console.log('✅ 识别嵌入式视频:', src.substring(0, 50) + '...')
             }
           })
         }
@@ -244,12 +280,12 @@ export default function ImportFromArticlePage() {
                   fontSize: '14px',
                   color: '#0369a1'
                 }}>
-                  <div style={{fontWeight: '600', marginBottom: '8px'}}>💡 微信文章快速导入（支持图片）：</div>
+                  <div style={{fontWeight: '600', marginBottom: '8px'}}>💡 微信文章快速导入（支持图片和视频）：</div>
                   <div style={{lineHeight: '1.6'}}>
                     1. 在微信文章页面按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+A</kbd> 全选<br/>
                     2. 按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+C</kbd> 复制<br/>
                     3. 回到此处按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+V</kbd> 粘贴<br/>
-                    4. ✨ <strong>支持粘贴图片</strong>：自动识别文章中的图片
+                    4. ✨ <strong>自动识别图片和视频</strong>：图片会下载预览，视频会记录链接
                   </div>
                 </div>
               )}
@@ -310,10 +346,67 @@ export default function ImportFromArticlePage() {
                 </div>
               )}
 
+              {/* 视频预览区域 */}
+              {pastedVideos.length > 0 && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  background: '#fef3c7',
+                  border: '1px solid #fcd34d',
+                  borderRadius: '8px'
+                }}>
+                  <div style={{fontWeight: '600', marginBottom: '8px', color: '#92400e'}}>
+                    🎬 已识别视频 ({pastedVideos.length}个)
+                  </div>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    {pastedVideos.map((video, index) => (
+                      <div key={index} style={{
+                        padding: '8px 12px',
+                        background: '#fff',
+                        borderRadius: '4px',
+                        border: '1px solid #fcd34d',
+                        fontSize: '13px'
+                      }}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                          <span style={{fontSize: '18px'}}>
+                            {video.type === 'iframe' ? '📺' : '🎥'}
+                          </span>
+                          <div style={{flex: 1, overflow: 'hidden'}}>
+                            <div style={{fontWeight: '500', color: '#92400e'}}>
+                              {video.type === 'iframe' ? '嵌入式视频' : '视频'}
+                            </div>
+                            <div style={{
+                              fontSize: '12px',
+                              color: '#78350f',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}>
+                              {video.url}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px',
+                    background: '#fef9e7',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: '#92400e'
+                  }}>
+                    💡 提示：视频信息已记录，将在工作流中标记为视频步骤
+                  </div>
+                </div>
+              )}
+
               <div className="textarea-footer">
                 <span className="char-count">
                   {articleContent.length} 字符
                   {pastedImages.length > 0 && ` · ${pastedImages.length} 张图片`}
+                  {pastedVideos.length > 0 && ` · ${pastedVideos.length} 个视频`}
                 </span>
               </div>
             </div>
@@ -386,7 +479,8 @@ export default function ImportFromArticlePage() {
               <li>AI将深度分析文章，识别工作流步骤、使用工具和目的</li>
               <li>⏱️ 处理时间约30秒-3分钟，请耐心等待</li>
               <li>✨ <strong>现已支持微信公众号文章URL直接抓取</strong>（使用浏览器自动化技术）</li>
-              <li>📷 <strong>粘贴内容支持图片识别</strong>：自动提取文章中的图片</li>
+              <li>📷 <strong>粘贴内容支持图片识别</strong>：自动提取文章中的图片，绕过防盗链</li>
+              <li>🎬 <strong>粘贴内容支持视频识别</strong>：自动识别视频和嵌入式播放器</li>
               <li>💡 推荐使用"粘贴文章内容"方式，速度更快更稳定</li>
               <li>生成的工作流可能需要手动调整和完善</li>
               <li>建议文章包含明确的步骤说明或操作流程</li>
