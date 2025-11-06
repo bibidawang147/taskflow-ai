@@ -7,7 +7,7 @@ set -e  # 遇到错误立即退出
 
 # 配置
 SERVER_IP="47.93.218.80"
-SSH_KEY="~/Desktop/工作流*.pem"
+SSH_KEY="$HOME/Desktop/工作流网站.pem"
 SERVER_USER="root"
 
 # 颜色输出

@@ -1,10 +1,19 @@
-import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
-
-export function initSentry() {
+export async function initSentry() {
   if (!process.env.SENTRY_DSN) {
     console.warn('⚠️  SENTRY_DSN not configured, skipping Sentry initialization');
     return;
+  }
+
+  // 动态导入 Sentry，避免在未配置时加载失败
+  const Sentry = await import('@sentry/node');
+
+  // 尝试加载 profiling，如果失败则跳过
+  let profilingIntegration: any = null;
+  try {
+    const profiling = await import('@sentry/profiling-node');
+    profilingIntegration = profiling.nodeProfilingIntegration();
+  } catch (err) {
+    console.warn('⚠️  Sentry profiling not available, skipping profiling integration');
   }
 
   Sentry.init({
@@ -16,9 +25,7 @@ export function initSentry() {
 
     // Profiling - 性能分析
     profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-    integrations: [
-      nodeProfilingIntegration(),
-    ],
+    integrations: profilingIntegration ? [profilingIntegration] : [],
 
     // 错误过滤 - 忽略某些常见的非关键错误
     ignoreErrors: [
@@ -54,4 +61,5 @@ export function initSentry() {
   console.log('✅ Sentry initialized successfully');
 }
 
-export default Sentry;
+// 导出一个空对象作为默认导出，避免在未初始化时出错
+export default {} as any;
