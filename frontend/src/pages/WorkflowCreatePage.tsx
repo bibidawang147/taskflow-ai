@@ -86,6 +86,7 @@ export default function WorkflowCreatePage() {
       setSourceContent(state.data.sourceContent || '')
       setSourceUrl(state.data.sourceUrl || '')
       setSourceTitle(state.data.sourceTitle || '')
+
       setFormData({
         title: state.data.title || '',
         description: state.data.description || '',

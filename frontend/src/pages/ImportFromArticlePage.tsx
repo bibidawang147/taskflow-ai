@@ -160,7 +160,10 @@ export default function ImportFromArticlePage() {
         body: JSON.stringify({
           type: inputType,
           content: inputType === 'content' ? articleContent : undefined,
-          url: inputType === 'url' ? articleUrl : undefined
+          url: inputType === 'url' ? articleUrl : undefined,
+          // 传递图片和视频信息
+          images: pastedImages.length > 0 ? pastedImages : undefined,
+          videos: pastedVideos.length > 0 ? pastedVideos : undefined
         })
       })
 
@@ -209,7 +212,12 @@ export default function ImportFromArticlePage() {
             sourceType: 'article',
             sourceUrl: inputType === 'url' ? articleUrl : undefined,
             sourceTitle: result.title,
-            sourceContent: inputType === 'content' ? articleContent : undefined
+            sourceContent: inputType === 'content' ? articleContent : undefined,
+            // 传递媒体资源
+            mediaResources: {
+              images: pastedImages.length > 0 ? pastedImages : [],
+              videos: pastedVideos.length > 0 ? pastedVideos : []
+            }
           }
         }
       })
@@ -248,7 +256,7 @@ export default function ImportFromArticlePage() {
             />
             <span className="radio-icon"></span>
             <span className="radio-label">粘贴文章内容</span>
-            <span style={{marginLeft: '8px', fontSize: '12px', color: '#10b981'}}>✅ 速度更快</span>
+            <span style={{marginLeft: '8px', fontSize: '12px', color: '#10b981'}}>速度更快</span>
           </label>
 
           <label className={`input-type-option ${inputType === 'url' ? 'active' : ''}`}>
@@ -261,7 +269,7 @@ export default function ImportFromArticlePage() {
             />
             <span className="radio-icon"></span>
             <span className="radio-label">输入文章链接</span>
-            <span style={{marginLeft: '8px', fontSize: '12px', color: '#3b82f6'}}>✨ 现已支持微信文章</span>
+            <span style={{marginLeft: '8px', fontSize: '12px', color: '#3b82f6'}}>现已支持微信文章</span>
           </label>
         </div>
 
@@ -280,12 +288,12 @@ export default function ImportFromArticlePage() {
                   fontSize: '14px',
                   color: '#0369a1'
                 }}>
-                  <div style={{fontWeight: '600', marginBottom: '8px'}}>💡 微信文章快速导入（支持图片和视频）：</div>
+                  <div style={{fontWeight: '600', marginBottom: '8px'}}>微信文章快速导入（支持图片和视频）：</div>
                   <div style={{lineHeight: '1.6'}}>
                     1. 在微信文章页面按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+A</kbd> 全选<br/>
                     2. 按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+C</kbd> 复制<br/>
                     3. 回到此处按 <kbd style={{padding: '2px 6px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'monospace'}}>Ctrl+V</kbd> 粘贴<br/>
-                    4. ✨ <strong>自动识别图片和视频</strong>：图片会下载预览，视频会记录链接
+                    4. <strong>自动识别图片和视频</strong> - 图片会下载预览，视频会记录链接
                   </div>
                 </div>
               )}
@@ -312,7 +320,7 @@ export default function ImportFromArticlePage() {
                   borderRadius: '8px'
                 }}>
                   <div style={{fontWeight: '600', marginBottom: '8px', color: '#374151'}}>
-                    📷 已识别图片 ({pastedImages.length}张)
+                    已识别图片 ({pastedImages.length}张)
                   </div>
                   <div style={{
                     display: 'grid',
@@ -356,7 +364,7 @@ export default function ImportFromArticlePage() {
                   borderRadius: '8px'
                 }}>
                   <div style={{fontWeight: '600', marginBottom: '8px', color: '#92400e'}}>
-                    🎬 已识别视频 ({pastedVideos.length}个)
+                    已识别视频 ({pastedVideos.length}个)
                   </div>
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                     {pastedVideos.map((video, index) => (
@@ -368,9 +376,6 @@ export default function ImportFromArticlePage() {
                         fontSize: '13px'
                       }}>
                         <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                          <span style={{fontSize: '18px'}}>
-                            {video.type === 'iframe' ? '📺' : '🎥'}
-                          </span>
                           <div style={{flex: 1, overflow: 'hidden'}}>
                             <div style={{fontWeight: '500', color: '#92400e'}}>
                               {video.type === 'iframe' ? '嵌入式视频' : '视频'}
@@ -397,7 +402,7 @@ export default function ImportFromArticlePage() {
                     fontSize: '12px',
                     color: '#92400e'
                   }}>
-                    💡 提示：视频信息已记录，将在工作流中标记为视频步骤
+                    提示：视频信息已记录，将在工作流中标记为视频步骤
                   </div>
                 </div>
               )}
@@ -438,33 +443,38 @@ export default function ImportFromArticlePage() {
         )}
 
         {/* 操作按钮 */}
-        <div className="action-buttons">
-          <button
-            className="btn-cancel"
-            onClick={() => navigate(-1)}
-            disabled={isLoading}
-          >
-            取消
-          </button>
-          <button
-            className="btn-parse"
-            onClick={handleParse}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <span className="loading-spinner"></span>
-                <span>解析中...</span>
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 1v6m0 0L5 4m3 3l3-3m4 7a7 7 0 11-14 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>开始解析</span>
-              </>
-            )}
-          </button>
+        <div className="action-buttons" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px'}}>
+          <div style={{fontSize: '14px', color: '#6b7280', flexShrink: 0}}>
+            处理时间约30秒-3分钟，请耐心等待
+          </div>
+          <div style={{display: 'flex', gap: '12px'}}>
+            <button
+              className="btn-cancel"
+              onClick={() => navigate(-1)}
+              disabled={isLoading}
+            >
+              取消
+            </button>
+            <button
+              className="btn-parse"
+              onClick={handleParse}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  <span>解析中...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1v6m0 0L5 4m3 3l3-3m4 7a7 7 0 11-14 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>开始解析</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* 提示信息 */}
@@ -477,11 +487,11 @@ export default function ImportFromArticlePage() {
             <strong>解析说明：</strong>
             <ul>
               <li>AI将深度分析文章，识别工作流步骤、使用工具和目的</li>
-              <li>⏱️ 处理时间约30秒-3分钟，请耐心等待</li>
-              <li>✨ <strong>现已支持微信公众号文章URL直接抓取</strong>（使用浏览器自动化技术）</li>
-              <li>📷 <strong>粘贴内容支持图片识别</strong>：自动提取文章中的图片，绕过防盗链</li>
-              <li>🎬 <strong>粘贴内容支持视频识别</strong>：自动识别视频和嵌入式播放器</li>
-              <li>💡 推荐使用"粘贴文章内容"方式，速度更快更稳定</li>
+              <li>处理时间约30秒-3分钟，请耐心等待</li>
+              <li><strong>现已支持微信公众号文章URL直接抓取</strong>（使用浏览器自动化技术）</li>
+              <li><strong>粘贴内容支持图片识别</strong> - 自动提取文章中的图片，绕过防盗链</li>
+              <li><strong>粘贴内容支持视频识别</strong> - 自动识别视频和嵌入式播放器</li>
+              <li>推荐使用"粘贴文章内容"方式，速度更快更稳定</li>
               <li>生成的工作流可能需要手动调整和完善</li>
               <li>建议文章包含明确的步骤说明或操作流程</li>
             </ul>

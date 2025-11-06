@@ -684,7 +684,7 @@ router.post('/generate/from-article', authenticateToken, async (req: Authenticat
 // 解析文章内容，返回工作流数据（用于前端预填充）
 router.post('/parse-article', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { type, content, url } = req.body
+    const { type, content, url, images, videos } = req.body
 
     // 验证输入
     if (type === 'content' && !content) {
@@ -692,6 +692,14 @@ router.post('/parse-article', authenticateToken, async (req: AuthenticatedReques
     }
     if (type === 'url' && !url) {
       return res.status(400).json({ error: '请提供文章URL' })
+    }
+
+    // 记录接收到的媒体信息
+    if (images && images.length > 0) {
+      console.log(`[解析文章] 接收到 ${images.length} 张粘贴的图片`)
+    }
+    if (videos && videos.length > 0) {
+      console.log(`[解析文章] 接收到 ${videos.length} 个粘贴的视频`)
     }
 
     let articleData: { title: string; content: string; url?: string; images?: string[] }

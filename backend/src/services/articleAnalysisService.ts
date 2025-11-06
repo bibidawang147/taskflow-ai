@@ -405,22 +405,60 @@ ${truncatedContent}${imagesList}
       try {
         result = JSON.parse(rawContent)
       } catch (parseError: any) {
-        console.error('JSON 解析失败，原始内容：', rawContent.substring(0, 500))
+        console.error('JSON 解析失败，原始内容前500字符：', rawContent.substring(0, 500))
+        console.error('JSON 解析失败，错误位置附近：', rawContent.substring(Math.max(0, 4260 - 100), 4260 + 100))
         console.error('解析错误：', parseError.message)
 
-        // 尝试修复常见的 JSON 问题
+        // 尝试修复常见的 JSON 问题（多层修复策略）
         try {
-          // 1. 移除尾部逗号
-          let fixed = rawContent.replace(/,(\s*[}\]])/g, '$1')
-          // 2. 修复换行问题
-          fixed = fixed.replace(/\n/g, ' ')
-          // 3. 移除控制字符
-          fixed = fixed.replace(/[\x00-\x1F\x7F]/g, '')
+          let fixed = rawContent
 
+          // 策略1: 移除所有尾部逗号（数组和对象）
+          fixed = fixed.replace(/,(\s*[}\]])/g, '$1')
+
+          // 策略2: 修复多余的逗号（连续逗号）
+          fixed = fixed.replace(/,\s*,/g, ',')
+
+          // 策略3: 移除控制字符和不可见字符
+          fixed = fixed.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+
+          // 策略4: 修复字符串中的未转义引号
+          // 注意：这个比较复杂，暂时跳过
+
+          // 策略5: 确保数组元素之间有逗号
+          // 检测模式：} { 之间缺少逗号
+          fixed = fixed.replace(/\}\s*\{/g, '},{')
+
+          // 策略6: 移除 JSON 前后的非JSON字符
+          const jsonStart = fixed.indexOf('{')
+          const jsonEnd = fixed.lastIndexOf('}')
+          if (jsonStart !== -1 && jsonEnd !== -1) {
+            fixed = fixed.substring(jsonStart, jsonEnd + 1)
+          }
+
+          console.log('尝试修复后的JSON前500字符：', fixed.substring(0, 500))
           result = JSON.parse(fixed)
-          console.log('JSON 修复成功')
-        } catch (fixError) {
-          throw new Error(`JSON解析失败: ${parseError.message}。请稍后重试或使用更短的文章。`)
+          console.log('✅ JSON 修复成功')
+        } catch (fixError: any) {
+          console.error('JSON 修复失败：', fixError.message)
+
+          // 最后的容错：返回一个基本的结构，避免完全失败
+          console.log('⚠️ 使用降级方案：返回基本结构')
+          result = {
+            workflowTitle: title,
+            workflowDescription: '由于AI返回格式问题，自动生成的基本工作流',
+            steps: [
+              {
+                title: '步骤1',
+                prompt: '请根据文章内容完成此步骤',
+                model: { brand: 'OpenAI', name: 'GPT-4' },
+                usedTools: []
+              }
+            ],
+            category: 'other',
+            tags: []
+          }
+          console.log('使用降级结果')
         }
       }
 
