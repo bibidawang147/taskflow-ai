@@ -96,14 +96,17 @@ export default function WorkspacePage() {
 
   // 创建新容器
   const handleCreateContainer = () => {
-    const newContainer: CardConfig = {
-      id: `container_${Date.now()}`,
-      type: 'container',
-      position: { x: 100, y: 100 },
-      size: { width: 300, height: 200 },
-      zIndex: Math.max(...cards.map(c => c.zIndex), 0) + 1
-    }
-    setCards(prev => [...prev, newContainer])
+    setCards(prev => {
+      const maxZIndex = prev.length > 0 ? Math.max(...prev.map(c => c.zIndex), 0) : 0
+      const newContainer: CardConfig = {
+        id: `container_${Date.now()}`,
+        type: 'container',
+        position: { x: 100, y: 100 },
+        size: { width: 300, height: 200 },
+        zIndex: maxZIndex + 1
+      }
+      return [...prev, newContainer]
+    })
   }
 
   // 切换避让功能
@@ -327,9 +330,12 @@ export default function WorkspacePage() {
     })
 
     // 提升z-index
-    setCards(cards.map(c =>
-      c.id === cardId ? { ...c, zIndex: Math.max(...cards.map(card => card.zIndex)) + 1 } : c
-    ))
+    setCards(prev => {
+      const maxZIndex = prev.length > 0 ? Math.max(...prev.map(card => card.zIndex)) : 0
+      return prev.map(c =>
+        c.id === cardId ? { ...c, zIndex: maxZIndex + 1 } : c
+      )
+    })
   }
 
   // 双击卡片展开/收起工作模块
