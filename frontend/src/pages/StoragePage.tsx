@@ -572,7 +572,7 @@ function findNonOverlappingPosition(
   }
 
   // 获取容器中所有子项的位置和尺寸（排除正在移动的项目）
-  const siblings = container.childrenIds
+  const siblings = (container.childrenIds || [])
     .filter((childId) => childId !== excludeItemId)
     .map((childId) => items[childId])
     .filter(Boolean)
@@ -2064,7 +2064,7 @@ export default function StoragePage() {
       return null
     }
 
-    return container.childrenIds.map((childId) => {
+    return (container.childrenIds || []).map((childId) => {
       const item = canvasItems[childId]
       if (!item) {
         return null
@@ -2556,7 +2556,7 @@ export default function StoragePage() {
 
             {/* 工作流库区域 */}
             {(Object.keys(SECTION_META) as LibrarySection[]).map((sectionKey) => {
-              const workflows = sectionedLibrary[sectionKey]
+              const workflows = sectionedLibrary[sectionKey] || []
               const meta = SECTION_META[sectionKey]
 
               return (
@@ -2731,7 +2731,7 @@ export default function StoragePage() {
 
               {aiToolsSectionExpanded && (
                 <div style={{ marginTop: '8px', marginLeft: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {aiToolsData.map((tool) => (
+                  {(aiToolsData || []).map((tool) => (
                     <div
                       key={tool.id}
                       draggable
