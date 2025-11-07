@@ -2543,7 +2543,7 @@ export default function WorkspacePage() {
 
   // 工作项使用统计数据
   const workItemUsageStats = Object.entries(workItems).flatMap(([category, items]) =>
-    items.map(item => {
+    (items || []).map(item => {
       // 模拟使用次数，实际应该从数据库获取
       const useCount = Math.floor(Math.random() * 100) + 10
       const weeklyUseCount = Math.floor(Math.random() * 15) // 模拟每周使用次数 0-14次
@@ -2960,7 +2960,7 @@ export default function WorkspacePage() {
           onDragOver={handleCanvasDragOver}
         >
         {/* 渲染画布元素（容器和卡片） */}
-        {cards.map((cardConfig) => {
+        {(cards || []).map((cardConfig) => {
           // 如果是容器类型，渲染容器
           if (cardConfig.type === 'container') {
             const card = getCardConfig(cardConfig.id)
