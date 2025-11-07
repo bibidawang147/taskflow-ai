@@ -909,8 +909,8 @@ export default function StoragePage() {
       section
     })
 
-    const favorites = favoriteWorkflows.map(wf => convertToLibraryWorkflow(wf, 'favorites'))
-    const created = createdWorkflows.map(wf => convertToLibraryWorkflow(wf, 'created'))
+    const favorites = (favoriteWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'favorites'))
+    const created = (createdWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'created'))
 
     // 合并静态数据和API数据，优先显示API数据
     const staticFavorites = initialLibraryData.filter(wf => wf.section === 'favorites')
