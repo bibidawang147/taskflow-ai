@@ -949,7 +949,7 @@ export default function StoragePage() {
   // 渐进式执行模态框（改为分屏模式）
   const [showStepByStepExecution, setShowStepByStepExecution] = useState(false)
   const [selectedWorkflowForExecution, setSelectedWorkflowForExecution] = useState<ExecutionWorkflow | null>(null)
-  const [leftPanelWidth, setLeftPanelWidth] = useState(50) // 左侧面板宽度百分比
+  const [leftPanelWidth, setLeftPanelWidth] = useState(65) // 左侧面板宽度百分比，右侧执行面板为 100-65=35%
 
   const [activeSections, setActiveSections] = useState<Record<LibrarySection, boolean>>({
     created: false,
@@ -2208,6 +2208,7 @@ export default function StoragePage() {
               if (workflow) {
                 const executionPayload = buildExecutionWorkflowPayload(workflow)
                 setSelectedWorkflowForExecution(executionPayload)
+                setLeftPanelWidth(65) // 立即设置为65%，右侧面板35%
                 setShowStepByStepExecution(true)
               }
             }}
