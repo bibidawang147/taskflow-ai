@@ -10,6 +10,11 @@ export interface Workflow {
   tags: string[]
   version: string
   createdAt: string
+  config?: {
+    nodes?: any[]
+    [key: string]: any
+  }
+  nodes?: any[]
   author?: {
     id: string
     name: string
@@ -48,8 +53,8 @@ export const getFavoriteWorkflows = async (): Promise<Workflow[]> => {
     const response = await api.get('/users/favorites')
     return response.data.workflows
   } catch (error) {
-    console.error('获取收藏列表失败:', error)
-    throw error
+    console.warn('获取收藏列表失败 (非关键错误):', error)
+    return [] // 返回空数组而不是抛出错误
   }
 }
 

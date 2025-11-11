@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { getFavoriteWorkflows, getUserWorkflows, type Workflow } from '../services/workflowApi'
+import { getFavoriteWorkflows, getUserWorkflows, updateWorkflow, type Workflow } from '../services/workflowApi'
 import WorkflowExecutionModal from '../components/WorkflowExecutionModal'
+import ExecutionSplitPanel, { type ExecutionWorkflow, type WorkflowNode } from '../components/ExecutionSplitPanel'
+import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
 
 type WorkflowStatus = 'active' | 'draft' | 'paused'
@@ -24,6 +26,42 @@ const TOP_LEFT_LIMIT = 2
 const MIN_VISIBLE_RATIO = 0.3
 const INITIAL_POSITION_X = 10
 const INITIAL_POSITION_Y = 10
+
+const DEFAULT_EXECUTION_NODES: WorkflowNode[] = [
+  {
+    id: 'default-input',
+    type: 'input',
+    data: {
+      label: '输入节点',
+      config: {
+        title: '输入准备',
+        description: '在此补充执行该流程前需要的输入信息。'
+      }
+    }
+  },
+  {
+    id: 'default-llm',
+    type: 'llm',
+    data: {
+      label: 'AI 处理',
+      config: {
+        title: '模型指令',
+        prompt: '请根据输入内容完成处理。'
+      }
+    }
+  },
+  {
+    id: 'default-output',
+    type: 'output',
+    data: {
+      label: '输出节点',
+      config: {
+        title: '输出结果',
+        description: '总结本次执行的核心结果。'
+      }
+    }
+  }
+]
 
 // 容器颜色池
 const CONTAINER_COLORS = [
@@ -96,6 +134,11 @@ interface WorkflowDefinition {
   updatedAt: string
   model?: string // 模型产品
   prompt?: string // 原始 prompt
+  config?: {
+    nodes?: WorkflowNode[]
+    [key: string]: any
+  }
+  nodes?: WorkflowNode[]
 }
 
 interface AIToolDefinition {
@@ -163,7 +206,121 @@ const initialLibraryData: LibraryWorkflow[] = [
     updatedAt: '2025-02-08',
     section: 'created',
     model: 'GPT-4',
-    prompt: '你是一个专业的订单处理助手。请根据用户输入的订单信息，自动执行以下步骤：\n1. 验证订单格式和完整性\n2. 校验库存是否充足\n3. 计算订单金额和优惠\n4. 生成物流推送信息\n5. 返回处理结果和追踪信息'
+    prompt: '你是一个专业的订单处理助手。请根据用户输入的订单信息，自动执行以下步骤：\n1. 验证订单格式和完整性\n2. 校验库存是否充足\n3. 计算订单金额和优惠\n4. 生成物流推送信息\n5. 返回处理结果和追踪信息',
+    nodes: [
+      {
+        id: 'node-1',
+        type: 'input',
+        label: '订单信息录入',
+        position: { x: 0, y: 0 },
+        config: {
+          description: '请输入订单的基本信息',
+          placeholder: '例如：订单号、商品列表、收货地址、联系方式等',
+          requiredFields: ['订单号', '商品信息', '收货地址', '联系方式', '支付金额']
+        }
+      },
+      {
+        id: 'node-2',
+        type: 'llm',
+        label: '订单信息验证',
+        position: { x: 200, y: 0 },
+        config: {
+          model: 'GPT-4',
+          systemPrompt: '你是一个订单验证专家。请检查订单信息的完整性和格式正确性。',
+          userPrompt: '请验证以下订单信息是否完整且格式正确：\n- 订单号格式是否符合规范\n- 商品信息是否完整（名称、数量、价格）\n- 收货地址是否详细准确\n- 联系方式是否有效\n- 支付金额是否匹配商品总价\n\n如果发现问题，请明确指出；如果验证通过，请输出"验证通过"并总结订单信息。',
+          temperature: 0.3
+        }
+      },
+      {
+        id: 'node-3',
+        type: 'tool',
+        label: '库存查询与校验',
+        position: { x: 400, y: 0 },
+        config: {
+          toolName: '库存管理系统 API',
+          apiEndpoint: '/api/inventory/check',
+          description: '调用库存管理系统API，查询商品库存并校验是否充足',
+          parameters: {
+            productIds: '从订单中提取的商品ID列表',
+            quantities: '对应的购买数量'
+          },
+          expectedOutput: '库存充足状态和剩余库存数量'
+        }
+      },
+      {
+        id: 'node-4',
+        type: 'llm',
+        label: '订单金额计算',
+        position: { x: 600, y: 0 },
+        config: {
+          model: 'GPT-4',
+          systemPrompt: '你是一个订单金额计算专家。请根据商品价格、数量、优惠券和运费计算最终订单金额。',
+          userPrompt: '请计算订单的最终金额：\n1. 商品总价 = ∑(商品单价 × 数量)\n2. 检查是否有可用优惠券或折扣\n3. 计算优惠后金额\n4. 根据收货地址计算运费\n5. 最终金额 = 商品总价 - 优惠金额 + 运费\n\n请输出详细的金额明细和最终应付金额。',
+          temperature: 0.1
+        }
+      },
+      {
+        id: 'node-5',
+        type: 'condition',
+        label: '支付状态判断',
+        position: { x: 800, y: 0 },
+        config: {
+          conditionType: '支付完成判断',
+          conditions: [
+            { name: '已支付', expression: 'payment_status === "paid"', nextNode: 'node-6' },
+            { name: '待支付', expression: 'payment_status === "pending"', nextNode: 'node-wait' },
+            { name: '支付失败', expression: 'payment_status === "failed"', nextNode: 'node-error' }
+          ]
+        }
+      },
+      {
+        id: 'node-6',
+        type: 'tool',
+        label: '物流信息推送',
+        position: { x: 1000, y: 0 },
+        config: {
+          toolName: '物流平台 API',
+          apiEndpoint: '/api/logistics/create-order',
+          description: '将订单信息推送到物流平台，创建物流单',
+          parameters: {
+            orderNumber: '订单号',
+            receiverInfo: '收货人信息（姓名、电话、地址）',
+            productInfo: '商品信息',
+            deliveryType: '配送方式（标准/加急/次日达）'
+          },
+          expectedOutput: '物流单号和预计送达时间'
+        }
+      },
+      {
+        id: 'node-7',
+        type: 'llm',
+        label: '生成订单确认通知',
+        position: { x: 1200, y: 0 },
+        config: {
+          model: 'GPT-4',
+          systemPrompt: '你是一个客服专家。请生成友好、专业的订单确认通知。',
+          userPrompt: '请生成订单确认通知内容，包括：\n1. 感谢客户下单\n2. 订单号和下单时间\n3. 商品清单和金额明细\n4. 收货地址和联系方式\n5. 物流单号和预计送达时间\n6. 客服联系方式\n\n要求：语气友好、信息完整、格式清晰。',
+          temperature: 0.7
+        }
+      },
+      {
+        id: 'node-8',
+        type: 'output',
+        label: '输出处理结果',
+        position: { x: 1400, y: 0 },
+        config: {
+          outputFormat: 'JSON',
+          fields: [
+            { name: 'orderId', description: '订单号' },
+            { name: 'status', description: '处理状态' },
+            { name: 'totalAmount', description: '订单总金额' },
+            { name: 'logisticsNumber', description: '物流单号' },
+            { name: 'estimatedDelivery', description: '预计送达时间' },
+            { name: 'notificationContent', description: '确认通知内容' }
+          ]
+        }
+      }
+    ]
   },
   {
     id: 'wf-payments',
@@ -782,11 +939,17 @@ function findDropTargetContainer(
 
 export default function StoragePage() {
   const [librarySearch, setLibrarySearch] = useState('')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
+  const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
 
   // 工作流执行弹窗状态
   const [showExecutionModal, setShowExecutionModal] = useState(false)
   const [selectedExecutionItem, setSelectedExecutionItem] = useState<WorkflowDefinition | AIToolDefinition | null>(null)
+
+  // 渐进式执行模态框（改为分屏模式）
+  const [showStepByStepExecution, setShowStepByStepExecution] = useState(false)
+  const [selectedWorkflowForExecution, setSelectedWorkflowForExecution] = useState<ExecutionWorkflow | null>(null)
+  const [leftPanelWidth, setLeftPanelWidth] = useState(50) // 左侧面板宽度百分比
 
   const [activeSections, setActiveSections] = useState<Record<LibrarySection, boolean>>({
     created: false,
@@ -895,6 +1058,36 @@ export default function StoragePage() {
     loadWorkflows()
   }, [])
 
+  // 左侧边缘热区检测和自动显示/隐藏侧边栏
+  useEffect(() => {
+    const EDGE_THRESHOLD = 15 // 左侧边缘热区宽度（px）
+    const SIDEBAR_WIDTH = 320 // 侧边栏宽度
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const mouseX = e.clientX
+
+      // 检测鼠标是否在左侧边缘热区
+      if (mouseX <= EDGE_THRESHOLD && sidebarCollapsed) {
+        setIsHoveringEdge(true)
+        setSidebarCollapsed(false)
+      }
+    }
+
+    const handleMouseLeave = (e: MouseEvent) => {
+      // 如果鼠标离开了侧边栏区域，自动收起
+      if (e.clientX > SIDEBAR_WIDTH) {
+        setSidebarCollapsed(true)
+        setIsHoveringEdge(false)
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+    }
+  }, [sidebarCollapsed])
+
   const libraryData = useMemo(() => {
     // 将API数据转换为LibraryWorkflow格式
     const convertToLibraryWorkflow = (workflow: Workflow, section: LibrarySection): LibraryWorkflow => ({
@@ -906,7 +1099,9 @@ export default function StoragePage() {
       tags: workflow.tags || [],
       owner: workflow.author?.name || '我',
       updatedAt: new Date(workflow.createdAt).toISOString().split('T')[0],
-      section
+      section,
+      config: workflow.config,
+      nodes: workflow.config?.nodes || workflow.nodes
     })
 
     const favorites = (favoriteWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'favorites'))
@@ -1476,8 +1671,11 @@ export default function StoragePage() {
       // 只允许在画布区域处理滚轮事件（由 handleWheel 处理）
       const isInCanvas = target.closest('.workflow-canvas-container')
 
+      // 允许在标记为可滚动的数据面板内滚动（如渐进式执行面板）
+      const isInCustomScrollArea = target.closest('[data-scroll-container="true"]')
+
       // 如果不在列表或画布区域，则阻止滚动
-      if (!isInLibraryList && !isInCanvas) {
+      if (!isInLibraryList && !isInCanvas && !isInCustomScrollArea) {
         event.preventDefault()
         event.stopPropagation()
       }
@@ -1498,7 +1696,10 @@ export default function StoragePage() {
     const preventBackNavigation = (event: WheelEvent) => {
       const target = event.target as HTMLElement
       // 如果在画布区域内，不阻止横向滚动
-      if (target.closest('.workflow-canvas-container')) {
+      if (
+        target.closest('.workflow-canvas-container') ||
+        target.closest('[data-scroll-container="true"]')
+      ) {
         return
       }
       // 检测是否是横向滚动（可能触发后退）
@@ -1524,7 +1725,10 @@ export default function StoragePage() {
 
       const target = event.target as HTMLElement
       // 如果在画布区域内，不阻止任何触摸手势
-      if (target.closest('.workflow-canvas-container')) {
+      if (
+        target.closest('.workflow-canvas-container') ||
+        target.closest('[data-scroll-container="true"]')
+      ) {
         return
       }
 
@@ -1811,6 +2015,67 @@ export default function StoragePage() {
     // setEditingName('新容器')
   }
 
+  const buildExecutionWorkflowPayload = (workflow: LibraryWorkflow): ExecutionWorkflow => {
+    const nodesFromConfig = workflow.config?.nodes
+    const fallbackNodes = workflow.nodes
+    const nodesSource = (nodesFromConfig && nodesFromConfig.length > 0)
+      ? nodesFromConfig
+      : (fallbackNodes && fallbackNodes.length > 0)
+        ? fallbackNodes
+        : DEFAULT_EXECUTION_NODES
+
+    const normalizedNodes = nodesSource.map((node, index) => ({
+      ...node,
+      id: node.id || `node-${index + 1}`,
+      type: node.type,
+      data: node.data ?? {
+        label: node.data?.label ?? (node as any)?.label ?? `节点 ${index + 1}`,
+        config: node.data?.config ?? (node as any)?.config ?? {}
+      }
+    }))
+
+    return {
+      id: workflow.id,
+      title: workflow.name,
+      description: workflow.summary,
+      config: {
+        ...(workflow.config || {}),
+        nodes: normalizedNodes
+      }
+    }
+  }
+
+  const handleExecutionWorkflowUpdate = useCallback(
+    async (updatedWorkflow: ExecutionWorkflow) => {
+      const ownsWorkflow = createdWorkflows.some((wf) => wf.id === updatedWorkflow.id)
+      if (!ownsWorkflow) {
+        throw new Error('只有我创建的工作流才能保存修改，请先克隆或创建属于自己的副本。')
+      }
+      try {
+        await updateWorkflow(updatedWorkflow.id, { config: updatedWorkflow.config })
+        setCreatedWorkflows((prev) =>
+          prev.map((wf) =>
+            wf.id === updatedWorkflow.id
+              ? { ...wf, config: updatedWorkflow.config, nodes: updatedWorkflow.config?.nodes }
+              : wf
+          )
+        )
+        setFavoriteWorkflows((prev) =>
+          prev.map((wf) =>
+            wf.id === updatedWorkflow.id
+              ? { ...wf, config: updatedWorkflow.config, nodes: updatedWorkflow.config?.nodes }
+              : wf
+          )
+        )
+        setSelectedWorkflowForExecution(updatedWorkflow)
+      } catch (error) {
+        console.error('保存工作流配置失败:', error)
+        throw error
+      }
+    },
+    [createdWorkflows]
+  )
+
   const renderWorkflowCard = (card: WorkflowCanvasItem) => {
     const workflow = libraryData.find((item) => item.id === card.workflowId)
     const isDragging = draggingItemId === card.id
@@ -1916,23 +2181,60 @@ export default function StoragePage() {
           {workflow?.summary ?? '拖拽自定义的工作流卡片'}
         </p>
 
-        {/* 底部标签 */}
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {(workflow?.tags ?? ['workflow']).slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              style={{
-                fontSize: '10px',
-                padding: '3px 6px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(139, 92, 246, 0.12)',
-                color: '#7c3aed',
-                fontWeight: 500
-              }}
-            >
-              {tag}
-            </span>
-          ))}
+        {/* 底部标签和操作按钮 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', flex: 1 }}>
+            {(workflow?.tags ?? ['workflow']).slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  fontSize: '10px',
+                  padding: '3px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                  color: '#7c3aed',
+                  fontWeight: 500
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* 渐进式执行按钮 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (workflow) {
+                const executionPayload = buildExecutionWorkflowPayload(workflow)
+                setSelectedWorkflowForExecution(executionPayload)
+                setShowStepByStepExecution(true)
+              }
+            }}
+            style={{
+              padding: '4px 8px',
+              borderRadius: '4px',
+              border: 'none',
+              backgroundColor: '#8b5cf6',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '10px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#7c3aed'
+              e.currentTarget.style.transform = 'scale(1.05)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#8b5cf6'
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            执行 ▶
+          </button>
         </div>
       </div>
     )
@@ -2307,22 +2609,30 @@ export default function StoragePage() {
           width: '100%',
           backgroundColor: '#f5f3ff',
           overflow: 'hidden',
-          gap: 0
+          gap: 0,
+          position: 'relative'
         }}
       >
       <aside
         className="workflow-library"
         style={{
-          width: sidebarCollapsed ? '52px' : '320px',
-          transition: 'width 0.25s',
+          width: sidebarCollapsed ? '0px' : '320px',
+          transition: 'width 0.3s ease-in-out',
           backgroundColor: '#ffffff',
-          borderRight: '1px solid #e5e7eb',
+          borderRight: sidebarCollapsed ? 'none' : '1px solid #e5e7eb',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           height: '100%',
           flexShrink: 0,
           touchAction: 'auto'
+        }}
+        onMouseLeave={(e) => {
+          // 鼠标离开侧边栏区域时，自动收起
+          if (!sidebarCollapsed) {
+            setSidebarCollapsed(true)
+            setIsHoveringEdge(false)
+          }
         }}
         onWheel={(event) => {
           event.stopPropagation()
@@ -2810,22 +3120,74 @@ export default function StoragePage() {
 
       <main
         style={{
-          flex: 1,
+          width: showStepByStepExecution ? `${leftPanelWidth}%` : 'auto',
+          flexGrow: showStepByStepExecution ? 0 : 1,
+          flexShrink: 0,
+          flexBasis: showStepByStepExecution ? 'auto' : 0,
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
           overflow: 'hidden',
-          marginRight: '2px'
+          marginRight: '2px',
+          transition: 'all 0.3s ease-in-out'
         }}
         onWheel={(e) => {
           // 阻止 main 区域的滚动冒泡
           const target = e.target as HTMLElement
           // 如果不是在画布容器内，则阻止默认行为
-          if (!target.closest('.workflow-canvas-container') && !target.closest('[style*="overflowY"]')) {
+          if (
+            !target.closest('.workflow-canvas-container') &&
+            !target.closest('[style*="overflowY"]') &&
+            !target.closest('[data-scroll-container="true"]')
+          ) {
             e.preventDefault()
           }
         }}
       >
+        {/* 左侧边缘展开触发区域 - 仅在侧边栏隐藏时显示 */}
+        {sidebarCollapsed && (
+          <div
+            onClick={() => setSidebarCollapsed(false)}
+            style={{
+              position: 'fixed',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '24px',
+              height: '80px',
+              backgroundColor: 'rgba(139, 92, 246, 0.08)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 100,
+              borderTopRightRadius: '12px',
+              borderBottomRightRadius: '12px',
+              transition: 'all 0.3s ease-in-out',
+              backdropFilter: 'blur(8px)'
+            }}
+            title="展开工作流库"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.15)'
+              e.currentTarget.style.width = '28px'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)'
+              e.currentTarget.style.width = '24px'
+            }}
+          >
+            <div style={{
+              fontSize: '12px',
+              color: '#8b5cf6',
+              fontWeight: '600',
+              opacity: 0.6,
+              transition: 'opacity 0.2s'
+            }}>
+              ››
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             padding: '18px 16px',
@@ -3123,6 +3485,33 @@ export default function StoragePage() {
             setSelectedExecutionItem(null)
           }}
         />
+      )}
+
+      {/* 渐进式执行分屏面板 */}
+      {showStepByStepExecution && selectedWorkflowForExecution && (
+        <>
+          <ResizableSplitter onResize={setLeftPanelWidth} />
+          <div
+            style={{
+              position: 'relative',
+              width: `${100 - leftPanelWidth}%`,
+              height: '100%',
+              flexShrink: 0,
+              transform: showStepByStepExecution ? 'translateX(0)' : 'translateX(100%)',
+              transition: 'transform 0.3s ease-in-out',
+              backgroundColor: 'white'
+            }}
+          >
+            <ExecutionSplitPanel
+              workflow={selectedWorkflowForExecution}
+              onClose={() => {
+                setShowStepByStepExecution(false)
+                setSelectedWorkflowForExecution(null)
+              }}
+              onWorkflowUpdate={handleExecutionWorkflowUpdate}
+            />
+          </div>
+        </>
       )}
     </div>
     </>
