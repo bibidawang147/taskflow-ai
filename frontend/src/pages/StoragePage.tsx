@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { getFavoriteWorkflows, getUserWorkflows, updateWorkflow, type Workflow } from '../services/workflowApi'
+import { Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  getFavoriteWorkflows,
+  getUserWorkflows,
+  updateWorkflow,
+  getExecutionHistory,
+  type Workflow,
+  type ExecutionHistory
+} from '../services/workflowApi'
 import WorkflowExecutionModal from '../components/WorkflowExecutionModal'
 import ExecutionSplitPanel, { type ExecutionWorkflow, type WorkflowNode } from '../components/ExecutionSplitPanel'
+import ExecutionHistoryModal from '../components/ExecutionHistoryModal'
 import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
 
@@ -155,6 +164,8 @@ interface AIToolDefinition {
 
 type LibraryWorkflow = WorkflowDefinition & {
   section: LibrarySection
+  isOwner?: boolean  // 是否是当前用户创建的
+  canEdit?: boolean  // 是否可以编辑
 }
 
 type LibraryAITool = AIToolDefinition & {
@@ -951,6 +962,15 @@ export default function StoragePage() {
   const [selectedWorkflowForExecution, setSelectedWorkflowForExecution] = useState<ExecutionWorkflow | null>(null)
   const [leftPanelWidth, setLeftPanelWidth] = useState(65) // 左侧面板宽度百分比，右侧执行面板为 100-65=35%
 
+  // 执行历史模态框
+  const [showExecutionHistoryModal, setShowExecutionHistoryModal] = useState(false)
+
+  // 执行历史展开状态
+  const [executionHistoryExpanded, setExecutionHistoryExpanded] = useState(false)
+  const [executionHistory, setExecutionHistory] = useState<ExecutionHistory[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [expandedExecutionId, setExpandedExecutionId] = useState<string | null>(null)
+
   const [activeSections, setActiveSections] = useState<Record<LibrarySection, boolean>>({
     created: false,
     favorites: false,
@@ -1058,6 +1078,36 @@ export default function StoragePage() {
     loadWorkflows()
   }, [])
 
+  // 加载执行历史
+  const loadExecutionHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true)
+      const response = await getExecutionHistory({
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        limit: 20
+      })
+      setExecutionHistory(response.executions)
+    } catch (error) {
+      console.error('加载执行历史失败:', error)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  // 当执行历史展开时加载数据
+  useEffect(() => {
+    if (executionHistoryExpanded) {
+      loadExecutionHistory()
+      // 每10秒自动刷新一次执行历史
+      const interval = setInterval(() => {
+        loadExecutionHistory()
+      }, 10000)
+
+      return () => clearInterval(interval)
+    }
+  }, [executionHistoryExpanded, loadExecutionHistory])
+
   // 左侧边缘热区检测和自动显示/隐藏侧边栏
   useEffect(() => {
     const EDGE_THRESHOLD = 15 // 左侧边缘热区宽度（px）
@@ -1088,9 +1138,34 @@ export default function StoragePage() {
     }
   }, [sidebarCollapsed])
 
+  // 格式化时长
+  const formatDuration = (ms?: number) => {
+    if (!ms) return '-'
+    if (ms < 1000) return `${ms}ms`
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+    return `${(ms / 60000).toFixed(1)}min`
+  }
+
+  // 格式化日期
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 1) return '刚刚'
+    if (diffMins < 60) return `${diffMins}分钟前`
+    if (diffHours < 24) return `${diffHours}小时前`
+    if (diffDays < 7) return `${diffDays}天前`
+
+    return date.toLocaleDateString('zh-CN')
+  }
+
   const libraryData = useMemo(() => {
-    // 将API数据转换为LibraryWorkflow格式
-    const convertToLibraryWorkflow = (workflow: Workflow, section: LibrarySection): LibraryWorkflow => ({
+    // 将API数据转换为LibraryWorkflow格式,并添加所有权标记
+    const convertToLibraryWorkflow = (workflow: Workflow, section: LibrarySection, isOwner: boolean): LibraryWorkflow => ({
       id: workflow.id,
       name: workflow.title,
       summary: workflow.description || '',
@@ -1101,11 +1176,17 @@ export default function StoragePage() {
       updatedAt: new Date(workflow.createdAt).toISOString().split('T')[0],
       section,
       config: workflow.config,
-      nodes: workflow.config?.nodes || workflow.nodes
+      nodes: workflow.config?.nodes || workflow.nodes,
+      isOwner,  // 标记是否拥有
+      canEdit: isOwner  // 只有拥有者才能编辑
     })
 
-    const favorites = (favoriteWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'favorites'))
-    const created = (createdWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'created'))
+    // created 工作流都是用户拥有的
+    const favorites = (favoriteWorkflows || []).map(wf => {
+      const isOwner = createdWorkflows.some(cw => cw.id === wf.id)
+      return convertToLibraryWorkflow(wf, 'favorites', isOwner)
+    })
+    const created = (createdWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'created', true))
 
     // 合并静态数据和API数据，优先显示API数据
     const staticFavorites = initialLibraryData.filter(wf => wf.section === 'favorites')
@@ -2047,12 +2128,15 @@ export default function StoragePage() {
 
   const handleExecutionWorkflowUpdate = useCallback(
     async (updatedWorkflow: ExecutionWorkflow) => {
-      const ownsWorkflow = createdWorkflows.some((wf) => wf.id === updatedWorkflow.id)
-      if (!ownsWorkflow) {
+      // 使用所有权标记检查
+      const workflowData = libraryData.find(wf => wf.id === updatedWorkflow.id)
+      if (!workflowData?.canEdit) {
         throw new Error('只有我创建的工作流才能保存修改，请先克隆或创建属于自己的副本。')
       }
       try {
         await updateWorkflow(updatedWorkflow.id, { config: updatedWorkflow.config })
+
+        // 只更新 createdWorkflows (用户拥有的工作流)
         setCreatedWorkflows((prev) =>
           prev.map((wf) =>
             wf.id === updatedWorkflow.id
@@ -2060,20 +2144,27 @@ export default function StoragePage() {
               : wf
           )
         )
-        setFavoriteWorkflows((prev) =>
-          prev.map((wf) =>
-            wf.id === updatedWorkflow.id
-              ? { ...wf, config: updatedWorkflow.config, nodes: updatedWorkflow.config?.nodes }
-              : wf
+
+        // 如果这个工作流也在收藏列表中,同步更新(保持数据一致性)
+        // 但收藏列表中的工作流配置更新不代表用户可以编辑它
+        const isFavorited = favoriteWorkflows.some((wf) => wf.id === updatedWorkflow.id)
+        if (isFavorited) {
+          setFavoriteWorkflows((prev) =>
+            prev.map((wf) =>
+              wf.id === updatedWorkflow.id
+                ? { ...wf, config: updatedWorkflow.config, nodes: updatedWorkflow.config?.nodes }
+                : wf
+            )
           )
-        )
+        }
+
         setSelectedWorkflowForExecution(updatedWorkflow)
       } catch (error) {
         console.error('保存工作流配置失败:', error)
         throw error
       }
     },
-    [createdWorkflows]
+    [libraryData, createdWorkflows, favoriteWorkflows]
   )
 
   const renderWorkflowCard = (card: WorkflowCanvasItem) => {
@@ -2670,25 +2761,27 @@ export default function StoragePage() {
               <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>拖拽到画布以引用已有工作流</p>
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-            style={{
-              border: '1px solid #c4b5fd',
-              backgroundColor: '#f5f3ff',
-              borderRadius: '8px',
-              width: '28px',
-              height: '28px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#7c3aed'
-            }}
-            title={sidebarCollapsed ? '展开工作流库' : '折叠工作流库'}
-          >
-            {sidebarCollapsed ? '◀' : '▶'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              style={{
+                border: '1px solid #c4b5fd',
+                backgroundColor: '#f5f3ff',
+                borderRadius: '8px',
+                width: '28px',
+                height: '28px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#7c3aed'
+              }}
+              title={sidebarCollapsed ? '展开工作流库' : '折叠工作流库'}
+            >
+              {sidebarCollapsed ? '◀' : '▶'}
+            </button>
+          </div>
         </div>
 
         {!sidebarCollapsed && (
@@ -2700,20 +2793,300 @@ export default function StoragePage() {
               e.preventDefault()
             }}
           >
-            <input
-              type="text"
-              value={librarySearch}
-              placeholder="搜索工作流、标签或描述"
-              onChange={(event) => setLibrarySearch(event.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: '1px solid #d1d5db',
-                fontSize: '13px',
-                backgroundColor: '#fafafa'
-              }}
-            />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={librarySearch}
+                placeholder="搜索工作流、标签或描述"
+                onChange={(event) => setLibrarySearch(event.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '13px',
+                  backgroundColor: '#fafafa'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setExecutionHistoryExpanded(!executionHistoryExpanded)}
+                style={{
+                  border: '1px solid #8b5cf6',
+                  backgroundColor: executionHistoryExpanded ? '#ede9fe' : '#f5f3ff',
+                  borderRadius: '10px',
+                  width: '42px',
+                  height: '42px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#8b5cf6',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ede9fe'
+                  e.currentTarget.style.borderColor = '#7c3aed'
+                  e.currentTarget.style.color = '#7c3aed'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = executionHistoryExpanded ? '#ede9fe' : '#f5f3ff'
+                  e.currentTarget.style.borderColor = '#8b5cf6'
+                  e.currentTarget.style.color = '#8b5cf6'
+                }}
+                title={executionHistoryExpanded ? '收起执行历史' : '展开执行历史'}
+              >
+                <Clock size={20} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 执行历史列表 */}
+        {!sidebarCollapsed && executionHistoryExpanded && (
+          <div
+            style={{
+              maxHeight: '300px',
+              overflowY: 'auto',
+              borderBottom: '1px solid #e5e7eb',
+              backgroundColor: '#fafafa'
+            }}
+          >
+            {/* 列表头部 */}
+            <div style={{
+              padding: '8px 16px',
+              borderBottom: '1px solid #e5e7eb',
+              backgroundColor: '#fff',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              position: 'sticky',
+              top: 0,
+              zIndex: 1
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280' }}>
+                执行记录
+              </span>
+              <button
+                onClick={() => loadExecutionHistory()}
+                style={{
+                  fontSize: '11px',
+                  color: '#8b5cf6',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                  borderRadius: '4px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+                title="刷新执行历史"
+              >
+                刷新
+              </button>
+            </div>
+
+            {loadingHistory ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>
+                加载中...
+              </div>
+            ) : executionHistory.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
+                暂无执行记录
+              </div>
+            ) : (
+              <div>
+                {executionHistory.map((execution) => (
+                  <div
+                    key={execution.id}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: '1px solid #e5e7eb',
+                      backgroundColor: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div
+                      onClick={() => setExpandedExecutionId(
+                        expandedExecutionId === execution.id ? null : execution.id
+                      )}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          color: '#111827',
+                          marginBottom: '4px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {execution.workflowTitle}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6b7280',
+                          display: 'flex',
+                          gap: '8px',
+                          alignItems: 'center'
+                        }}>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: execution.status === 'completed' ? '#d1fae5' :
+                                           execution.status === 'failed' ? '#fee2e2' : '#e0e7ff',
+                            color: execution.status === 'completed' ? '#065f46' :
+                                   execution.status === 'failed' ? '#991b1b' : '#3730a3',
+                            fontSize: '10px',
+                            fontWeight: 600
+                          }}>
+                            {execution.status === 'completed' ? '完成' :
+                             execution.status === 'failed' ? '失败' :
+                             execution.status === 'running' ? '运行中' : '等待'}
+                          </span>
+                          <span>{formatDate(execution.startedAt)}</span>
+                          <span>{formatDuration(execution.duration)}</span>
+                        </div>
+                      </div>
+                      {expandedExecutionId === execution.id ? (
+                        <ChevronUp size={16} color="#6b7280" />
+                      ) : (
+                        <ChevronDown size={16} color="#6b7280" />
+                      )}
+                    </div>
+
+                    {/* 展开的详情 */}
+                    {expandedExecutionId === execution.id && (
+                      <div style={{
+                        marginTop: '12px',
+                        paddingTop: '12px',
+                        borderTop: '1px solid #f3f4f6',
+                        fontSize: '12px'
+                      }}>
+                        {/* 输入 */}
+                        {execution.input && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: '#6b7280',
+                              marginBottom: '4px'
+                            }}>
+                              输入参数
+                            </div>
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              color: '#374151',
+                              maxHeight: '100px',
+                              overflowY: 'auto',
+                              fontFamily: 'monospace',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word'
+                            }}>
+                              {JSON.stringify(execution.input, null, 2)}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 输出 */}
+                        {execution.output && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: '#6b7280',
+                              marginBottom: '4px'
+                            }}>
+                              输出结果
+                            </div>
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              color: '#374151',
+                              maxHeight: '100px',
+                              overflowY: 'auto',
+                              fontFamily: 'monospace',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word'
+                            }}>
+                              {JSON.stringify(execution.output, null, 2)}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 错误信息 */}
+                        {execution.error && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: '#dc2626',
+                              marginBottom: '4px'
+                            }}>
+                              错误信息
+                            </div>
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#fef2f2',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              color: '#991b1b',
+                              maxHeight: '100px',
+                              overflowY: 'auto',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word'
+                            }}>
+                              {execution.error}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 备注 */}
+                        {execution.notes && (
+                          <div>
+                            <div style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: '#6b7280',
+                              marginBottom: '4px'
+                            }}>
+                              备注
+                            </div>
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#fffbeb',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              color: '#78350f',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word'
+                            }}>
+                              {execution.notes}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -3121,16 +3494,12 @@ export default function StoragePage() {
 
       <main
         style={{
-          width: showStepByStepExecution ? `${leftPanelWidth}%` : 'auto',
-          flexGrow: showStepByStepExecution ? 0 : 1,
-          flexShrink: 0,
-          flexBasis: showStepByStepExecution ? 'auto' : 0,
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
           overflow: 'hidden',
-          marginRight: '2px',
-          transition: 'all 0.3s ease-in-out'
+          position: 'relative'
         }}
         onWheel={(e) => {
           // 阻止 main 区域的滚动冒泡
@@ -3468,6 +3837,15 @@ export default function StoragePage() {
                     backfaceVisibility: 'hidden',
                     boxSizing: 'border-box'
                   }}
+                  onClick={(e) => {
+                    // 只在点击画布空白处时收缩执行面板
+                    // 检查是否点击的是画布本身，而不是其中的子元素
+                    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-content')) {
+                      if (showStepByStepExecution) {
+                        setShowStepByStepExecution(false)
+                      }
+                    }
+                  }}
                 >
                   {renderChildren(ROOT_CONTAINER_ID)}
                 </div>
@@ -3489,18 +3867,35 @@ export default function StoragePage() {
       )}
 
       {/* 渐进式执行分屏面板 */}
-      {showStepByStepExecution && selectedWorkflowForExecution && (
+      {selectedWorkflowForExecution && (
         <>
-          <ResizableSplitter onResize={setLeftPanelWidth} />
           <div
             style={{
-              position: 'relative',
+              position: 'fixed',
+              left: `${leftPanelWidth}%`,
+              top: 0,
+              height: '100%',
+              opacity: showStepByStepExecution ? 1 : 0,
+              pointerEvents: showStepByStepExecution ? 'auto' : 'none',
+              transition: 'opacity 0.3s ease-in-out',
+              zIndex: 1001
+            }}
+          >
+            <ResizableSplitter onResize={setLeftPanelWidth} />
+          </div>
+          <div
+            style={{
+              position: 'fixed',
+              right: 0,
+              top: 0,
               width: `${100 - leftPanelWidth}%`,
               height: '100%',
               flexShrink: 0,
               transform: showStepByStepExecution ? 'translateX(0)' : 'translateX(100%)',
-              transition: 'transform 0.3s ease-in-out',
-              backgroundColor: 'white'
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              backgroundColor: 'white',
+              zIndex: 1000,
+              boxShadow: showStepByStepExecution ? '-4px 0 12px rgba(0, 0, 0, 0.1)' : 'none'
             }}
           >
             <ExecutionSplitPanel
@@ -3514,6 +3909,12 @@ export default function StoragePage() {
           </div>
         </>
       )}
+
+      {/* 执行历史模态框 */}
+      <ExecutionHistoryModal
+        isOpen={showExecutionHistoryModal}
+        onClose={() => setShowExecutionHistoryModal(false)}
+      />
     </div>
     </>
   )

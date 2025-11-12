@@ -58,10 +58,12 @@ const STEP_SECTION_LABELS: Record<string, string> = {
   output: '输出',
   outputs: '输出',
   reference: '参考链接',
-  description: '说明',
+  description: '目标',
   model: '模型',
   provider: '模型提供方',
-  temperature: 'Temperature'
+  temperature: 'Temperature',
+  placeholder: '工具地址',
+  requiredFields: '指令或参数设置'
 }
 
 const formatSectionLabel = (key: string) => STEP_SECTION_LABELS[key] ?? key
@@ -147,7 +149,7 @@ const normalizeConfigSections = (config: any) => {
     return [
       {
         key: 'raw',
-        title: '步骤说明',
+        title: '目标',
         content: config
       }
     ]
@@ -158,7 +160,7 @@ const normalizeConfigSections = (config: any) => {
   if (config.title || config.description) {
     sections.push({
       key: 'primary',
-      title: config.title ?? '步骤说明',
+      title: config.title ?? '目标',
       content: config.description ?? ''
     })
   }
@@ -190,7 +192,7 @@ const normalizeConfigSections = (config: any) => {
   if (sections.length === 0) {
     sections.push({
       key: 'fallback',
-      title: '步骤说明',
+      title: '目标',
       content: config
     })
   }
@@ -276,6 +278,29 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editingStepIds, setEditingStepIds] = useState<Set<string>>(new Set())
+
+  // 监听Enter键完成步骤
+  React.useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // 如果焦点在输入框、文本域等元素上，不触发
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      if (e.key === 'Enter') {
+        // 找到当前展开且活跃的步骤
+        const activeIndex = steps.findIndex(s => s.status === 'active')
+        if (activeIndex !== -1 && expandedSteps.has(activeIndex)) {
+          e.preventDefault()
+          completeStep(activeIndex)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [steps, expandedSteps])
 
   const completedCount = useMemo(() => steps.filter(s => s.status === 'completed').length, [steps])
   const allStepsCompleted = steps.length > 0 && steps.every(s => s.status === 'completed')
@@ -615,11 +640,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
             <div
               key={step.id}
               style={{
-                marginBottom: '1.5rem',
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                border: `1px solid ${colors.border}`,
-                overflow: 'hidden',
+                marginBottom: '2rem',
                 transition: 'all 0.3s ease-in-out',
                 opacity: step.status === 'pending' ? 0.6 : 1
               }}
@@ -628,28 +649,73 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
               <div
                 onClick={() => toggleStep(index)}
                 style={{
-                  padding: '1.25rem 1.5rem',
+                  padding: '0.5rem 0',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '1rem',
-                  backgroundColor: colors.bg
+                  gap: '0.75rem'
                 }}
               >
-                {getStepIcon(step.status)}
                 <div style={{ flex: 1 }}>
                   <div style={{
                     fontSize: '1rem',
                     fontWeight: '600',
-                    color: '#1f2937',
-                    marginBottom: '0.25rem'
+                    color: '#1f2937'
                   }}>
                     步骤 {index + 1}: {step.title}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    {step.type}
-                  </div>
                 </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleStepEditing(step.id)
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '0',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: isEditingStep ? '#7c3aed' : '#9ca3af',
+                      cursor: 'pointer',
+                      borderBottom: isEditingStep ? '1px solid #7c3aed' : '1px solid #d1d5db'
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+                {/* 完成状态图标 */}
+                {step.status === 'active' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      completeStep(index)
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '0',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#d1d5db',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <CheckCircle2 size={20} />
+                  </button>
+                )}
+                {step.status === 'completed' && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    color: '#10b981'
+                  }}>
+                    <CheckCircle2 size={20} />
+                  </div>
+                )}
                 <span style={{
                   fontSize: '0.875rem',
                   color: '#6b7280'
@@ -660,64 +726,27 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
 
               {/* 步骤内容 - 展开时显示 */}
               {isExpanded && (
-                <div style={{
-                  padding: '1.5rem',
-                  borderTop: '1px solid #f3f4f6'
-                }}>
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    padding: '0.5rem 0 0 0'
+                  }}>
                   {/* 步骤说明 */}
                   <div style={{
                     marginBottom: '1rem',
-                    padding: '1rem',
+                    padding: '0.75rem',
                     backgroundColor: '#f9fafb',
-                    borderRadius: '12px',
+                    borderRadius: '0',
                     fontSize: '0.875rem',
                     color: '#374151',
-                    border: isEditingStep ? '1px dashed #d8b4fe' : '1px solid #f3e8ff'
+                    border: isEditingStep ? '2px dashed #d8b4fe' : '2px solid #e5e7eb'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                      <h4 style={{
-                        margin: 0,
-                        fontSize: '0.938rem',
-                        fontWeight: 700,
-                        color: '#6b21a8'
-                      }}>
-                        步骤说明
-                        {isEditingStep && (
-                          <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#a855f7' }}>
-                            编辑模式
-                          </span>
-                        )}
-                      </h4>
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => toggleStepEditing(step.id)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.4rem 0.75rem',
-                            borderRadius: '999px',
-                            border: '1px solid #c084fc',
-                            backgroundColor: isEditingStep ? '#c084fc' : 'transparent',
-                            color: isEditingStep ? '#fff' : '#7e22ce',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Pencil size={14} />
-                          {isEditingStep ? '完成编辑' : '编辑'}
-                        </button>
-                      )}
-                    </div>
-
                     {!isEditingStep && (
-                      <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {detailSections.length === 0 && (
                           <div style={{
                             padding: '0.75rem',
-                            borderRadius: '8px',
+                            borderRadius: '0',
                             border: '1px dashed #e5e7eb',
                             color: '#6b7280',
                             fontSize: '0.85rem'
@@ -725,19 +754,45 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                             当前步骤暂无说明内容
                           </div>
                         )}
-                        {detailSections.map(section => (
-                          <div key={section.key}>
-                            <div style={{
-                              fontSize: '0.8125rem',
-                              fontWeight: 600,
-                              color: '#4c1d95',
-                              letterSpacing: '0.02em'
-                            }}>
-                              {section.title}
+                        {detailSections.map((section, index) => {
+                          const isToolUrl = section.key === 'toolUrl' || section.key === 'toolAddress' || section.key === 'placeholder'
+                          const content = section.content
+                          const isUrl = typeof content === 'string' && (content.startsWith('http://') || content.startsWith('https://') || content.startsWith('www.'))
+
+                          return (
+                            <div key={section.key}>
+                              <div style={{
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                color: '#4c1d95',
+                                letterSpacing: '0.02em'
+                              }}>
+                                {section.title}
+                              </div>
+                              {isToolUrl && isUrl ? (
+                                <p style={{ margin: '0.4rem 0 0', lineHeight: 1.6 }}>
+                                  <a
+                                    href={content.startsWith('www.') ? `https://${content}` : content}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      color: '#8b5cf6',
+                                      textDecoration: 'underline',
+                                      cursor: 'pointer'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = '#7c3aed'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = '#8b5cf6'}
+                                  >
+                                    {content}
+                                  </a>
+                                </p>
+                              ) : (
+                                renderSectionContent(section.content)
+                              )}
                             </div>
-                            {renderSectionContent(section.content)}
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
 
@@ -854,36 +909,29 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                     )}
                   </div>
 
-                  {/* 完成按钮（仅当前活跃步骤显示） */}
-                  {step.status === 'active' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        completeStep(index)
-                      }}
-                      style={{
-                        marginTop: '1rem',
-                        width: '100%',
-                        padding: '0.875rem',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: '#8b5cf6',
-                        color: 'white',
-                        fontSize: '0.938rem',
+                  {/* Enter键提示 */}
+                  {step.status === 'active' && isExpanded && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '0.5rem 0.75rem',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '0',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.813rem',
+                      color: '#6b7280',
+                      textAlign: 'center'
+                    }}>
+                      按 <kbd style={{
+                        padding: '0.15rem 0.4rem',
+                        backgroundColor: 'white',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '3px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.75rem',
                         fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        transition: 'background-color 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
-                    >
-                      <CheckCircle2 size={20} />
-                      标记完成
-                    </button>
+                        color: '#374151'
+                      }}>Enter</kbd> 键标记完成
+                    </div>
                   )}
 
                   {/* 已完成提示 */}
@@ -892,7 +940,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                       marginTop: '1rem',
                       padding: '0.75rem',
                       backgroundColor: '#f0fdf4',
-                      borderRadius: '8px',
+                      borderRadius: '0',
                       border: '1px solid #10b981',
                       color: '#065f46',
                       fontSize: '0.875rem',
@@ -978,13 +1026,46 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
               {saveError && (
                 <div style={{
                   marginTop: '1rem',
-                  padding: '0.75rem 1rem',
+                  padding: '1rem',
                   borderRadius: '12px',
-                  backgroundColor: 'rgba(248, 113, 113, 0.15)',
-                  color: '#7f1d1d',
+                  backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
                   fontSize: '0.9rem'
                 }}>
-                  {saveError}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem'
+                  }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        color: '#92400e',
+                        fontWeight: 600,
+                        marginBottom: '0.5rem'
+                      }}>
+                        无法保存修改
+                      </div>
+                      <div style={{
+                        color: '#78350f',
+                        fontSize: '0.875rem',
+                        lineHeight: 1.5,
+                        marginBottom: '0.75rem'
+                      }}>
+                        {saveError}
+                      </div>
+                      <div style={{
+                        fontSize: '0.813rem',
+                        color: '#78350f',
+                        padding: '0.5rem 0.75rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                        borderRadius: '8px',
+                        lineHeight: 1.6
+                      }}>
+                        💡 <strong>建议:</strong> 请先在工作流库中找到这个工作流,点击"克隆"按钮创建您自己的副本,然后在副本中进行修改。
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

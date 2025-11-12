@@ -2,9 +2,10 @@ import React, { useState, useCallback, useEffect } from 'react'
 
 interface ResizableSplitterProps {
   onResize: (leftWidth: number) => void
+  style?: React.CSSProperties
 }
 
-const ResizableSplitter: React.FC<ResizableSplitterProps> = ({ onResize }) => {
+const ResizableSplitter: React.FC<ResizableSplitterProps> = ({ onResize, style }) => {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleMouseDown = useCallback(() => {
@@ -53,7 +54,8 @@ const ResizableSplitter: React.FC<ResizableSplitterProps> = ({ onResize }) => {
         flexShrink: 0,
         position: 'relative',
         transition: isDragging ? 'none' : 'background-color 0.2s',
-        zIndex: 10
+        zIndex: 10,
+        ...style
       }}
       onMouseEnter={(e) => {
         if (!isDragging) {
