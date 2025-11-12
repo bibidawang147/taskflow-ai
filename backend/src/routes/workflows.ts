@@ -213,9 +213,15 @@ router.get('/my', authenticateToken, async (req: AuthenticatedRequest, res: Resp
 })
 
 // 获取工作流详情（不需要认证）
-router.get('/:id', async (req, res: Response) => {
+// 注意: 此路由会匹配所有GET请求，因此特定路由(如/executions, /templates等)应定义在此路由之前
+router.get('/:id', async (req, res: Response, next) => {
   try {
     const { id } = req.params
+
+    // 跳过特定路径，由其他路由处理
+    if (id === 'executions' || id === 'templates' || id === 'article-examples' || id === 'my' || id === 'tools') {
+      return next() // 传递给下一个路由处理器
+    }
 
     const workflow = await prisma.workflow.findUnique({
       where: { id },
@@ -1667,6 +1673,250 @@ router.post('/:id/execute', authenticateToken, async (req: AuthenticatedRequest,
   }
 })
 
+// 创建手动执行记录（用于前端分步执行完成后记录）
+router.post('/:id/manual-execution', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const userId = req.user!.id
+    const { input, output, status = 'completed', duration = 0 } = req.body
+
+    // 验证工作流是否存在
+    const workflow = await prisma.workflow.findUnique({
+      where: { id }
+    })
+
+    if (!workflow) {
+      return res.status(404).json({ error: '工作流不存在' })
+    }
+
+    // 创建执行记录
+    const execution = await prisma.workflowExecution.create({
+      data: {
+        workflowId: id,
+        userId,
+        status,
+        input: input || {},
+        output: output || {},
+        duration,
+        progress: status === 'completed' ? '手动执行完成' : '手动执行',
+        startedAt: new Date(),
+        completedAt: status === 'completed' ? new Date() : null
+      }
+    })
+
+    console.log('✅ 手动执行记录已创建:', execution.id)
+
+    res.status(201).json({
+      message: '执行记录已创建',
+      execution: {
+        id: execution.id,
+        workflowId: execution.workflowId,
+        status: execution.status,
+        input: execution.input,
+        output: execution.output,
+        duration: execution.duration,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt
+      }
+    })
+  } catch (error) {
+    console.error('创建手动执行记录错误:', error)
+    res.status(500).json({
+      error: '创建执行记录失败'
+    })
+  }
+})
+
+// 临时执行(不关联工作流的孤岛执行)
+router.post('/execute-temp', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { title, description, config, input } = req.body
+
+    // 验证必要参数
+    if (!config || !config.nodes) {
+      return res.status(400).json({
+        error: '配置无效,必须包含 nodes'
+      })
+    }
+
+    // 创建孤岛执行记录
+    const execution = await prisma.workflowExecution.create({
+      data: {
+        userId,
+        title: title || '临时执行',
+        description: description || '未关联工作流的执行记录',
+        tempConfig: config,  // 保存临时配置
+        input: input || {},
+        status: 'running'
+      }
+    })
+
+    // 异步执行
+    ;(async () => {
+      const startTime = Date.now()
+      try {
+        console.log(`开始临时执行，执行ID: ${execution.id}`)
+
+        const executionService = new WorkflowExecutionService()
+
+        const progressCallback = async (nodeId: string, nodeLabel: string, currentIndex: number, total: number) => {
+          try {
+            await prisma.workflowExecution.update({
+              where: { id: execution.id },
+              data: {
+                progress: `执行节点 ${currentIndex}/${total}: ${nodeLabel}`,
+                status: 'running'
+              }
+            })
+          } catch (err) {
+            console.error('更新进度失败:', err)
+          }
+        }
+
+        const result = await executionService.executeWorkflow(config, input || {}, progressCallback)
+        const duration = Date.now() - startTime
+
+        if (result.success) {
+          await prisma.workflowExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: 'completed',
+              output: result.output,
+              nodeResults: result.nodeResults,
+              duration,
+              completedAt: new Date()
+            }
+          })
+          console.log(`临时执行成功: ${execution.id}, 耗时 ${duration}ms`)
+        } else {
+          await prisma.workflowExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: 'failed',
+              error: result.error || '执行失败',
+              duration,
+              completedAt: new Date()
+            }
+          })
+          console.error(`临时执行失败: ${execution.id}`)
+        }
+      } catch (error) {
+        console.error('临时执行错误:', error)
+        const duration = Date.now() - startTime
+        await prisma.workflowExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: 'failed',
+            error: error instanceof Error ? error.message : '执行出错',
+            duration,
+            completedAt: new Date()
+          }
+        })
+      }
+    })()
+
+    res.status(202).json({
+      message: '临时执行已启动',
+      execution: {
+        id: execution.id,
+        status: execution.status
+      }
+    })
+  } catch (error) {
+    console.error('创建临时执行记录错误:', error)
+    res.status(500).json({
+      error: '创建临时执行记录失败'
+    })
+  }
+})
+
+// 获取工作流执行历史列表（需要认证）
+router.get('/executions', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const {
+      workflowId,
+      status,
+      page = 1,
+      limit = 50,
+      sortBy = 'startedAt',
+      sortOrder = 'desc'
+    } = req.query
+
+    // 构建查询条件
+    const where: any = { userId }
+
+    if (workflowId) {
+      where.workflowId = workflowId as string
+    }
+
+    if (status) {
+      where.status = status as string
+    }
+
+    // 构建排序
+    // 前端可能使用 createdAt，需要映射到 startedAt
+    const sortField = sortBy === 'createdAt' ? 'startedAt' : (sortBy as string)
+    const orderBy: any = {}
+    orderBy[sortField] = sortOrder === 'asc' ? 'asc' : 'desc'
+
+    // 查询执行历史
+    const executions = await prisma.workflowExecution.findMany({
+      where,
+      include: {
+        workflow: {
+          select: {
+            id: true,
+            title: true,
+            category: true
+          }
+        }
+      },
+      orderBy,
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit)
+    })
+
+    // 统计总数
+    const total = await prisma.workflowExecution.count({ where })
+
+    // 转换数据格式,支持孤岛记录
+    const formattedExecutions = executions.map(exec => ({
+      id: exec.id,
+      workflowId: exec.workflowId || null,
+      workflowTitle: exec.workflow?.title || exec.title || '临时执行',
+      workflowCategory: exec.workflow?.category || '临时',
+      isTemporary: !exec.workflowId,  // 标记是否为孤岛记录
+      status: exec.status,
+      input: exec.input,
+      output: exec.output,
+      error: exec.error,
+      duration: exec.duration,
+      startedAt: exec.startedAt,
+      completedAt: exec.completedAt,
+      isFavorite: exec.isFavorite || false,
+      notes: exec.notes,
+      description: exec.description
+    }))
+
+    res.status(200).json({
+      executions: formattedExecutions,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit))
+      }
+    })
+  } catch (error) {
+    console.error('获取执行历史列表错误:', error)
+    res.status(500).json({
+      error: '获取执行历史列表失败'
+    })
+  }
+})
+
 // 获取工作流执行结果（需要认证）
 router.get('/executions/:executionId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -1784,6 +2034,305 @@ router.get('/article-examples/:id', (req, res: Response) => {
     console.error('获取示例文章详情错误:', error)
     res.status(500).json({
       error: '获取示例文章详情失败'
+    })
+  }
+})
+
+// 删除执行历史记录（需要认证）
+router.delete('/executions/:executionId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { executionId } = req.params
+
+    // 检查执行记录是否存在且用户有权限
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId }
+    })
+
+    if (!execution) {
+      return res.status(404).json({
+        error: '执行记录不存在'
+      })
+    }
+
+    if (execution.userId !== userId) {
+      return res.status(403).json({
+        error: '无权删除此执行记录'
+      })
+    }
+
+    // 删除执行记录
+    await prisma.workflowExecution.delete({
+      where: { id: executionId }
+    })
+
+    res.status(200).json({
+      message: '执行记录删除成功'
+    })
+  } catch (error) {
+    console.error('删除执行记录错误:', error)
+    res.status(500).json({
+      error: '删除执行记录失败'
+    })
+  }
+})
+
+// 收藏执行记录（需要认证）
+router.post('/executions/:executionId/favorite', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { executionId } = req.params
+
+    // 检查执行记录是否存在且用户有权限
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId }
+    })
+
+    if (!execution) {
+      return res.status(404).json({
+        error: '执行记录不存在'
+      })
+    }
+
+    if (execution.userId !== userId) {
+      return res.status(403).json({
+        error: '无权操作此执行记录'
+      })
+    }
+
+    // 更新收藏状态
+    await prisma.workflowExecution.update({
+      where: { id: executionId },
+      data: { isFavorite: true }
+    })
+
+    res.status(200).json({
+      message: '收藏成功'
+    })
+  } catch (error) {
+    console.error('收藏执行记录错误:', error)
+    res.status(500).json({
+      error: '收藏失败'
+    })
+  }
+})
+
+// 取消收藏执行记录（需要认证）
+router.delete('/executions/:executionId/favorite', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { executionId } = req.params
+
+    // 检查执行记录是否存在且用户有权限
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId }
+    })
+
+    if (!execution) {
+      return res.status(404).json({
+        error: '执行记录不存在'
+      })
+    }
+
+    if (execution.userId !== userId) {
+      return res.status(403).json({
+        error: '无权操作此执行记录'
+      })
+    }
+
+    // 更新收藏状态
+    await prisma.workflowExecution.update({
+      where: { id: executionId },
+      data: { isFavorite: false }
+    })
+
+    res.status(200).json({
+      message: '取消收藏成功'
+    })
+  } catch (error) {
+    console.error('取消收藏执行记录错误:', error)
+    res.status(500).json({
+      error: '取消收藏失败'
+    })
+  }
+})
+
+// 更新执行记录备注（需要认证）
+router.put('/executions/:executionId/notes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { executionId } = req.params
+    const { notes } = req.body
+
+    // 检查执行记录是否存在且用户有权限
+    const execution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId }
+    })
+
+    if (!execution) {
+      return res.status(404).json({
+        error: '执行记录不存在'
+      })
+    }
+
+    if (execution.userId !== userId) {
+      return res.status(403).json({
+        error: '无权操作此执行记录'
+      })
+    }
+
+    // 更新备注
+    await prisma.workflowExecution.update({
+      where: { id: executionId },
+      data: { notes }
+    })
+
+    res.status(200).json({
+      message: '备注更新成功'
+    })
+  } catch (error) {
+    console.error('更新执行记录备注错误:', error)
+    res.status(500).json({
+      error: '更新备注失败'
+    })
+  }
+})
+
+// 重新执行工作流（使用历史记录的输入）（需要认证）
+router.post('/executions/:executionId/rerun', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { executionId } = req.params
+
+    // 获取原始执行记录
+    const originalExecution = await prisma.workflowExecution.findUnique({
+      where: { id: executionId },
+      include: {
+        workflow: true
+      }
+    })
+
+    if (!originalExecution) {
+      return res.status(404).json({
+        error: '执行记录不存在'
+      })
+    }
+
+    if (originalExecution.userId !== userId) {
+      return res.status(403).json({
+        error: '无权操作此执行记录'
+      })
+    }
+
+    // 使用相同的输入创建新的执行记录
+    const newExecution = await prisma.workflowExecution.create({
+      data: {
+        workflowId: originalExecution.workflowId,
+        userId,
+        input: originalExecution.input || undefined,
+        status: 'running'
+      }
+    })
+
+    // 异步执行工作流
+    ;(async () => {
+      const startTime = Date.now()
+      try {
+        console.log(`重新执行工作流 ${originalExecution.workflowId}，执行ID: ${newExecution.id}`)
+
+        const config = originalExecution.workflow?.config as any
+        if (!config || !config.nodes) {
+          throw new Error('工作流配置无效')
+        }
+
+        const executionService = new WorkflowExecutionService()
+        const progressCallback = async (nodeId: string, nodeLabel: string, currentIndex: number, total: number) => {
+          try {
+            await prisma.workflowExecution.update({
+              where: { id: newExecution.id },
+              data: {
+                progress: `执行节点 ${currentIndex}/${total}: ${nodeLabel}`,
+                status: 'running'
+              }
+            })
+          } catch (err) {
+            console.error('更新进度失败:', err)
+          }
+        }
+
+        const result = await executionService.executeWorkflow(config, originalExecution.input, progressCallback)
+        const duration = Date.now() - startTime
+
+        if (result.success) {
+          await prisma.workflowExecution.update({
+            where: { id: newExecution.id },
+            data: {
+              status: 'completed',
+              output: result.output,
+              nodeResults: result.nodeResults || {},
+              duration,
+              progress: '执行完成',
+              completedAt: new Date()
+            }
+          })
+
+          if (originalExecution.workflowId) {
+            await prisma.workflow.update({
+              where: { id: originalExecution.workflowId },
+              data: {
+                usageCount: {
+                  increment: 1
+                }
+              }
+            })
+          }
+        } else {
+          await prisma.workflowExecution.update({
+            where: { id: newExecution.id },
+            data: {
+              status: 'failed',
+              error: result.error,
+              nodeResults: result.nodeResults || {},
+              duration,
+              progress: '执行失败',
+              completedAt: new Date()
+            }
+          })
+        }
+      } catch (err: any) {
+        console.error('重新执行工作流出错:', err)
+        const duration = Date.now() - startTime
+        try {
+          await prisma.workflowExecution.update({
+            where: { id: newExecution.id },
+            data: {
+              status: 'failed',
+              error: err.message || '未知错误',
+              duration,
+              progress: '执行异常',
+              completedAt: new Date()
+            }
+          })
+        } catch (updateErr) {
+          console.error('更新执行状态失败:', updateErr)
+        }
+      }
+    })()
+
+    res.status(201).json({
+      message: '已开始重新执行',
+      execution: {
+        id: newExecution.id,
+        workflowId: newExecution.workflowId,
+        status: newExecution.status,
+        input: newExecution.input,
+        startedAt: newExecution.startedAt
+      }
+    })
+  } catch (error) {
+    console.error('重新执行工作流错误:', error)
+    res.status(500).json({
+      error: '重新执行失败'
     })
   }
 })
