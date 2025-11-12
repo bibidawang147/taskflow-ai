@@ -21,6 +21,7 @@ import aiRoutes from './routes/ai'
 import creditRoutes from './routes/credit'
 import workspaceRoutes from './routes/workspace'
 import crawlerRoutes from './routes/crawler.routes'
+import queueRoutes from './routes/queue'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticateToken } from './middleware/auth'
 import logger, { stream } from './utils/logger'
@@ -31,6 +32,10 @@ initSentry()
 // 初始化工具注册表
 import { initializeTools } from './tools'
 initializeTools()
+
+// 启动 BullMQ Worker
+import './workers/workflow.worker'
+logger.info('🚀 BullMQ Worker 已启动')
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -105,6 +110,7 @@ app.use('/api/workspace', workspaceRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/credit', creditRoutes)
 app.use('/api/crawler', crawlerRoutes)
+app.use('/api/queue', queueRoutes)
 
 // 错误处理
 app.use(errorHandler)

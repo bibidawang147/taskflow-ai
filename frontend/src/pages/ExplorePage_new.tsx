@@ -191,8 +191,6 @@ export default function ExplorePageNew() {
             <PopularWorkPackageCard
               key={pkg.id}
               workPackage={pkg}
-              onViewDetails={() => handleViewDetails(pkg)}
-              onImport={() => handleImportClick(pkg)}
             />
           ))}
         </div>

@@ -23,6 +23,7 @@ import ArticleWorkflowMVPPage from './pages/ArticleWorkflowMVPPage'
 import ReverseEngineerPage from './pages/ReverseEngineerPage'
 import WorkflowCreatePage from './pages/WorkflowCreatePage'
 import ImportFromArticlePage from './pages/ImportFromArticlePage'
+import SolutionPage from './pages/SolutionPage'
 
 function App() {
   return (
@@ -31,15 +32,16 @@ function App() {
       <Route path="/grid-drag-demo" element={<GridDragDemoPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>
-        <Route index element={<AIChatPage />} />
-        <Route path="ai-chat" element={<AIChatPage />} />
+        <Route index element={<ExplorePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="home" element={<HomePage />} />
-        <Route path="workspace" element={<AIChatPage />} />
+        <Route path="workspace" element={<StoragePage />} />
         <Route path="storage" element={<StoragePage />} />
         <Route path="explore" element={<ExplorePage />} />
         <Route path="explore/theme/:themeId" element={<ExploreThemeDetailPage />} />
+        <Route path="solution/:id" element={<SolutionPage />} />
         <Route path="search" element={<SearchResultPage />} />
         <Route path="workflow-intro/:id" element={<WorkflowSharePage />} />
         <Route path="workflow/create" element={<WorkflowCreatePage />} />

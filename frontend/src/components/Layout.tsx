@@ -8,9 +8,14 @@ export default function Layout() {
   const isAuthenticated = authService.isAuthenticated();
 
   const isActive = (path: string) => {
-    // 精确匹配特定路径，避免误匹配
     if (path === '/ai-chat' || path === '/storage' || path === '/explore') {
+      if (path === '/storage') {
+        return location.pathname === '/storage' || location.pathname === '/workspace';
+      }
       return location.pathname === path;
+    }
+    if (path === '/workspace') {
+      return location.pathname === '/workspace' || location.pathname === '/storage';
     }
     return location.pathname.startsWith(path);
   };
@@ -60,36 +65,6 @@ export default function Layout() {
             </Link>
             <div style={{ display: 'flex', marginLeft: '2.5rem', gap: '1.5rem' }}>
               <Link
-                to="/ai-chat"
-                style={{
-                  color: isActive('/ai-chat') ? '#8b5cf6' : '#6b7280',
-                  textDecoration: 'none',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: isActive('/ai-chat') ? '15px' : '14px',
-                  fontWeight: isActive('/ai-chat') ? '600' : '500',
-                  backgroundColor: isActive('/ai-chat') ? '#f3f0ff' : 'transparent',
-                  transition: 'all 0.2s',
-                }}
-              >
-                AI工作台
-              </Link>
-              <Link
-                to="/storage"
-                style={{
-                  color: isActive('/storage') ? '#8b5cf6' : '#6b7280',
-                  textDecoration: 'none',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: isActive('/storage') ? '15px' : '14px',
-                  fontWeight: isActive('/storage') ? '600' : '500',
-                  backgroundColor: isActive('/storage') ? '#f3f0ff' : 'transparent',
-                  transition: 'all 0.2s',
-                }}
-              >
-                我的工作台
-              </Link>
-              <Link
                 to="/explore"
                 style={{
                   color: isActive('/explore') ? '#8b5cf6' : '#6b7280',
@@ -102,7 +77,22 @@ export default function Layout() {
                   transition: 'all 0.2s',
                 }}
               >
-                探索
+                探索工作流
+              </Link>
+              <Link
+                to="/workspace"
+                style={{
+                  color: isActive('/workspace') ? '#8b5cf6' : '#6b7280',
+                  textDecoration: 'none',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: isActive('/workspace') ? '15px' : '14px',
+                  fontWeight: isActive('/workspace') ? '600' : '500',
+                  backgroundColor: isActive('/workspace') ? '#f3f0ff' : 'transparent',
+                  transition: 'all 0.2s',
+                }}
+              >
+                我的工作台
               </Link>
             </div>
           </div>

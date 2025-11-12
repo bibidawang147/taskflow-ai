@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scroll Debug Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .left-panel {
+            width: 50%;
+            background: #f0f0f0;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        .right-panel {
+            width: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .header {
+            padding: 20px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+
+        .scroll-content {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 20px;
+            background: #fafafa;
+            min-height: 0;
+        }
+
+        .item {
+            padding: 20px;
+            margin-bottom: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <h2>Left Panel</h2>
+            <p>This is the left panel content.</p>
+        </div>
+
+        <div class="right-panel">
+            <div class="header">
+                <h2>Right Panel Header</h2>
+                <p>Progress: 3/8</p>
+            </div>
+
+            <div class="scroll-content" id="scrollContent">
+                <!-- Generate many items to test scroll -->
+                <script>
+                    for (let i = 1; i <= 20; i++) {
+                        document.write(`
+                            <div class="item">
+                                <h3>Step ${i}</h3>
+                                <p>This is step ${i} content. Try scrolling with your trackpad.</p>
+                                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                            </div>
+                        `);
+                    }
+                </script>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if scroll is working
+        const scrollContent = document.getElementById('scrollContent');
+
+        scrollContent.addEventListener('scroll', function() {
+            console.log('Scroll working! ScrollTop:', this.scrollTop);
+        });
+
+        // Log element dimensions
+        console.log('Scroll container height:', scrollContent.clientHeight);
+        console.log('Scroll content height:', scrollContent.scrollHeight);
+        console.log('Can scroll:', scrollContent.scrollHeight > scrollContent.clientHeight);
+    </script>
+</body>
+</html>

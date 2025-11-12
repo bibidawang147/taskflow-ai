@@ -2,10 +2,7 @@ import { type CSSProperties, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { exploreThemes } from '../data/exploreThemes'
 import { popularWorkPackages } from '../data/popularWorkPackages'
-import { WorkPackage } from '../types/workPackage'
 import PopularWorkPackageCard from '../components/PopularWorkPackageCard'
-import WorkPackageDetailModal from '../components/WorkPackageDetailModal'
-import WorkPackageImportModal from '../components/WorkPackageImportModal'
 import '../styles/explore.css'
 
 type RankTrend = 'up' | 'down' | 'same'
@@ -98,10 +95,9 @@ const trendIcons: Record<RankTrend, string> = {
   same: '▬'
 }
 
-export default function ExplorePage() {
+export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
-  const [selectedPackageForDetail, setSelectedPackageForDetail] = useState<WorkPackage | null>(null)
-  const [selectedPackageForImport, setSelectedPackageForImport] = useState<WorkPackage | null>(null)
+  const [showAllThemes, setShowAllThemes] = useState(false)
 
   const compactFormatter = useMemo(
     () => new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }),
@@ -165,209 +161,230 @@ export default function ExplorePage() {
     [compactFormatter]
   )
 
-  const handleViewDetails = (pkg: WorkPackage) => {
-    setSelectedPackageForDetail(pkg)
-  }
 
-  const handleImportClick = (pkg: WorkPackage) => {
-    setSelectedPackageForImport(pkg)
-  }
-
-  const handleConfirmImport = (targetModule: string) => {
-    if (selectedPackageForImport) {
-      console.log(`导入工作包 ${selectedPackageForImport.name} 到模块 ${targetModule}`)
-
-      // 将工作包数据保存到localStorage，供WorkspacePage使用
-      const importData = {
-        module: targetModule,
-        workPackage: selectedPackageForImport,
-        timestamp: Date.now()
-      }
-      localStorage.setItem('pendingWorkPackageImport', JSON.stringify(importData))
-
-      alert(`成功导入「${selectedPackageForImport.name}」到「${targetModule}」模块！\n\n请前往「我的工作台」查看。`)
-      setSelectedPackageForImport(null)
-
-      // 跳转到工作台页面
-      navigate('/workspace')
+  const getSurfaceColor = (hex?: string) => {
+    if (hex && hex.startsWith('#') && (hex.length === 7 || hex.length === 4)) {
+      const normalized = hex.length === 4
+        ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+        : hex
+      return `${normalized}20`
     }
+    return 'rgba(124, 58, 237, 0.12)'
   }
 
   return (
-    <main className="explore-page">
+    <div className={embedded ? 'explore-page explore-embedded' : 'explore-page'}>
 
-      <section className="section-block" aria-labelledby="ranking-title">
-        <header className="section-header">
-          <h2 id="ranking-title" className="section-title">
-            热门排行榜
-          </h2>
-          <p className="section-subtitle">实时追踪平台热度，寻找灵感与高转化打法。</p>
-        </header>
+      <div className="explore-main-columns">
+        <div className="explore-main-columns__left">
+          <section className="section-block">
+            <div className="embedded-chat-container">
+              <iframe
+                src="/ai-chat?embedded=1"
+                title="AI 对话"
+                className="embedded-chat-iframe"
+                loading="lazy"
+              />
+            </div>
+          </section>
+        </div>
 
-        <div className="ranking-columns">
-          {rankingColumns.map((column) => (
-            <article key={column.id} className="ranking-column">
-              <div className="ranking-column__header">
-                <h3 className="ranking-column__title">{column.title}</h3>
-                <p className="ranking-column__meta">{column.description}</p>
+        <div className="explore-main-columns__right">
+          <section className="section-block" aria-labelledby="packages-title">
+            <header className="section-header">
+              <div>
+                <h2 id="packages-title" className="section-title">
+                  爆款工作包
+                </h2>
+                <p className="section-subtitle">精选热门组合，主打全链路解决方案，一套方案彻底解决一块工作。</p>
               </div>
+            </header>
 
-              <div className="ranking-items">
-                {column.entries.map((entry) => (
-                  <button
-                    key={entry.rank}
-                    type="button"
-                    className="ranking-item"
-                    onClick={() => {
-                      // 如果是创作者主页链接，在新标签页打开
-                      if (entry.href.includes('creator-profile')) {
-                        window.open(entry.href, '_blank')
-                      } else {
-                        navigate(entry.href)
-                      }
-                    }}
-                  >
-                    <span className={`ranking-number ${entry.rank <= 3 ? 'ranking-number--top' : ''}`}>
-                      {entry.rank}
-                    </span>
-                    <div className="ranking-item__content">
-                      <div className="ranking-item__info">
-                        <span className="ranking-item__title">{entry.title}</span>
-                        <span className="ranking-item__meta">{entry.meta}</span>
+            <div className="package-grid">
+              {popularWorkPackages.slice(0, 8).map((pkg) => (
+                <PopularWorkPackageCard
+                  key={pkg.id}
+                  workPackage={pkg}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="section-block" aria-labelledby="themes-title">
+            <header className="section-header">
+              <div>
+                <h2 id="themes-title" className="section-title">
+                  热门主题
+                </h2>
+                <p className="section-subtitle">精选常用场景，全平台解决方案让你打破信息差，总能找到最好的方法。</p>
+              </div>
+            </header>
+
+            <div className="theme-grid">
+              {(showAllThemes ? exploreThemes : exploreThemes.slice(0, 8)).map((theme) => (
+                <article
+                  key={theme.id}
+                  className="theme-card"
+                  style={{ ['--theme-color' as const]: theme.color, cursor: 'pointer' } as CSSProperties}
+                  onClick={() => navigate(`/explore/theme/${theme.id}`)}
+                >
+                  <div className="theme-card__head">
+                    <div className="flex items-start gap-3">
+                      {theme.icon && (
+                        <div
+                          className="theme-card__icon"
+                          aria-hidden="true"
+                          style={{ backgroundColor: getSurfaceColor(theme.color), color: theme.color || '#8b5cf6' }}
+                        >
+                          {theme.icon}
+                        </div>
+                      )}
+                      <div className="theme-card__info">
+                        <div>
+                          <h3 className="theme-card__title">{theme.name.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim()}</h3>
+                          <p className="theme-card__desc">{theme.summary || theme.description}</p>
+                        </div>
+
+                        <div className="stats-row" style={{ marginTop: '12px' }}>
+                          <div className="stat-item">
+                            <span className="stat-number">{theme.downloads >= 1000 ? `${(theme.downloads / 1000).toFixed(1)}k` : theme.downloads}</span>
+                            下载量
+                          </div>
+                          <div className="stat-item rating">
+                            <span className="rating-star" aria-hidden>★</span>
+                            <span className="rating-number">{theme.rating.toFixed(1)}</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-number">{theme.workflows.length}</span>
+                            工作项
+                          </div>
+                        </div>
                       </div>
-                      <div className="ranking-item__stats">
-                        {entry.metrics.map((metric) => (
-                          <span key={metric.label} className="stat-item">
-                            <span className="stat-number">{metric.value}</span>
-                            {metric.label}
-                          </span>
-                        ))}
-                      </div>
-                      <span className={`ranking-item__trend trend-indicator trend-${entry.trend}`}>
-                        {trendIcons[entry.trend]}
-                      </span>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+                    <button
+                      type="button"
+                      className="theme-link-button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/explore/theme/${theme.id}`)
+                      }}
+                    >
+                      进入主题 →
+                    </button>
+                  </div>
 
-      <section className="section-block" aria-labelledby="packages-title">
-        <header className="section-header">
-          <div>
-            <h2 id="packages-title" className="section-title">
-              爆款工作包
-            </h2>
-            <p className="section-subtitle">精选热门组合，主打全链路解决方案，一套方案彻底解决一块工作。</p>
-          </div>
-          <span className="tag tag--orange">HOT</span>
-        </header>
-
-        <div className="package-grid">
-          {popularWorkPackages.slice(0, 8).map((pkg) => (
-            <PopularWorkPackageCard
-              key={pkg.id}
-              workPackage={pkg}
-              onViewDetails={handleViewDetails}
-              onImport={handleImportClick}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="section-block" aria-labelledby="themes-title">
-        <header className="section-header">
-          <div>
-            <h2 id="themes-title" className="section-title">
-              热门主题
-            </h2>
-            <p className="section-subtitle">精选常用场景，全平台解决方案让你打破信息差，总能找到最好的方法。</p>
-          </div>
-        </header>
-
-        <div className="theme-grid">
-          {exploreThemes.slice(0, 8).map((theme) => (
-            <article
-              key={theme.id}
-              className="theme-card card"
-              style={{ ['--theme-color' as const]: theme.color } as CSSProperties}
-              onClick={() => navigate(`/explore/theme/${theme.id}`)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  navigate(`/explore/theme/${theme.id}`)
-                }
-              }}
-              tabIndex={0}
-              aria-label={`${theme.name} 主题详情`}
-            >
-              <div className="theme-card__head">
-                <div className="theme-card__info">
-                  <h3 className="card-title">{theme.name}</h3>
-                  <p className="theme-card__desc">{theme.summary}</p>
-                  <div className="stats-row">
-                    {theme.workflows.slice(0, 2).map((workflow) => (
-                      <span key={workflow.id} className="stat-item">
-                        <span className="stat-number">{workflow.count}</span>
-                        {workflow.name}
-                      </span>
+                  <div className="theme-card__subgrid">
+                    {theme.subcategories.slice(0, 4).map((sub) => (
+                      <button
+                        type="button"
+                        key={sub.id}
+                        className="theme-chip"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/explore/theme/${theme.id}`)
+                        }}
+                      >
+                        <span className="theme-chip__name">{sub.name}</span>
+                        <span className="theme-chip__count">{sub.count} 个</span>
+                      </button>
                     ))}
                   </div>
-                </div>
+                </article>
+              ))}
+            </div>
+
+            {!showAllThemes && exploreThemes.length > 8 && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
                 <button
                   type="button"
-                  className="theme-link-button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    navigate(`/explore/theme/${theme.id}`)
-                  }}
+                  className="secondary-button secondary-button--soft"
+                  onClick={() => setShowAllThemes(true)}
+                  style={{ minWidth: '160px' }}
                 >
-                  进入主题
+                  查看更多主题 ({exploreThemes.length - 8})
                 </button>
               </div>
+            )}
 
-              <div className="theme-card__subgrid">
-                {theme.subcategories.map((sub) => (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    className="theme-chip"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      navigate(`/explore/theme/${theme.id}?focus=${sub.id}`)
-                    }}
-                  >
-                    <span className="theme-chip__name">{sub.name}</span>
-                    <span className="theme-chip__count">{sub.count}</span>
-                  </button>
-                ))}
+            {showAllThemes && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  className="secondary-button secondary-button--ghost"
+                  onClick={() => setShowAllThemes(false)}
+                  style={{ minWidth: '160px' }}
+                >
+                  收起
+                </button>
               </div>
-            </article>
-          ))}
+            )}
+          </section>
         </div>
-      </section>
+      </div>
 
-      {selectedPackageForDetail && (
-        <WorkPackageDetailModal
-          workPackage={selectedPackageForDetail}
-          onClose={() => setSelectedPackageForDetail(null)}
-          onImport={(pkg) => {
-            setSelectedPackageForDetail(null)
-            handleImportClick(pkg)
-          }}
-        />
-      )}
+      {false && (
+        <section className="section-block" aria-labelledby="ranking-hidden-title">
+          <header className="section-header">
+            <h2 id="ranking-hidden-title" className="section-title">
+              热门排行榜
+            </h2>
+            <p className="section-subtitle">实时追踪平台热度，寻找灵感与高转化打法。</p>
+          </header>
 
-      {selectedPackageForImport && (
-        <WorkPackageImportModal
-          workPackage={selectedPackageForImport}
-          onClose={() => setSelectedPackageForImport(null)}
-          onConfirm={handleConfirmImport}
-        />
+          <div className="ranking-columns">
+            {rankingColumns.map((column) => (
+              <article key={column.id} className="ranking-column">
+                <div className="ranking-column__header">
+                  <h3 className="ranking-column__title">{column.title}</h3>
+                  <p className="ranking-column__meta">{column.description}</p>
+                </div>
+
+                <div className="ranking-items">
+                  {column.entries.map((entry) => (
+                    <button
+                      key={entry.rank}
+                      type="button"
+                      className="ranking-item"
+                      onClick={() => {
+                        if (entry.href.includes('creator-profile')) {
+                          window.open(entry.href, '_blank')
+                        } else {
+                          navigate(entry.href)
+                        }
+                      }}
+                    >
+                      <span className={`ranking-number ${entry.rank <= 3 ? 'ranking-number--top' : ''}`}>
+                        {entry.rank}
+                      </span>
+                      <div className="ranking-item__content">
+                        <div className="ranking-item__info">
+                          <span className="ranking-item__title">{entry.title}</span>
+                          <span className="ranking-item__meta">{entry.meta}</span>
+                        </div>
+                        <div className="ranking-item__stats">
+                          {entry.metrics.map((metric) => (
+                            <span key={metric.label} className="stat-item">
+                              <span className="stat-number">{metric.value}</span>
+                              {metric.label}
+                            </span>
+                          ))}
+                        </div>
+                        <span className={`ranking-item__trend trend-indicator trend-${entry.trend}`}>
+                          {trendIcons[entry.trend]}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
-    </main>
+    </div>
   )
+}
+
+export default function ExplorePage() {
+  return <ExploreContent />
 }

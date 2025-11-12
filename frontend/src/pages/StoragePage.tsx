@@ -1171,7 +1171,7 @@ export default function StoragePage() {
       summary: workflow.description || '',
       status: 'active' as WorkflowStatus,
       category: workflow.category || '未分类',
-      tags: workflow.tags || [],
+      tags: Array.isArray(workflow.tags) ? workflow.tags : [],
       owner: workflow.author?.name || '我',
       updatedAt: new Date(workflow.createdAt).toISOString().split('T')[0],
       section,
@@ -2105,13 +2105,13 @@ export default function StoragePage() {
         ? fallbackNodes
         : DEFAULT_EXECUTION_NODES
 
-    const normalizedNodes = nodesSource.map((node, index) => ({
+    const normalizedNodes = nodesSource.map((node: any, index) => ({
       ...node,
       id: node.id || `node-${index + 1}`,
       type: node.type,
       data: node.data ?? {
-        label: node.data?.label ?? (node as any)?.label ?? `节点 ${index + 1}`,
-        config: node.data?.config ?? (node as any)?.config ?? {}
+        label: node.data?.label ?? node.label ?? `节点 ${index + 1}`,
+        config: node.data?.config ?? node.config ?? {}
       }
     }))
 
@@ -2128,11 +2128,7 @@ export default function StoragePage() {
 
   const handleExecutionWorkflowUpdate = useCallback(
     async (updatedWorkflow: ExecutionWorkflow) => {
-      // 使用所有权标记检查
-      const workflowData = libraryData.find(wf => wf.id === updatedWorkflow.id)
-      if (!workflowData?.canEdit) {
-        throw new Error('只有我创建的工作流才能保存修改，请先克隆或创建属于自己的副本。')
-      }
+      // 所有在用户数据库中的工作流都是副本，可以直接保存
       try {
         await updateWorkflow(updatedWorkflow.id, { config: updatedWorkflow.config })
 
@@ -3151,11 +3147,11 @@ export default function StoragePage() {
               {layoutSectionExpanded && (
                 <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {(() => {
-                    const renderContainerTree = (containerId: string, level: number = 0): JSX.Element[] => {
+                    const renderContainerTree = (containerId: string, level: number = 0): React.ReactElement[] => {
                       const container = getContainer(canvasItems, containerId)
                       if (!container) return []
 
-                      const elements: JSX.Element[] = []
+                      const elements: React.ReactElement[] = []
 
                       // 只显示非根容器
                       if (containerId !== ROOT_CONTAINER_ID) {
@@ -3865,6 +3861,58 @@ export default function StoragePage() {
           }}
         />
       )}
+
+      {/* 右侧执行面板触发器 - 继续 */}
+      {selectedWorkflowForExecution && !showStepByStepExecution && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 0,
+            top: 0,
+            width: '40px',
+            height: '100%',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            zIndex: 999,
+            pointerEvents: 'auto'
+          }}
+          onMouseEnter={() => setShowStepByStepExecution(true)}
+        >
+          {/* "继续"文字指示器 */}
+          <div
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#8b5cf6',
+              fontSize: '14px',
+              fontWeight: 600,
+              writingMode: 'vertical-rl',
+              textOrientation: 'upright',
+              letterSpacing: '2px',
+              textShadow: '0 0 8px rgba(139, 92, 246, 0.4)',
+              animation: 'purpleDotPulse 2s ease-in-out infinite',
+              pointerEvents: 'none'
+            }}
+          >
+            继续
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes purpleDotPulse {
+          0%, 100% {
+            transform: translateY(-50%) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(-50%) scale(1.2);
+            opacity: 0.8;
+          }
+        }
+      `}</style>
 
       {/* 渐进式执行分屏面板 */}
       {selectedWorkflowForExecution && (

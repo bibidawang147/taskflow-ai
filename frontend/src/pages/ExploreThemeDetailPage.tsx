@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { exploreThemeMap } from '../data/exploreThemes'
+import '../styles/solution.css'
 
 export default function ExploreThemeDetailPage() {
   const navigate = useNavigate()
@@ -16,28 +17,8 @@ export default function ExploreThemeDetailPage() {
 
   if (!theme) {
     return (
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '4rem 2rem',
-        textAlign: 'center'
-      }}>
-        <h1 style={{ fontSize: '2rem', color: '#1f2937', marginBottom: '1rem' }}>主题未找到</h1>
-        <button
-          onClick={() => navigate('/explore')}
-          style={{
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#8b5cf6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer'
-          }}
-        >
-          返回探索页
-        </button>
+      <div className="solution-page">
+        <div className="solution-loading">主题未找到</div>
       </div>
     )
   }
@@ -46,283 +27,126 @@ export default function ExploreThemeDetailPage() {
   const totalTemplates = theme.workflows.reduce((sum, workflow) => sum + workflow.count, 0)
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
-      {/* 主题头部 */}
-      <div style={{
-        marginBottom: '3rem',
-        padding: '2rem',
-        background: `linear-gradient(135deg, ${theme.color}15, ${theme.color}05)`,
-        borderRadius: '16px',
-        border: `1px solid ${theme.color}25`
-      }}>
-        <button
-          onClick={() => navigate('/explore')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            backgroundColor: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            fontSize: '14px',
-            color: '#6b7280',
-            cursor: 'pointer',
-            marginBottom: '1.5rem',
-            fontWeight: '500'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f9fafb'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'white'
-          }}
-        >
-          ← 返回探索页
+    <div className="solution-page">
+      {/* 头部区域 */}
+      <div className="solution-header">
+        <button className="solution-back-button" onClick={() => navigate('/explore')}>
+          ← 返回
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <div style={{
-            width: '96px',
-            height: '96px',
-            backgroundColor: `${theme.color}20`,
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '52px'
-          }}>
-            {theme.icon}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h1 style={{
-              fontSize: '2.5rem',
-              fontWeight: '700',
-              color: '#1f2937',
-              margin: '0 0 0.75rem 0'
-            }}>
-              {theme.name}
-            </h1>
-            <p style={{
-              fontSize: '1.125rem',
-              color: '#4b5563',
-              margin: '0 0 1rem 0',
-              lineHeight: 1.65
-            }}>
-              {theme.summary}
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
-              {theme.subcategories.map((subcategory) => (
-                <span
-                  key={subcategory.id}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: '999px',
-                    backgroundColor: 'white',
-                    border: `1px solid ${theme.color}25`,
-                    fontSize: '13px',
-                    color: '#374151',
-                    fontWeight: '500'
-                  }}
-                >
-                  <span style={{ fontSize: '16px' }}>{subcategory.icon}</span>
-                  {subcategory.name}
-                  <span style={{
-                    fontSize: '12px',
-                    color: theme.color,
-                    fontWeight: '600'
-                  }}>
-                    {subcategory.count}
-                  </span>
+        <div className="solution-header-content">
+          <div className="solution-info">
+            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>{theme.icon}</div>
+            <h1 className="solution-title">{theme.name}</h1>
+            <p className="solution-description">{theme.summary}</p>
+
+            <div className="solution-meta">
+              {theme.subcategories.slice(0, 3).map((subcategory) => (
+                <span key={subcategory.id} className="solution-category">
+                  {subcategory.icon} {subcategory.name}
                 </span>
               ))}
             </div>
           </div>
         </div>
 
-        <div style={{
-          display: 'flex',
-          gap: '2rem',
-          flexWrap: 'wrap',
-          fontSize: '14px',
-          color: '#6b7280'
-        }}>
-          <div>
-            <span style={{ fontWeight: '600', color: '#1f2937' }}>{totalWorkflows}</span> 类重点工作流
+        <div className="solution-stats">
+          <div className="solution-stat">
+            <span className="solution-stat-number">{totalWorkflows}</span>
+            <span className="solution-stat-label">工作流类</span>
           </div>
-          <div>
-            <span style={{ fontWeight: '600', color: '#1f2937' }}>{totalTemplates}</span> 个精选模板
+          <div className="solution-stat">
+            <span className="solution-stat-number">{totalTemplates}</span>
+            <span className="solution-stat-label">模板数</span>
           </div>
-          <div>
-            <span style={{ fontWeight: '600', color: '#1f2937' }}>{focusId ? '已高亮对应推荐' : '全部推荐已更新'}</span>
+          <div className="solution-stat">
+            <span className="solution-stat-number">{theme.subcategories.length}</span>
+            <span className="solution-stat-label">子分类</span>
+          </div>
+          <div className="solution-stat">
+            <span className="solution-stat-number">★ 5.0</span>
+            <span className="solution-stat-label">评分</span>
           </div>
         </div>
       </div>
 
-      {/* 洞察卡片 */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-        gap: '1.25rem',
-        marginBottom: '2.5rem'
-      }}>
-        {theme.insights.map((insight) => (
-          <div
-            key={insight.title}
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              border: '1px solid #e5e7eb',
-              padding: '1.5rem',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              transition: 'all 0.3s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-4px)'
-              e.currentTarget.style.boxShadow = `0 14px 32px ${theme.color}20`
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'
-            }}
-          >
-            <div style={{ fontSize: '13px', color: theme.color, fontWeight: '600', marginBottom: '0.5rem' }}>
-              {insight.title}
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#1f2937', marginBottom: '0.75rem' }}>
-              {insight.value}
-            </div>
-            <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: 1.6 }}>
-              {insight.description}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 工作流卡片 */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-        gap: '1.5rem'
-      }}>
-        {theme.workflows.map((workflow) => {
-          const isFocused = focusId === workflow.id
-          return (
-            <div
-              key={workflow.id}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: '16px',
-                border: `1px solid ${isFocused ? `${theme.color}50` : '#e5e7eb'}`,
-                padding: '1.5rem',
-                transition: 'all 0.3s',
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: isFocused ? `0 18px 42px ${theme.color}25` : 'none',
-                position: 'relative',
-                cursor: 'default'
-              }}
-              onMouseEnter={(e) => {
-                if (!isFocused) {
-                  e.currentTarget.style.boxShadow = `0 12px 36px ${workflow.color}25`
-                  e.currentTarget.style.transform = 'translateY(-4px)'
-                  e.currentTarget.style.borderColor = `${workflow.color}35`
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isFocused) {
-                  e.currentTarget.style.boxShadow = 'none'
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.borderColor = '#e5e7eb'
-                }
-              }}
-            >
-              {isFocused && (
-                <span style={{
-                  position: 'absolute',
-                  top: '14px',
-                  right: '14px',
-                  fontSize: '12px',
-                  color: 'white',
-                  background: theme.color,
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  fontWeight: '600'
-                }}>
-                  推荐
-                </span>
-              )}
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '14px',
-                  backgroundColor: `${workflow.color}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '28px'
-                }}>
-                  {workflow.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{
-                    fontSize: '1.1rem',
-                    fontWeight: '600',
-                    color: '#1f2937',
-                    margin: '0 0 0.4rem 0'
-                  }}>
-                    {workflow.name}
-                  </h3>
-                  <p style={{
-                    fontSize: '14px',
-                    color: '#6b7280',
-                    margin: 0,
-                    lineHeight: 1.6
-                  }}>
-                    {workflow.description}
-                  </p>
-                </div>
-              </div>
-
-              <div style={{
-                display: 'flex',
-                gap: '0.75rem',
-                flexWrap: 'wrap',
-                marginTop: 'auto'
-              }}>
-                <span style={{
-                  fontSize: '12px',
-                  color: workflow.color,
-                  fontWeight: '600',
-                  backgroundColor: `${workflow.color}12`,
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '999px'
-                }}>
-                  收录 {workflow.count} 个模板
-                </span>
-                {workflow.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    style={{
-                      fontSize: '12px',
-                      color: '#4b5563',
-                      backgroundColor: '#f3f4f6',
-                      padding: '0.25rem 0.6rem',
+      {/* 主要内容区域 */}
+      <div className="solution-content">
+        {/* 工作流列表 */}
+        <section className="solution-section">
+          <h2 className="solution-section-title">攻略卡片</h2>
+          <div className="solution-items">
+            {theme.workflows.map((workflow, index) => {
+              const isFocused = focusId === workflow.id
+              return (
+                <div
+                  key={workflow.id}
+                  className="solution-item"
+                  style={{
+                    position: 'relative',
+                    backgroundColor: isFocused ? `${theme.color}05` : 'white',
+                    borderColor: isFocused ? `${workflow.color}50` : 'rgba(255, 255, 255, 0.8)',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => navigate(`/workflow-intro/fake-${theme.id}-${workflow.id}`)}
+                >
+                  {isFocused && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      fontSize: '11px',
+                      color: 'white',
+                      background: theme.color,
+                      padding: '3px 8px',
                       borderRadius: '999px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
+                      fontWeight: '600'
+                    }}>
+                      推荐
+                    </span>
+                  )}
+                  <div className="solution-item-header">
+                    <span className="solution-item-icon">{workflow.icon}</span>
+                    <h3 className="solution-item-title">{workflow.name}</h3>
+                  </div>
+
+                  <p className="solution-item-description">{workflow.description}</p>
+
+                  <div className="solution-item-tools">
+                    <span className="solution-item-tools-label">标签：</span>
+                    {workflow.tags.map((tag) => (
+                      <span key={tag} className="solution-tool-tag">
+                        {tag}
+                      </span>
+                    ))}
+                    <span className="solution-tool-tag" style={{
+                      backgroundColor: `${workflow.color}15`,
+                      color: workflow.color,
+                      borderColor: `${workflow.color}30`,
+                      fontWeight: 600
+                    }}>
+                      {workflow.count} 个模板
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* 标签 */}
+        {theme.subcategories && theme.subcategories.length > 0 && (
+          <section className="solution-section">
+            <h2 className="solution-section-title">子分类</h2>
+            <div className="solution-tags">
+              {theme.subcategories.map((subcategory) => (
+                <span key={subcategory.id} className="solution-tag" style={{ backgroundColor: `${theme.color}10`, color: theme.color }}>
+                  {subcategory.icon} {subcategory.name} ({subcategory.count})
+                </span>
+              ))}
             </div>
-          )
-        })}
+          </section>
+        )}
       </div>
     </div>
   )

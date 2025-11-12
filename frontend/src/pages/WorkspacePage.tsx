@@ -3862,11 +3862,12 @@ export default function WorkspacePage() {
                                       <button
                                         onClick={() => {
                                           // 临时应用工作流（仅当前会话有效）
-                                          const workflowData = workflowCanvasData.get(cardConfig.id)
-                                          if (workflowData) {
+                                          const nodes = workflowNodes.get(cardConfig.id)
+                                          const connections = nodeConnections.get(cardConfig.id)
+                                          if (nodes) {
                                             sessionStorage.setItem(`workflow_${cardConfig.id}`, JSON.stringify({
-                                              nodes: workflowData.nodes,
-                                              connections: workflowData.connections,
+                                              nodes: nodes,
+                                              connections: connections || [],
                                               timestamp: new Date().toISOString()
                                             }))
                                             alert('✅ 工作流已应用到当前会话！\n\n在本次会话中，您的配置将保持有效。')
@@ -3895,15 +3896,16 @@ export default function WorkspacePage() {
                                       <button
                                         onClick={() => {
                                           // 永久保存工作流到工作区
-                                          const workflowData = workflowCanvasData.get(cardConfig.id)
-                                          if (workflowData) {
+                                          const nodes = workflowNodes.get(cardConfig.id)
+                                          const connections = nodeConnections.get(cardConfig.id)
+                                          if (nodes) {
                                             const savedWorkflows = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
                                             const workflowToSave = {
                                               id: `workflow-${Date.now()}`,
                                               cardId: cardConfig.id,
                                               name: `工作流副本 ${new Date().toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
-                                              nodes: workflowData.nodes.map(n => ({ ...n })),
-                                              connections: workflowData.connections.map(c => ({ ...c })),
+                                              nodes: nodes.map((n: any) => ({ ...n })),
+                                              connections: (connections || []).map((c: any) => ({ ...c })),
                                               createdAt: new Date().toISOString()
                                             }
                                             savedWorkflows.push(workflowToSave)
@@ -3911,8 +3913,8 @@ export default function WorkspacePage() {
 
                                             // 同时应用到当前会话
                                             sessionStorage.setItem(`workflow_${cardConfig.id}`, JSON.stringify({
-                                              nodes: workflowData.nodes,
-                                              connections: workflowData.connections,
+                                              nodes: nodes,
+                                              connections: connections || [],
                                               timestamp: new Date().toISOString()
                                             }))
 

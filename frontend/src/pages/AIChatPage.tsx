@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Send,
   Loader2,
@@ -109,6 +109,13 @@ type WorkflowCard = {
   prompt?: string
   matchScore?: number
   nodes?: WorkflowNode[]
+  icon?: string
+  color?: string
+  tags?: string[]
+  tools?: any[]
+  usageCount?: number
+  favorite?: boolean
+  updatedAt?: string
 }
 
 // AI工具卡片类型
@@ -131,6 +138,11 @@ type AIToolCard = {
   prompt?: string
   capabilities?: string[]
   matchScore?: number
+  model?: {
+    provider: string
+    modelId: string
+    modelName: string
+  }
 }
 
 // 推荐项类型（可以是工作流或AI工具）
@@ -163,6 +175,11 @@ type ExecutionResult =
   | { type: 'text'; content: string }
   | { type: 'image'; content: string; caption?: string }
 
+interface AIChatPageProps {
+  initialView?: 'chat' | 'explore'
+  mode?: 'full' | 'embedded'
+}
+
 const baseWorkflows: WorkflowCard[] = []
 
 // AI工具库 - 预定义的AI工具
@@ -173,6 +190,7 @@ const baseAITools: AIToolCard[] = [
     description: '智能文案生成，支持多种写作风格',
     category: '文本生成',
     logo: '✍️',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   },
   {
@@ -181,6 +199,7 @@ const baseAITools: AIToolCard[] = [
     description: '多语言实时翻译，准确流畅',
     category: '语言处理',
     logo: '🌐',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   },
   {
@@ -189,6 +208,7 @@ const baseAITools: AIToolCard[] = [
     description: '快速提取文章要点，生成摘要',
     category: '文本处理',
     logo: '📝',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   },
   {
@@ -197,6 +217,7 @@ const baseAITools: AIToolCard[] = [
     description: '代码生成、调试、优化一站式服务',
     category: '编程辅助',
     logo: '💻',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   },
   {
@@ -205,6 +226,7 @@ const baseAITools: AIToolCard[] = [
     description: '智能数据分析与可视化建议',
     category: '数据分析',
     logo: '📊',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   },
   {
@@ -213,6 +235,7 @@ const baseAITools: AIToolCard[] = [
     description: '创意激发，思维发散',
     category: '创意辅助',
     logo: '💡',
+    type: 'model',
     model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
   }
 ]
@@ -232,8 +255,11 @@ const defaultModel: { provider: AIProvider; model: AIModel } = {
 // 工作角色和具体工作定义已移至 src/data/workspaceContainers.ts
 // 现在使用统一的数据源，与工作流画布共享
 
-export function AIChatPage() {
+export function AIChatPage({ initialView = 'chat', mode = 'full' }: AIChatPageProps) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const embeddedParam = searchParams.get('embedded') === '1'
+  const isEmbeddedMode = mode === 'embedded' || embeddedParam
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(false)
@@ -279,6 +305,10 @@ export function AIChatPage() {
 
   // 推荐工作流列表
   const recommendedWorkflows = useMemo(() => baseWorkflows, [])
+
+  if (!isEmbeddedMode && initialView === 'explore') {
+    // 保留 legacy prop，当前界面始终展示 AI 对话
+  }
 
   // 加载用户工作流
   useEffect(() => {
@@ -341,6 +371,7 @@ const promptEnhancers: Record<string, string> = {
   '帮我': '我需要帮助，请先了解我的具体需求是什么，并根据需求推荐合适的工作流或AI工具',
   '怎么': '请详细说明你的需求，我会根据你的具体场景推荐最合适的工作流或AI工具',
 }
+
 
 // 检测并增强简短的用户输入
 const enhanceShortPrompt = (input: string): { enhanced: boolean; content: string } => {
@@ -860,13 +891,13 @@ ${aiToolInfo}
           // 确保 tags 是数组
           const tagsArray = Array.isArray(wf.tags)
             ? wf.tags
-            : (typeof wf.tags === 'string' ? wf.tags.split(',').map(t => t.trim()) : [])
+            : (typeof wf.tags === 'string' ? wf.tags.split(',').map((t: string) => t.trim()) : [])
 
           const matched = values.some(v => {
             const titleMatch = wf.title.toLowerCase().includes(v.toLowerCase())
             const descMatch = wf.description?.toLowerCase().includes(v.toLowerCase())
             const categoryMatch = wf.category?.toLowerCase().includes(v.toLowerCase())
-            const tagMatch = tagsArray.some(tag => tag.toLowerCase().includes(v.toLowerCase()))
+            const tagMatch = tagsArray.some((tag: string) => tag.toLowerCase().includes(v.toLowerCase()))
 
             if (titleMatch || descMatch || categoryMatch || tagMatch) {
               console.log(`✅ 匹配到工作流 [${wf.title}]`, {
@@ -926,9 +957,10 @@ ${aiToolInfo}
         id: response.workflow.id, // 使用新的ID
         title: response.workflow.title,
         description: response.workflow.description || workflow.description,
+        category: workflow.category || '其他',
         icon: workflow.icon,
         color: workflow.color,
-        tags: response.workflow.tags || workflow.tags,
+        tags: Array.isArray(response.workflow.tags) ? response.workflow.tags : (workflow.tags || []),
         tools: workflow.tools || [],
         usageCount: 0,
         favorite: false,
@@ -1176,12 +1208,134 @@ ${aiToolInfo}
     'flex h-full flex-col overflow-hidden rounded-3xl border border-violet-100 bg-white'
   const primaryButtonClasses =
     'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-bold transition-all duration-200 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-xl hover:from-violet-700 hover:to-indigo-700 hover:shadow-2xl hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100'
+  const showLegacyPanels = false
+
+  if (isEmbeddedMode) {
+    return (
+      <div className="flex h-screen flex-col bg-gradient-to-br from-white via-violet-50/30 to-white">
+        {/* 对话消息区域 */}
+        <div
+          className={cn(
+            'flex-1 overflow-y-auto px-4 py-4',
+            messages.length === 0 ? 'flex items-center justify-center' : 'space-y-4'
+          )}
+        >
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center w-full max-w-md mx-auto">
+              <div className="rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 p-4 shadow-xl mb-6">
+                <Bot className="h-10 w-10 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 mb-3">AI 工作流助手</h3>
+              <p className="text-sm leading-relaxed text-slate-600 mb-6">
+                描述你想完成的任务，我会为你推荐并生成合适的工作流
+              </p>
+              <div className="flex items-center gap-2 text-xs text-violet-600 font-semibold bg-violet-50 px-4 py-2 rounded-full border border-violet-100">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>智能推荐 · 快速生成</span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 max-w-3xl mx-auto pb-4">
+              {messages.map((message, idx) => (
+                <div key={idx} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        'rounded-full p-1.5 shadow-sm',
+                        message.role === 'user'
+                          ? 'bg-violet-100 text-violet-600'
+                          : 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
+                      )}
+                    >
+                      {message.role === 'user' ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                    </div>
+                    <span className="text-xs font-semibold text-slate-600">
+                      {message.role === 'user' ? '你' : 'AI 助手'}
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      'rounded-2xl px-4 py-3 shadow-sm',
+                      message.role === 'user'
+                        ? 'bg-violet-50 border border-violet-100 ml-8'
+                        : 'bg-white border border-slate-200'
+                    )}
+                  >
+                    {message.role === 'user' ? (
+                      <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{message.content}</p>
+                    ) : (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ node, ...props }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed text-slate-800" {...props} />,
+                          code: ({ node, ...props }) => {
+                            const inline = (props as any).inline
+                            return inline ? (
+                              <code className="px-1.5 py-0.5 rounded bg-violet-50 text-xs font-mono text-violet-700" {...props} />
+                            ) : (
+                              <code className="block p-3 my-2 rounded-lg bg-slate-50 text-xs font-mono overflow-x-auto" {...props} />
+                            )
+                          },
+                          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-1 space-y-1 text-sm text-slate-700" {...props} />,
+                          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-1 space-y-1 text-sm text-slate-700" {...props} />
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 输入区域 - 固定在底部 */}
+        <div className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-lg">
+          {/* 错误提示 */}
+          {error && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 max-w-3xl mx-auto">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex items-end gap-2 max-w-3xl mx-auto">
+            <textarea
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              rows={2}
+              placeholder="输入你的需求，按 Enter 发送..."
+              className="flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-300 focus:ring-2 focus:ring-violet-100 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={loading || !inputValue.trim()}
+              className="inline-flex h-[52px] w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md transition-all hover:from-violet-700 hover:to-indigo-700 hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const containerClass = 'flex h-[calc(100vh-64px)] flex-col bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50'
+  const mainClassName = 'grid flex-1 gap-2 overflow-hidden px-2 pb-3 pt-3 lg:gap-2.5 lg:px-3 xl:px-4 xl:grid-cols-[1.2fr_0.8fr_1.2fr]'
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50">
-      <main className="grid flex-1 gap-2 overflow-hidden px-2 pb-3 pt-3 lg:gap-2.5 lg:px-3 xl:px-4 xl:grid-cols-[1.2fr_0.8fr_1.2fr]">
+    <div className={containerClass}>
+      <main className={mainClassName}>
         {/* 会话面板 */}
-        <section className={panelBaseClass}>
+        <section className={`${panelBaseClass} w-full`}>
           <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-3 py-2">
             <div>
               <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
@@ -1248,12 +1402,14 @@ ${aiToolInfo}
                       components={{
                         // 自定义样式 - 更紧凑的布局
                         p: ({node, ...props}) => <p className="mb-2 leading-7 last:mb-0" {...props} />,
-                        code: ({node, inline, ...props}) =>
-                          inline ? (
+                        code: ({node, ...props}) => {
+                          const inline = (props as any).inline
+                          return inline ? (
                             <code className="px-1.5 py-0.5 rounded bg-slate-100 text-sm font-mono text-red-600" {...props} />
                           ) : (
                             <code className="block p-3 my-2 rounded-lg bg-slate-100 text-sm font-mono overflow-x-auto" {...props} />
-                          ),
+                          )
+                        },
                         ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-2 space-y-0.5" {...props} />,
                         ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-2 space-y-0.5" {...props} />,
                         li: ({node, ...props}) => <li className="leading-6" {...props} />,
@@ -1731,8 +1887,8 @@ ${aiToolInfo}
           </footer>
         </section>
 
-        {/* 工作流工具箱 */}
-        <section className={panelBaseClass}>
+        {!isEmbeddedMode && showLegacyPanels && (
+          <section className={panelBaseClass}>
           <header className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50 px-3 py-2">
             <div>
               <h2 className="text-base font-bold text-slate-900 tracking-tight">实现工具</h2>
@@ -2018,37 +2174,38 @@ ${aiToolInfo}
               )}
             </button>
           </footer>
-        </section>
+          </section>
+        )}
 
-        {/* 成果预览 */}
-        <section className={panelBaseClass}>
-          <header className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">成果预览</h2>
-            <p className="text-[11px] text-slate-600 font-medium mt-0.5">查看生成内容 · 下载文件</p>
-          </header>
+        {!isEmbeddedMode && showLegacyPanels && (
+          <section className={panelBaseClass}>
+            <header className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">成果预览</h2>
+              <p className="text-[11px] text-slate-600 font-medium mt-0.5">查看生成内容 · 下载文件</p>
+            </header>
 
-          <div className="flex-1 space-y-2.5 overflow-y-auto px-2.5 py-2.5">
-            {executionResults.length === 0 && !isExecuting && (
-              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-teal-50/30 px-5 py-6 text-center">
-                <div className="rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 p-2.5 shadow-lg shadow-emerald-500/25 mb-3">
-                  <FileText className="h-6 w-6 text-white" />
-                </div>
-                <p className="text-lg font-bold text-slate-900 mb-2">等待成果预览</p>
-                <p className="text-sm leading-relaxed text-slate-600 max-w-xs mb-3">
-                  选择工作流或AI工具并点击 <span className="font-semibold text-emerald-600">执行</span>
-                  <br />
-                  生成的文本、图片或文件会出现在这里
-                </p>
-                <div className="flex items-center gap-6 text-xs text-slate-500">
-                  <div className="flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-emerald-500" />
-                    <span>文本</span>
+            <div className="flex-1 space-y-2.5 overflow-y-auto px-2.5 py-2.5">
+              {executionResults.length === 0 && !isExecuting && (
+                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-teal-50/30 px-5 py-6 text-center">
+                  <div className="rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 p-2.5 shadow-lg shadow-emerald-500/25 mb-3">
+                    <FileText className="h-6 w-6 text-white" />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Image className="h-4 w-4 text-emerald-500" />
-                    <span>图片</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
+                  <p className="text-lg font-bold text-slate-900 mb-2">等待成果预览</p>
+                  <p className="text-sm leading-relaxed text-slate-600 max-w-xs mb-3">
+                    选择工作流或AI工具并点击 <span className="font-semibold text-emerald-600">执行</span>
+                    <br />
+                    生成的文本、图片或文件会出现在这里
+                  </p>
+                  <div className="flex items-center gap-6 text-xs text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-emerald-500" />
+                      <span>文本</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Image className="h-4 w-4 text-emerald-500" />
+                      <span>图片</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                     <Download className="h-4 w-4 text-emerald-500" />
                     <span>文件</span>
                   </div>
@@ -2090,6 +2247,7 @@ ${aiToolInfo}
             })}
           </div>
         </section>
+        )}
       </main>
 
       {/* 推荐工作流抽屉 */}
@@ -2128,7 +2286,7 @@ ${aiToolInfo}
                     author: workflow.author?.name,
                     icon: '📋',
                     color: '#8B5CF6',
-                    tags: workflow.tags || [],
+                    tags: Array.isArray(workflow.tags) ? workflow.tags : [],
                     tools: [],
                     usageCount: 0,
                     favorite: false

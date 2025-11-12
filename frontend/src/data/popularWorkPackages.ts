@@ -4,14 +4,14 @@ export const popularWorkPackages: WorkPackage[] = [
   {
     id: 'pkg-1',
     name: '自媒体爆款内容创作套装',
-    description: '一站式自媒体内容创作解决方案，包含文章生成、视频脚本、图片处理等全套工具',
+    description: '从选题到发布的全链路解决方案，覆盖公众号、小红书、抖音等主流平台',
     category: 'text',
-    icon: '',
+    icon: '📱',
     color: '#f59e0b',
-    tags: ['自媒体', '内容创作', '爆款文案', '视频脚本'],
+    tags: ['自媒体', '内容创作', '多平台', '爆款文案'],
     author: {
       name: 'AI工作流大师',
-      avatar: ''
+      avatar: '👨‍💼'
     },
     stats: {
       downloads: 12580,
@@ -21,41 +21,103 @@ export const popularWorkPackages: WorkPackage[] = [
     items: [
       {
         id: 1,
-        name: '公众号爆款文章生成',
-        description: '一键生成10万+爆款文章',
-        icon: '',
+        name: '热点选题挖掘',
+        description: '实时追踪热点，挖掘高流量选题方向',
+        icon: '🔥',
         difficulty: '简单',
         tools: [
-          { id: 1, name: 'GPT-4 文章生成器', type: 'AI工具', description: '智能生成爆款文章', icon: '', version: 'v3.0' },
-          { id: 2, name: '标题优化器', type: 'AI工具', description: '优化文章标题吸引力', icon: '', version: 'v2.1' },
-          { id: 3, name: 'SEO关键词工具', type: '工作流', description: '自动优化SEO关键词', icon: '', version: 'v1.8' }
+          { id: 1, name: '热点雷达', type: 'AI工具', description: '实时追踪全网热点话题', icon: '📡', version: 'v2.0' },
+          { id: 2, name: '选题分析器', type: 'AI工具', description: '分析选题潜力和竞争度', icon: '📊', version: 'v1.8' },
+          { id: 3, name: '用户需求洞察', type: '工作流', description: '挖掘目标用户关注点', icon: '👥', version: 'v1.5' }
         ]
       },
       {
         id: 2,
-        name: '短视频脚本创作',
-        description: '抖音、小红书短视频脚本',
-        icon: '',
+        name: '爆款标题生成',
+        description: '一键生成10+吸睛标题，提升点击率',
+        icon: '✨',
         difficulty: '简单',
         tools: [
-          { id: 1, name: '视频脚本生成器', type: 'AI工具', description: '智能生成视频脚本', icon: '', version: 'v2.5' },
-          { id: 2, name: '分镜头设计', type: '工作流', description: '自动设计分镜头', icon: '', version: 'v1.3' }
+          { id: 1, name: '标题生成器', type: 'AI工具', description: '基于爆款模板生成标题', icon: '🎯', version: 'v3.0' },
+          { id: 2, name: '标题优化器', type: 'AI工具', description: '优化标题吸引力评分', icon: '📈', version: 'v2.1' },
+          { id: 3, name: 'A/B测试工具', type: '工作流', description: '多标题对比测试', icon: '🔬', version: 'v1.2' }
         ]
       },
       {
         id: 3,
-        name: '配图快速生成',
-        description: 'AI生成文章配图',
-        icon: '',
+        name: '长文章智能创作',
+        description: '自动生成结构完整、逻辑清晰的长文',
+        icon: '📝',
+        difficulty: '简单',
+        tools: [
+          { id: 1, name: 'GPT-4 文章生成', type: 'AI工具', description: '智能生成高质量文章', icon: '🤖', version: 'v4.0' },
+          { id: 2, name: '内容扩写器', type: 'AI工具', description: '自动扩充文章内容', icon: '📄', version: 'v2.5' },
+          { id: 3, name: 'SEO优化器', type: '工作流', description: '优化关键词和可读性', icon: '🔍', version: 'v1.9' }
+        ]
+      },
+      {
+        id: 4,
+        name: 'AI配图生成',
+        description: '根据内容自动生成精美配图',
+        icon: '🎨',
         difficulty: '中等',
         tools: [
-          { id: 1, name: 'Midjourney 助手', type: 'AI工具', description: 'AI绘图生成配图', icon: '', version: 'v6.0' },
-          { id: 2, name: '图片尺寸优化', type: '软件', description: '批量调整图片尺寸', icon: '', version: 'v1.2' }
+          { id: 1, name: 'Midjourney 助手', type: 'AI工具', description: 'AI绘图生成配图', icon: '🖼️', version: 'v6.0' },
+          { id: 2, name: '图片风格统一', type: '工作流', description: '保持配图风格一致', icon: '🎭', version: 'v1.4' },
+          { id: 3, name: '尺寸智能调整', type: '软件', description: '适配各平台尺寸', icon: '📐', version: 'v1.6' }
+        ]
+      },
+      {
+        id: 5,
+        name: '公众号文案优化',
+        description: '针对公众号特性优化排版和文案',
+        icon: '💚',
+        difficulty: '简单',
+        tools: [
+          { id: 1, name: '公众号排版器', type: '工作流', description: '自动美化排版样式', icon: '📱', version: 'v2.0' },
+          { id: 2, name: '引导关注文案', type: 'AI工具', description: '生成引导关注话术', icon: '👆', version: 'v1.5' },
+          { id: 3, name: '阅读量预测', type: 'AI工具', description: '预测文章阅读量', icon: '📊', version: 'v1.3' }
+        ]
+      },
+      {
+        id: 6,
+        name: '小红书笔记生成',
+        description: '生成符合小红书风格的种草笔记',
+        icon: '❤️',
+        difficulty: '简单',
+        tools: [
+          { id: 1, name: '小红书文案生成', type: 'AI工具', description: '生成种草风格文案', icon: '✍️', version: 'v2.2' },
+          { id: 2, name: 'emoji智能添加', type: '工作流', description: '自动添加合适emoji', icon: '😊', version: 'v1.4' },
+          { id: 3, name: '标签推荐器', type: 'AI工具', description: '推荐高流量标签', icon: '#️⃣', version: 'v1.7' }
+        ]
+      },
+      {
+        id: 7,
+        name: '抖音文案创作',
+        description: '短视频文案和脚本一键生成',
+        icon: '🎵',
+        difficulty: '简单',
+        tools: [
+          { id: 1, name: '短视频脚本生成', type: 'AI工具', description: '生成抖音风格脚本', icon: '🎬', version: 'v2.5' },
+          { id: 2, name: '钩子文案库', type: '工作流', description: '前3秒吸睛文案', icon: '🎣', version: 'v1.8' },
+          { id: 3, name: '字幕生成器', type: 'AI工具', description: '自动生成视频字幕', icon: '💬', version: 'v2.0' }
+        ]
+      },
+      {
+        id: 8,
+        name: '知乎回答生成',
+        description: '生成专业深度的知乎回答',
+        icon: '🔵',
+        difficulty: '中等',
+        tools: [
+          { id: 1, name: '知乎回答生成器', type: 'AI工具', description: '生成深度专业回答', icon: '📚', version: 'v2.1' },
+          { id: 2, name: '数据引用助手', type: '工作流', description: '自动添加数据支撑', icon: '📊', version: 'v1.5' },
+          { id: 3, name: '回答结构优化', type: 'AI工具', description: '优化回答逻辑结构', icon: '🏗️', version: 'v1.6' }
         ]
       }
     ],
     createdAt: '2025-01-15',
-    updatedAt: '2025-01-20'
+    updatedAt: '2025-01-25'
   },
   {
     id: 'pkg-2',

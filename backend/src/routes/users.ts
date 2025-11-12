@@ -153,4 +153,68 @@ router.get('/favorites', async (req: AuthenticatedRequest, res: Response) => {
   }
 })
 
+// 获取用户数据统计（所有用户数据概览）
+router.get('/data-stats', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+
+    // 统计各类用户数据
+    const [
+      workflowsCount,
+      executionsCount,
+      favoritesCount,
+      layoutExists
+    ] = await Promise.all([
+      // 1. 用户创建的工作流（包括已发布和未发布）
+      prisma.workflow.count({
+        where: { authorId: userId }
+      }),
+      // 2. 执行记录
+      prisma.workflowExecution.count({
+        where: { userId }
+      }),
+      // 3. 收藏
+      prisma.favorite.count({
+        where: { userId }
+      }),
+      // 4. 工作台布局
+      prisma.workspaceLayout.findUnique({
+        where: { userId }
+      })
+    ])
+
+    // 按类型分组统计工作流
+    const workflowsByStatus = await prisma.workflow.groupBy({
+      by: ['isPublic', 'isDraft'],
+      where: { authorId: userId },
+      _count: true
+    })
+
+    // 按状态分组统计执行记录
+    const executionsByStatus = await prisma.workflowExecution.groupBy({
+      by: ['status'],
+      where: { userId },
+      _count: true
+    })
+
+    res.status(200).json({
+      summary: {
+        workflows: workflowsCount,
+        executions: executionsCount,
+        favorites: favoritesCount,
+        hasLayout: !!layoutExists
+      },
+      details: {
+        workflowsByStatus,
+        executionsByStatus
+      }
+    })
+  } catch (error) {
+    console.error('获取用户数据统计错误:', error)
+    res.status(500).json({
+      error: '获取用户数据统计失败'
+    })
+  }
+})
+
 export default router

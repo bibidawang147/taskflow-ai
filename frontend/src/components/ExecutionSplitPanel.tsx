@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { X, CheckCircle2, Circle, Clock, Pencil } from 'lucide-react'
 
 export interface WorkflowNode {
@@ -254,6 +254,11 @@ const renderSectionContent = (value: any): React.ReactNode => {
 }
 
 const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onClose, onWorkflowUpdate }) => {
+  // 滚动容器引用
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  // 步骤卡片引用
+  const stepRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+
   // 初始化步骤数据
   const [steps, setSteps] = useState<StepData[]>(() => {
     const nodes = workflow.config?.nodes || []
@@ -304,6 +309,50 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
 
   const completedCount = useMemo(() => steps.filter(s => s.status === 'completed').length, [steps])
   const allStepsCompleted = steps.length > 0 && steps.every(s => s.status === 'completed')
+
+  // 监听正在执行的步骤,自动滚动到可见范围
+  useEffect(() => {
+    const activeIndex = steps.findIndex(s => s.status === 'active')
+    if (activeIndex !== -1) {
+      const stepElement = stepRefs.current.get(activeIndex)
+      if (stepElement && scrollContainerRef.current) {
+        // 延迟一下确保DOM已更新
+        setTimeout(() => {
+          stepElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          })
+        }, 100)
+      }
+    }
+  }, [steps])
+
+  // 监听所有步骤完成,自动收缩最后一步并滚动到底部
+  useEffect(() => {
+    if (allStepsCompleted && steps.length > 0) {
+      const lastStepIndex = steps.length - 1
+
+      // 延迟执行以确保DOM已更新
+      setTimeout(() => {
+        // 收缩最后一步
+        setExpandedSteps(prev => {
+          const newExpanded = new Set(prev)
+          newExpanded.delete(lastStepIndex)
+          return newExpanded
+        })
+
+        // 滚动到底部
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({
+              top: scrollContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            })
+          }
+        }, 100)
+      }, 300)
+    }
+  }, [allStepsCompleted, steps.length])
   const hasEditableChanges = useMemo(
     () =>
       steps.some(step => {
@@ -446,7 +495,10 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
         return node
       }
       const updatedNode: WorkflowNode & Record<string, any> = { ...node }
-      const updatedData = { ...(updatedNode.data ?? {}) }
+      const updatedData = {
+        label: node.data?.label ?? '',
+        ...(updatedNode.data ?? {})
+      }
       updatedData.config = deepClone(matchedStep.editedConfig ?? matchedStep.config ?? {})
       updatedNode.data = updatedData
       if (!node.data && 'config' in node) {
@@ -619,14 +671,17 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
       </div>
 
       {/* 可滚动内容区域 */}
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        padding: '2rem',
-        backgroundColor: '#fafafa'
-      }}>
+      <div
+        ref={scrollContainerRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '2rem',
+          backgroundColor: '#fafafa'
+        }}
+      >
         {/* 步骤列表 */}
         {steps.map((step, index) => {
           const colors = getStepColor(step.status)
@@ -639,6 +694,13 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
           return (
             <div
               key={step.id}
+              ref={(el) => {
+                if (el) {
+                  stepRefs.current.set(index, el)
+                } else {
+                  stepRefs.current.delete(index)
+                }
+              }}
               style={{
                 marginBottom: '2rem',
                 transition: 'all 0.3s ease-in-out',
@@ -649,20 +711,34 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
               <div
                 onClick={() => toggleStep(index)}
                 style={{
-                  padding: '0.5rem 0',
+                  padding: step.status === 'completed' && !isExpanded ? '1rem' : '0.5rem 0',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.75rem'
+                  gap: '0.75rem',
+                  backgroundColor: step.status === 'completed' && !isExpanded ? '#f9fafb' : 'transparent',
+                  border: step.status === 'completed' && !isExpanded ? '1px solid #8b5cf6' : 'none',
+                  borderRadius: step.status === 'completed' && !isExpanded ? '0' : '0',
+                  boxShadow: step.status === 'completed' && !isExpanded ? '0 2px 8px rgba(139, 92, 246, 0.1)' : 'none',
+                  transition: 'all 0.3s ease-in-out'
                 }}
               >
                 <div style={{ flex: 1 }}>
                   <div style={{
                     fontSize: '1rem',
                     fontWeight: '600',
-                    color: '#1f2937'
+                    color: step.status === 'completed' && !isExpanded ? '#8b5cf6' : '#1f2937',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: '0.5rem'
                   }}>
-                    步骤 {index + 1}: {step.title}
+                    <span style={{
+                      color: step.status === 'completed' && !isExpanded ? '#8b5cf6' : '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      步骤 {index + 1}:
+                    </span>
+                    <span>{step.title}</span>
                   </div>
                 </div>
                 {canEdit && (
@@ -739,7 +815,8 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                     borderRadius: '0',
                     fontSize: '0.875rem',
                     color: '#374151',
-                    border: isEditingStep ? '2px dashed #d8b4fe' : '2px solid #e5e7eb'
+                    border: isEditingStep ? '1px dashed #d8b4fe' : '1px solid #8b5cf6',
+                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.1)'
                   }}>
                     {!isEditingStep && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -821,7 +898,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                                 </label>
                               )}
 
-                              {(field.type === 'shortText' || field.type === 'number') && field.type !== 'boolean' && (
+                              {(field.type === 'shortText' || field.type === 'number') && (
                                 <input
                                   type={field.type === 'number' ? 'number' : 'text'}
                                   value={field.type === 'number' ? inputValue ?? '' : inputValue ?? ''}
@@ -923,33 +1000,14 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                     }}>
                       按 <kbd style={{
                         padding: '0.15rem 0.4rem',
-                        backgroundColor: 'white',
-                        border: '1px solid #d1d5db',
+                        backgroundColor: '#8b5cf6',
+                        border: '1px solid #8b5cf6',
                         borderRadius: '3px',
                         fontFamily: 'monospace',
                         fontSize: '0.75rem',
                         fontWeight: '600',
-                        color: '#374151'
+                        color: 'white'
                       }}>Enter</kbd> 键标记完成
-                    </div>
-                  )}
-
-                  {/* 已完成提示 */}
-                  {step.status === 'completed' && (
-                    <div style={{
-                      marginTop: '1rem',
-                      padding: '0.75rem',
-                      backgroundColor: '#f0fdf4',
-                      borderRadius: '0',
-                      border: '1px solid #10b981',
-                      color: '#065f46',
-                      fontSize: '0.875rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem'
-                    }}>
-                      <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-                      此步骤已完成
                     </div>
                   )}
                 </div>
@@ -964,9 +1022,9 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
             marginTop: '2rem',
             padding: '2.5rem',
             borderRadius: '18px',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.1))',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            boxShadow: '0 20px 40px rgba(16,185,129,0.15)',
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.08))',
+            border: '1px solid #8b5cf6',
+            boxShadow: '0 4px 12px rgba(139, 92, 246, 0.15)',
             position: 'relative',
             overflow: 'hidden'
           }}>
@@ -977,13 +1035,86 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
               pointerEvents: 'none'
             }} />
             <div style={{ position: 'relative', textAlign: 'center' }}>
-              <CheckCircle2 size={56} style={{ color: '#0f766e', margin: '0 auto 1rem' }} />
-              <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', letterSpacing: '0.01em' }}>
-                全部步骤已完成
-              </h3>
-              <p style={{ margin: '0 auto 1.5rem', maxWidth: '420px', color: '#0f172a', fontSize: '0.95rem', lineHeight: 1.6 }}>
+              {/* 工作流图标和名称 */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '1.5rem',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  backgroundColor: '#8b5cf6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                  flexShrink: 0
+                }}>
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="1"
+                    style={{
+                      overflow: 'visible'
+                    }}
+                  >
+                    {/* 圆圈 */}
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      style={{
+                        strokeDasharray: 63,
+                        strokeDashoffset: 63,
+                        animation: 'drawCircle 0.4s ease-out 1s forwards'
+                      }}
+                    />
+                    {/* 勾号 */}
+                    <path
+                      d="M9 12l2 2 4-4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        strokeDasharray: 10,
+                        strokeDashoffset: 10,
+                        animation: 'drawCheck 0.3s ease-out 1.4s forwards'
+                      }}
+                    />
+                  </svg>
+                  <style>{`
+                    @keyframes drawCircle {
+                      to {
+                        stroke-dashoffset: 0;
+                      }
+                    }
+                    @keyframes drawCheck {
+                      to {
+                        stroke-dashoffset: 0;
+                      }
+                    }
+                  `}</style>
+                </div>
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  color: '#8b5cf6',
+                  letterSpacing: '0.01em'
+                }}>
+                  {workflow.title}
+                </h3>
+              </div>
+              <p style={{ margin: '0 auto 1.5rem', maxWidth: '420px', color: '#4b5563', fontSize: '0.95rem', lineHeight: 1.6 }}>
                 {hasEditableChanges
-                  ? '检测到对步骤配置的临时修改。请选择是否将它们永久记录到工作流，或保留原始配置。'
+                  ? '检测到对步骤配置的修改。是否保存这些修改到工作流？'
                   : '所有步骤均按当前配置完成，无额外修改。'}
               </p>
 
@@ -1003,7 +1134,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                       boxShadow: '0 8px 20px rgba(5, 150, 105, 0.3)'
                     }}
                   >
-                    {isSaving ? '保存中...' : '永久记录修改'}
+                    {isSaving ? '保存中...' : '保存修改'}
                   </button>
                   <button
                     onClick={discardEdits}
@@ -1018,7 +1149,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                       cursor: isSaving ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    不记录修改
+                    不保存
                   </button>
                 </div>
               )}
@@ -1044,25 +1175,14 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                         fontWeight: 600,
                         marginBottom: '0.5rem'
                       }}>
-                        无法保存修改
+                        保存失败
                       </div>
                       <div style={{
                         color: '#78350f',
                         fontSize: '0.875rem',
-                        lineHeight: 1.5,
-                        marginBottom: '0.75rem'
+                        lineHeight: 1.5
                       }}>
                         {saveError}
-                      </div>
-                      <div style={{
-                        fontSize: '0.813rem',
-                        color: '#78350f',
-                        padding: '0.5rem 0.75rem',
-                        backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                        borderRadius: '8px',
-                        lineHeight: 1.6
-                      }}>
-                        💡 <strong>建议:</strong> 请先在工作流库中找到这个工作流,点击"克隆"按钮创建您自己的副本,然后在副本中进行修改。
                       </div>
                     </div>
                   </div>

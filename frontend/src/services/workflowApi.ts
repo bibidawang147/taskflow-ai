@@ -7,7 +7,7 @@ export interface Workflow {
   description: string
   thumbnail?: string
   category: string
-  tags: string[]
+  tags: string[] | string
   version: string
   createdAt: string
   config?: {
@@ -28,6 +28,7 @@ export interface Workflow {
   // 前端计算的字段
   isOwner?: boolean  // 是否是当前用户创建的
   canEdit?: boolean  // 是否可以编辑
+  isPublic?: boolean  // 是否公开
 }
 
 // 收藏工作流

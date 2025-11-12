@@ -8,7 +8,6 @@ import { MockArticleAnalysisService } from '../services/mockArticleAnalysisServi
 import { WorkflowExecutionService } from '../services/workflowExecutionService'
 import { contentAnalysisService, ContentType } from '../services/contentAnalysis.service'
 import { fileStorageService } from '../services/fileStorage.service'
-import { addWorkflowJob } from '../queues/workflow.queue'
 import multer from 'multer'
 
 const router = Router()
@@ -215,13 +214,13 @@ router.get('/my', authenticateToken, async (req: AuthenticatedRequest, res: Resp
 
 // 获取工作流详情（不需要认证）
 // 注意: 此路由会匹配所有GET请求，因此特定路由(如/executions, /templates等)应定义在此路由之前
-router.get('/:id', async (req, res: Response, next) => {
+router.get('/:id', async (req, res: Response) => {
   try {
     const { id } = req.params
 
     // 跳过特定路径，由其他路由处理
     if (id === 'executions' || id === 'templates' || id === 'article-examples' || id === 'my' || id === 'tools') {
-      return next() // 传递给下一个路由处理器
+      return res.status(404).json({ error: '工作流不存在' })
     }
 
     const workflow = await prisma.workflow.findUnique({
@@ -1549,133 +1548,33 @@ router.post('/:id/execute', authenticateToken, async (req: AuthenticatedRequest,
       })
     }
 
-    // 创建执行记录（初始状态为 pending）
+    // 创建执行记录
     const execution = await prisma.workflowExecution.create({
       data: {
         workflowId,
         userId,
         input: input || {},
-        status: 'pending' // 改为 pending，等待队列处理
-      }
-    })
-
-    // 获取工作流配置
-    const config = workflow.config as any
-
-    // 将任务加入 BullMQ 队列
-    await addWorkflowJob({
-      executionId: execution.id,
-      workflowId,
-      userId,
-      config,
-      input: input || {}
-    })
-
-    res.status(201).json({
-      message: '工作流已加入执行队列',
-      execution: {
-        id: execution.id,
-        workflowId: execution.workflowId,
-        status: 'pending',
-        input: execution.input,
-        startedAt: execution.startedAt
-      }
-    })
-  } catch (error) {
-    console.error('执行工作流错误:', error)
-    res.status(500).json({
-      error: '执行工作流失败'
-    })
-  }
-})
-
-// 创建手动执行记录（用于前端分步执行完成后记录）
-router.post('/:id/manual-execution', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { id } = req.params
-    const userId = req.user!.id
-    const { input, output, status = 'completed', duration = 0 } = req.body
-
-    // 验证工作流是否存在
-    const workflow = await prisma.workflow.findUnique({
-      where: { id }
-    })
-
-    if (!workflow) {
-      return res.status(404).json({ error: '工作流不存在' })
-    }
-
-    // 创建执行记录
-    const execution = await prisma.workflowExecution.create({
-      data: {
-        workflowId: id,
-        userId,
-        status,
-        input: input || {},
-        output: output || {},
-        duration,
-        progress: status === 'completed' ? '手动执行完成' : '手动执行',
-        startedAt: new Date(),
-        completedAt: status === 'completed' ? new Date() : null
-      }
-    })
-
-    console.log('✅ 手动执行记录已创建:', execution.id)
-
-    res.status(201).json({
-      message: '执行记录已创建',
-      execution: {
-        id: execution.id,
-        workflowId: execution.workflowId,
-        status: execution.status,
-        input: execution.input,
-        output: execution.output,
-        duration: execution.duration,
-        startedAt: execution.startedAt,
-        completedAt: execution.completedAt
-      }
-    })
-  } catch (error) {
-    console.error('创建手动执行记录错误:', error)
-    res.status(500).json({
-      error: '创建执行记录失败'
-    })
-  }
-})
-
-// 临时执行(不关联工作流的孤岛执行)
-router.post('/execute-temp', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user!.id
-    const { title, description, config, input } = req.body
-
-    // 验证必要参数
-    if (!config || !config.nodes) {
-      return res.status(400).json({
-        error: '配置无效,必须包含 nodes'
-      })
-    }
-
-    // 创建孤岛执行记录
-    const execution = await prisma.workflowExecution.create({
-      data: {
-        userId,
-        title: title || '临时执行',
-        description: description || '未关联工作流的执行记录',
-        tempConfig: config,  // 保存临时配置
-        input: input || {},
         status: 'running'
       }
     })
 
-    // 异步执行
+    // 异步执行工作流
     ;(async () => {
       const startTime = Date.now()
       try {
-        console.log(`开始临时执行，执行ID: ${execution.id}`)
+        console.log(`开始执行工作流 ${workflowId}，执行ID: ${execution.id}`)
 
+        // 获取工作流配置
+        const config = workflow.config as any
+
+        if (!config || !config.nodes) {
+          throw new Error('工作流配置无效')
+        }
+
+        // 创建执行引擎实例
         const executionService = new WorkflowExecutionService()
 
+        // 定义进度回调函数
         const progressCallback = async (nodeId: string, nodeLabel: string, currentIndex: number, total: number) => {
           try {
             await prisma.workflowExecution.update({
@@ -1685,64 +1584,91 @@ router.post('/execute-temp', authenticateToken, async (req: AuthenticatedRequest
                 status: 'running'
               }
             })
+            console.log(`进度: ${currentIndex}/${total} - ${nodeLabel}`)
           } catch (err) {
             console.error('更新进度失败:', err)
           }
         }
 
+        // 执行工作流（传入进度回调）
         const result = await executionService.executeWorkflow(config, input || {}, progressCallback)
+
         const duration = Date.now() - startTime
 
         if (result.success) {
+          // 执行成功，更新记录（包括节点结果）
           await prisma.workflowExecution.update({
             where: { id: execution.id },
             data: {
               status: 'completed',
               output: result.output,
-              nodeResults: result.nodeResults,
+              nodeResults: result.nodeResults || {},
               duration,
+              progress: '执行完成',
               completedAt: new Date()
             }
           })
-          console.log(`临时执行成功: ${execution.id}, 耗时 ${duration}ms`)
+
+          // 增加工作流使用次数
+          await prisma.workflow.update({
+            where: { id: workflowId },
+            data: {
+              usageCount: {
+                increment: 1
+              }
+            }
+          })
+
+          console.log(`工作流 ${workflowId} 执行成功，耗时 ${duration}ms`)
         } else {
+          // 执行失败，更新记录
           await prisma.workflowExecution.update({
             where: { id: execution.id },
             data: {
               status: 'failed',
-              error: result.error || '执行失败',
+              error: result.error,
+              nodeResults: result.nodeResults || {},
               duration,
+              progress: '执行失败',
               completedAt: new Date()
             }
           })
-          console.error(`临时执行失败: ${execution.id}`)
+          console.error(`工作流 ${workflowId} 执行失败:`, result.error)
         }
-      } catch (error) {
-        console.error('临时执行错误:', error)
+      } catch (err: any) {
+        console.error('工作流执行过程中出错:', err)
         const duration = Date.now() - startTime
-        await prisma.workflowExecution.update({
-          where: { id: execution.id },
-          data: {
-            status: 'failed',
-            error: error instanceof Error ? error.message : '执行出错',
-            duration,
-            completedAt: new Date()
-          }
-        })
+        try {
+          await prisma.workflowExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: 'failed',
+              error: err.message || '未知错误',
+              duration,
+              progress: '执行异常',
+              completedAt: new Date()
+            }
+          })
+        } catch (updateErr) {
+          console.error('更新执行状态失败:', updateErr)
+        }
       }
     })()
 
-    res.status(202).json({
-      message: '临时执行已启动',
+    res.status(201).json({
+      message: '工作流开始执行',
       execution: {
         id: execution.id,
-        status: execution.status
+        workflowId: execution.workflowId,
+        status: execution.status,
+        input: execution.input,
+        startedAt: execution.startedAt
       }
     })
   } catch (error) {
-    console.error('创建临时执行记录错误:', error)
+    console.error('执行工作流错误:', error)
     res.status(500).json({
-      error: '创建临时执行记录失败'
+      error: '执行工作流失败'
     })
   }
 })
@@ -1772,10 +1698,8 @@ router.get('/executions', authenticateToken, async (req: AuthenticatedRequest, r
     }
 
     // 构建排序
-    // 前端可能使用 createdAt，需要映射到 startedAt
-    const sortField = sortBy === 'createdAt' ? 'startedAt' : (sortBy as string)
     const orderBy: any = {}
-    orderBy[sortField] = sortOrder === 'asc' ? 'asc' : 'desc'
+    orderBy[sortBy as string] = sortOrder === 'asc' ? 'asc' : 'desc'
 
     // 查询执行历史
     const executions = await prisma.workflowExecution.findMany({
@@ -1797,13 +1721,12 @@ router.get('/executions', authenticateToken, async (req: AuthenticatedRequest, r
     // 统计总数
     const total = await prisma.workflowExecution.count({ where })
 
-    // 转换数据格式,支持孤岛记录
+    // 转换数据格式
     const formattedExecutions = executions.map(exec => ({
       id: exec.id,
-      workflowId: exec.workflowId || null,
-      workflowTitle: exec.workflow?.title || exec.title || '临时执行',
-      workflowCategory: exec.workflow?.category || '临时',
-      isTemporary: !exec.workflowId,  // 标记是否为孤岛记录
+      workflowId: exec.workflowId,
+      workflowTitle: exec.workflow.title,
+      workflowCategory: exec.workflow.category,
       status: exec.status,
       input: exec.input,
       output: exec.output,
@@ -1812,8 +1735,7 @@ router.get('/executions', authenticateToken, async (req: AuthenticatedRequest, r
       startedAt: exec.startedAt,
       completedAt: exec.completedAt,
       isFavorite: exec.isFavorite || false,
-      notes: exec.notes,
-      description: exec.description
+      notes: exec.notes
     }))
 
     res.status(200).json({
@@ -2156,7 +2078,7 @@ router.post('/executions/:executionId/rerun', authenticateToken, async (req: Aut
       try {
         console.log(`重新执行工作流 ${originalExecution.workflowId}，执行ID: ${newExecution.id}`)
 
-        const config = originalExecution.workflow?.config as any
+        const config = originalExecution.workflow.config as any
         if (!config || !config.nodes) {
           throw new Error('工作流配置无效')
         }
@@ -2192,16 +2114,14 @@ router.post('/executions/:executionId/rerun', authenticateToken, async (req: Aut
             }
           })
 
-          if (originalExecution.workflowId) {
-            await prisma.workflow.update({
-              where: { id: originalExecution.workflowId },
-              data: {
-                usageCount: {
-                  increment: 1
-                }
+          await prisma.workflow.update({
+            where: { id: originalExecution.workflowId },
+            data: {
+              usageCount: {
+                increment: 1
               }
-            })
-          }
+            }
+          })
         } else {
           await prisma.workflowExecution.update({
             where: { id: newExecution.id },

@@ -145,11 +145,21 @@ model WorkflowExecution {
   startedAt   DateTime @default(now())
   completedAt DateTime?
 
+  // 用户管理功能
+  isFavorite  Boolean? @default(false)  // 是否收藏
+  notes       String?  // 用户备注
+  title       String?  // 执行标题(用于孤岛记录)
+  description String?  // 执行描述(用于孤岛记录)
+
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 
-  workflowId  String
-  workflow    Workflow @relation(fields: [workflowId], references: [id])
+  // 工作流关联改为可选,支持孤岛执行记录
+  workflowId  String?
+  workflow    Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  // 临时配置(用于孤岛执行)
+  tempConfig  Json?    // 如果没有关联工作流,存储临时的节点配置
 
   // 执行步骤详情
   steps       ExecutionStep[]

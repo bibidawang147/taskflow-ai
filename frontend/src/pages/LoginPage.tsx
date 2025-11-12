@@ -22,9 +22,8 @@ export default function LoginPage() {
       // 保存 token
       authService.setToken(response.token);
 
-      // 跳转到首页
-      navigate('/');
-      window.location.reload(); // 刷新以更新导航栏状态
+      // 直接跳转到首页（使用 window.location.href 完全刷新页面）
+      window.location.href = '/';
     } catch (error: any) {
       console.error('登录失败:', error);
       const message = error.response?.data?.error || '登录失败，请检查邮箱和密码';
