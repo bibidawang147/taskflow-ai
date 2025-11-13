@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
+import { popularWorkPackages } from '../data/popularWorkPackages'
+import { exploreThemes } from '../data/exploreThemes'
 import '../styles/workflow-create.css'
 
 interface AIModel {
@@ -32,6 +34,8 @@ interface WorkflowFormData {
   steps: WorkflowStep[]
   category: string
   isPublic: boolean
+  associatedSolutions: string[]
+  associatedThemes: string[]
 }
 
 const AI_BRANDS = [
@@ -57,9 +61,27 @@ export default function WorkflowCreatePage() {
     title: '',
     description: '',
     tags: [],
-    steps: [],
+    steps: [{
+      id: `step_${Date.now()}_${Math.random()}`,
+      title: '',
+      prompt: '',
+      model: {
+        brand: 'OpenAI',
+        name: 'GPT-4',
+        url: ''
+      },
+      alternativeModels: [],
+      advancedSettings: {
+        temperature: 0.7,
+        maxTokens: 2000
+      },
+      showAdvanced: false,
+      demonstrationImages: []
+    }],
     category: 'general',
-    isPublic: true
+    isPublic: true,
+    associatedSolutions: [],
+    associatedThemes: []
   })
 
   const [tagInput, setTagInput] = useState('')
@@ -70,6 +92,27 @@ export default function WorkflowCreatePage() {
   const [sourceContent, setSourceContent] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourceTitle, setSourceTitle] = useState('')
+  const [showSolutionDropdown, setShowSolutionDropdown] = useState(false)
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false)
+
+  // 点击外部关闭下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.multi-select-dropdown')) {
+        setShowSolutionDropdown(false)
+        setShowThemeDropdown(false)
+      }
+    }
+
+    if (showSolutionDropdown || showThemeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSolutionDropdown, showThemeDropdown])
 
   // 加载现有工作流（编辑模式）
   useEffect(() => {
@@ -93,7 +136,9 @@ export default function WorkflowCreatePage() {
         tags: state.data.tags || [],
         steps: state.data.steps || [],
         category: state.data.category || 'general',
-        isPublic: state.data.isPublic ?? true
+        isPublic: state.data.isPublic ?? true,
+        associatedSolutions: [],
+        associatedThemes: []
       })
     }
   }, [location.state])
@@ -126,7 +171,9 @@ export default function WorkflowCreatePage() {
         tags: typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : data.tags || [],
         steps: steps,
         category: data.category || 'general',
-        isPublic: data.isPublic ?? true
+        isPublic: data.isPublic ?? true,
+        associatedSolutions: data.associatedSolutions || [],
+        associatedThemes: data.associatedThemes || []
       })
     } catch (error) {
       console.error('加载工作流失败:', error)
@@ -295,8 +342,8 @@ export default function WorkflowCreatePage() {
     return Object.keys(newErrors).length === 0
   }
 
-  // 保存工作流
-  const handleSave = async (isDraft: boolean = false) => {
+  // 保存工作流（存草稿或发布）
+  const handleSave = async (isDraft: boolean) => {
     if (!validateForm()) {
       alert('请填写所有必填字段')
       return
@@ -331,6 +378,16 @@ export default function WorkflowCreatePage() {
         }
       }
 
+      // 添加关联信息（仅发布时）
+      if (!isDraft) {
+        if (formData.associatedSolutions.length > 0) {
+          workflowData.associatedSolutions = formData.associatedSolutions
+        }
+        if (formData.associatedThemes.length > 0) {
+          workflowData.associatedThemes = formData.associatedThemes
+        }
+      }
+
       // 如果是从文章导入的，添加来源信息
       if (isFromArticle) {
         workflowData.sourceType = 'article'
@@ -351,7 +408,7 @@ export default function WorkflowCreatePage() {
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
-        alert(isDraft ? '草稿保存成功！' : '工作流创建成功！')
+        alert(isDraft ? '草稿保存成功！' : '工作流发布成功！')
         if (isDraft) {
           navigate('/workspace')
         } else {
@@ -628,6 +685,180 @@ export default function WorkflowCreatePage() {
           </div>
         </div>
 
+        {/* 关联设置区域 */}
+        <div className="info-card">
+          <h2 className="card-title">关联设置</h2>
+          <p className="card-description">
+            发布工作流时，可以选择将其添加到相关的工作包和主题分类中，方便用户发现和使用
+          </p>
+
+          {/* 关联到工作包 */}
+              <div className="form-field">
+                <label className="field-label">
+                  关联到工作包 (可选)
+                  <span className="field-hint">选择将此工作流添加到哪些工作包中</span>
+                </label>
+                <div className="multi-select-dropdown">
+                  <div
+                    className="multi-select-trigger"
+                    onClick={() => setShowSolutionDropdown(!showSolutionDropdown)}
+                  >
+                    <span className="selected-text">
+                      {formData.associatedSolutions.length === 0
+                        ? '请选择工作包...'
+                        : `已选择 ${formData.associatedSolutions.length} 个工作包`}
+                    </span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{ transform: showSolutionDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                  {showSolutionDropdown && (
+                    <div className="multi-select-options">
+                      {popularWorkPackages.map((pkg) => (
+                        <label key={pkg.id} className="multi-select-option">
+                          <input
+                            type="checkbox"
+                            checked={formData.associatedSolutions.includes(pkg.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  associatedSolutions: [...formData.associatedSolutions, pkg.id]
+                                })
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  associatedSolutions: formData.associatedSolutions.filter(id => id !== pkg.id)
+                                })
+                              }
+                            }}
+                          />
+                          <span className="option-icon">{pkg.icon}</span>
+                          <span className="option-name">{pkg.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {formData.associatedSolutions.length > 0 && (
+                  <div className="selected-tags">
+                    {formData.associatedSolutions.map(id => {
+                      const pkg = popularWorkPackages.find(p => p.id === id)
+                      return pkg ? (
+                        <span key={id} className="selected-tag">
+                          <span className="tag-icon">{pkg.icon}</span>
+                          <span className="tag-text">{pkg.name}</span>
+                          <button
+                            type="button"
+                            className="tag-remove-btn"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                associatedSolutions: formData.associatedSolutions.filter(sid => sid !== id)
+                              })
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 关联到主题 */}
+              <div className="form-field">
+                <label className="field-label">
+                  关联到主题 (可选)
+                  <span className="field-hint">选择将此工作流添加到哪些主题分类中</span>
+                </label>
+                <div className="multi-select-dropdown">
+                  <div
+                    className="multi-select-trigger"
+                    onClick={() => setShowThemeDropdown(!showThemeDropdown)}
+                  >
+                    <span className="selected-text">
+                      {formData.associatedThemes.length === 0
+                        ? '请选择主题...'
+                        : `已选择 ${formData.associatedThemes.length} 个主题`}
+                    </span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{ transform: showThemeDropdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                  {showThemeDropdown && (
+                    <div className="multi-select-options">
+                      {exploreThemes.map((theme) => (
+                        <label key={theme.id} className="multi-select-option">
+                          <input
+                            type="checkbox"
+                            checked={formData.associatedThemes.includes(theme.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  associatedThemes: [...formData.associatedThemes, theme.id]
+                                })
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  associatedThemes: formData.associatedThemes.filter(id => id !== theme.id)
+                                })
+                              }
+                            }}
+                          />
+                          <span className="option-icon">{theme.icon}</span>
+                          <span className="option-name">{theme.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {formData.associatedThemes.length > 0 && (
+                  <div className="selected-tags">
+                    {formData.associatedThemes.map(id => {
+                      const theme = exploreThemes.find(t => t.id === id)
+                      return theme ? (
+                        <span key={id} className="selected-tag">
+                          <span className="tag-icon">{theme.icon}</span>
+                          <span className="tag-text">{theme.name}</span>
+                          <button
+                            type="button"
+                            className="tag-remove-btn"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                associatedThemes: formData.associatedThemes.filter(tid => tid !== id)
+                              })
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                )}
+              </div>
+        </div>
+
         {/* 底部操作按钮 */}
         <div className="form-actions">
           <button
@@ -642,14 +873,22 @@ export default function WorkflowCreatePage() {
             onClick={() => handleSave(true)}
             disabled={saving}
           >
-            {saving ? '保存中...' : '保存草稿'}
+            {saving ? '保存中...' : '存草稿'}
           </button>
           <button
             className="action-btn primary"
             onClick={() => handleSave(false)}
             disabled={saving}
           >
-            {saving ? '创建中...' : '创建工作流 →'}
+            {saving ? '发布中...' : (
+              <>
+                发布
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '6px' }}>
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -29,6 +29,9 @@ export interface Workflow {
   isOwner?: boolean  // 是否是当前用户创建的
   canEdit?: boolean  // 是否可以编辑
   isPublic?: boolean  // 是否公开
+  isDraft?: boolean  // 是否是草稿
+  associatedSolutions?: string[]  // 关联的工作包ID列表
+  associatedThemes?: string[]  // 关联的主题ID列表
 }
 
 // 收藏工作流
