@@ -122,7 +122,7 @@ export default function SolutionPage() {
 
       <div className="solution-page">
       {/* 头部区域 */}
-      <div className="solution-header">
+      <div className="solution-header solution-header--package">
         <button className="solution-back-button" onClick={() => navigate('/explore')}>
           ← 返回
         </button>

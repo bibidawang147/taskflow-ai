@@ -41,6 +41,24 @@
   pointer-events: none;
 }
 
+/* 工作包详情页 - 紫色主题 */
+.solution-header--package::before {
+  background: radial-gradient(circle, rgba(159, 122, 234, 0.1), transparent 70%);
+}
+
+.solution-header--package {
+  border-left: 4px solid rgba(159, 122, 234, 0.3);
+}
+
+/* 主题详情页 - 渐变主题 */
+.solution-header--theme::before {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.08), transparent 70%);
+}
+
+.solution-header--theme {
+  border-left: 4px solid rgba(236, 72, 153, 0.3);
+}
+
 .solution-back-button {
   position: absolute;
   top: 1rem;

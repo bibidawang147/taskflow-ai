@@ -23,7 +23,12 @@ export default function LoginPage() {
       authService.setToken(response.token);
 
       // 直接跳转到首页（使用 window.location.href 完全刷新页面）
-      window.location.href = '/';
+      // 如果在iframe内，跳转整个顶层窗口
+      if (window.self !== window.top) {
+        window.top!.location.href = '/';
+      } else {
+        window.location.href = '/';
+      }
     } catch (error: any) {
       console.error('登录失败:', error);
       const message = error.response?.data?.error || '登录失败，请检查邮箱和密码';
