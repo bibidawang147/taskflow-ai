@@ -50,7 +50,8 @@ router.post('/layout', authenticateToken, async (req: AuthenticatedRequest, res:
       return res.status(401).json({ error: '未授权' })
     }
 
-    if (!layout) {
+    // layout 可以为空数组，因为数据可能全在 snapshot 中
+    if (layout === undefined || layout === null) {
       return res.status(400).json({
         error: '布局数据不能为空'
       })

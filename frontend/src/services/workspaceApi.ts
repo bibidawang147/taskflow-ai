@@ -32,7 +32,7 @@ export async function fetchWorkspaceLayout(): Promise<{
 }> {
   try {
     console.log('📡 [API] 开始获取工作台布局...')
-    const response = await api.get('/workspace/layout')
+    const response = await api.get('/api/workspace/layout')
     console.log('📡 [API] 收到响应:', response.data)
 
     if (response.data.layout) {
@@ -67,7 +67,7 @@ export async function saveWorkspaceLayout(
       zoom,
       快照: snapshot ? '有' : '无'
     })
-    const response = await api.post('/workspace/layout', {
+    const response = await api.post('/api/workspace/layout', {
       layout,
       zoom,
       snapshot
@@ -85,7 +85,7 @@ export async function saveWorkspaceLayout(
  */
 export async function resetWorkspaceLayout(): Promise<boolean> {
   try {
-    await api.delete('/workspace/layout')
+    await api.delete('/api/workspace/layout')
     return true
   } catch (error) {
     console.error('重置工作台布局失败:', error)
@@ -98,7 +98,7 @@ export async function resetWorkspaceLayout(): Promise<boolean> {
  */
 export async function exportWorkspaceData(): Promise<void> {
   try {
-    const response = await api.get('/workspace/export')
+    const response = await api.get('/api/workspace/export')
     const data = response.data
 
     // 创建下载链接
