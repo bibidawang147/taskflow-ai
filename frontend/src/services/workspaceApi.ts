@@ -31,9 +31,12 @@ export async function fetchWorkspaceLayout(): Promise<{
   snapshot?: WorkspaceSnapshot
 }> {
   try {
+    console.log('📡 [API] 开始获取工作台布局...')
     const response = await api.get('/workspace/layout')
+    console.log('📡 [API] 收到响应:', response.data)
 
     if (response.data.layout) {
+      console.log('✅ [API] 成功获取布局，卡片数量:', response.data.layout.length)
       return {
         layout: response.data.layout,
         zoom: response.data.zoom || 1.0,
@@ -42,9 +45,10 @@ export async function fetchWorkspaceLayout(): Promise<{
     }
 
     // 如果没有保存的布局，返回null
+    console.log('⚠️ [API] 未找到保存的布局')
     return { layout: null, zoom: 1.0 }
   } catch (error) {
-    console.error('获取工作台布局失败:', error)
+    console.error('❌ [API] 获取工作台布局失败:', error)
     return { layout: null, zoom: 1.0 }
   }
 }
@@ -58,14 +62,20 @@ export async function saveWorkspaceLayout(
   snapshot?: WorkspaceSnapshot
 ): Promise<boolean> {
   try {
-    await api.post('/workspace/layout', {
+    console.log('📡 [API] 开始保存工作台布局...', {
+      卡片数量: layout.length,
+      zoom,
+      快照: snapshot ? '有' : '无'
+    })
+    const response = await api.post('/workspace/layout', {
       layout,
       zoom,
       snapshot
     })
+    console.log('✅ [API] 保存成功，响应:', response.data)
     return true
   } catch (error) {
-    console.error('保存工作台布局失败:', error)
+    console.error('❌ [API] 保存工作台布局失败:', error)
     return false
   }
 }

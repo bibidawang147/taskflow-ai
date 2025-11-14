@@ -50,14 +50,19 @@ export default function WorkspacePage() {
   // 加载用户保存的布局
   useEffect(() => {
     const loadLayout = async () => {
+      console.log('🔄 [WorkspacePage] 开始加载布局...')
       const result = await fetchWorkspaceLayout()
+      console.log('📦 [WorkspacePage] 加载结果:', result)
+
       if (result.layout && result.layout.length > 0) {
+        console.log('✅ [WorkspacePage] 找到保存的布局，卡片数量:', result.layout.length)
         // 使用保存的布局
         setCards(result.layout as CardConfig[])
         setZoom(result.zoom || 1.0)
 
         // 如果有完整快照，恢复其他状态
         if (result.snapshot) {
+          console.log('📸 [WorkspacePage] 恢复快照状态:', result.snapshot)
           if (result.snapshot.expandedCards) {
             setExpandedCards(new Set(result.snapshot.expandedCards))
           }
@@ -68,8 +73,9 @@ export default function WorkspacePage() {
             setSelectedWorkItems(new Map(Object.entries(result.snapshot.selectedWorkItems).map(([k, v]) => [k, Number(v)])))
           }
         }
+      } else {
+        console.log('⚠️ [WorkspacePage] 没有保存的布局，使用默认布局')
       }
-      // 如果没有保存的布局，使用defaultCards（已经在useState中设置）
     }
 
     loadLayout()
@@ -1289,9 +1295,11 @@ export default function WorkspacePage() {
 
         // 使用 await 确保保存完成
         try {
-          await saveWorkspaceLayout(layout, zoom, snapshot)
+          console.log('💾 [WorkspacePage] 拖拽/调整大小后保存布局，卡片数量:', layout.length)
+          const success = await saveWorkspaceLayout(layout, zoom, snapshot)
+          console.log('✅ [WorkspacePage] 保存结果:', success ? '成功' : '失败')
         } catch (error) {
-          console.error('自动保存布局失败:', error)
+          console.error('❌ [WorkspacePage] 自动保存布局失败:', error)
           // 不显示错误提示，避免打断用户操作
         }
       }
@@ -1319,7 +1327,10 @@ export default function WorkspacePage() {
   useEffect(() => {
     // 防抖保存：只在用户停止操作500ms后保存
     const timeoutId = setTimeout(async () => {
-      if (cards.length === 0) return
+      if (cards.length === 0) {
+        console.log('⚠️ [WorkspacePage] 跳过保存：没有卡片')
+        return
+      }
 
       try {
         const layout = cards.map(card => ({
@@ -1338,9 +1349,11 @@ export default function WorkspacePage() {
           selectedWorkItems: Object.fromEntries(selectedWorkItems)
         }
 
-        await saveWorkspaceLayout(layout, zoom, snapshot)
+        console.log('💾 [WorkspacePage] 状态变化自动保存，卡片数量:', layout.length, '展开卡片:', expandedCards.size)
+        const success = await saveWorkspaceLayout(layout, zoom, snapshot)
+        console.log('✅ [WorkspacePage] 自动保存结果:', success ? '成功' : '失败')
       } catch (error) {
-        console.error('自动保存展开状态失败:', error)
+        console.error('❌ [WorkspacePage] 自动保存展开状态失败:', error)
       }
     }, 500)
 
