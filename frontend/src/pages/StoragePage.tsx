@@ -10,6 +10,10 @@ import {
   type Workflow,
   type ExecutionHistory
 } from '../services/workflowApi'
+import {
+  fetchWorkspaceLayout,
+  saveWorkspaceLayout
+} from '../services/workspaceApi'
 import WorkflowExecutionModal from '../components/WorkflowExecutionModal'
 import ExecutionSplitPanel, { type ExecutionWorkflow, type WorkflowNode } from '../components/ExecutionSplitPanel'
 import ExecutionHistoryModal from '../components/ExecutionHistoryModal'
@@ -1014,6 +1018,53 @@ export default function StoragePage() {
   const spacePressedRef = useRef(false)
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
   const pointerInsideCanvasRef = useRef(false)
+
+  // 加载画布布局
+  useEffect(() => {
+    const loadCanvasLayout = async () => {
+      console.log('🔄 [StoragePage] 开始加载画布布局...')
+      try {
+        const result = await fetchWorkspaceLayout()
+        console.log('📦 [StoragePage] 加载结果:', result)
+
+        if (result.snapshot && result.snapshot.canvasItems) {
+          console.log('✅ [StoragePage] 找到保存的画布布局，恢复数据...')
+          setCanvasItems(result.snapshot.canvasItems as CanvasItemsMap)
+        } else {
+          console.log('⚠️ [StoragePage] 没有保存的画布布局，使用默认布局')
+        }
+      } catch (error) {
+        console.error('❌ [StoragePage] 加载画布布局失败:', error)
+      }
+    }
+
+    loadCanvasLayout()
+  }, [])
+
+  // 自动保存画布布局（防抖500ms）
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      const itemsCount = Object.keys(canvasItems).length
+      console.log('💾 [StoragePage] 画布内容变化，准备保存...项目数:', itemsCount)
+
+      try {
+        const success = await saveWorkspaceLayout(
+          [], // StoragePage 不需要 layout 参数
+          1.0, // zoom 固定为 1.0
+          {
+            cards: [],
+            zoom: 1.0,
+            canvasItems // 将 canvasItems 保存在 snapshot 中
+          } as any
+        )
+        console.log('✅ [StoragePage] 保存结果:', success ? '成功' : '失败')
+      } catch (error) {
+        console.error('❌ [StoragePage] 自动保存画布失败:', error)
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [canvasItems])
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
