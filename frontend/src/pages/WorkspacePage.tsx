@@ -1360,9 +1360,10 @@ export default function WorkspacePage() {
       }
     }
 
-    window.addEventListener('wheel', handleWheel, { passive: false })
+    const options = { passive: false }
+    window.addEventListener('wheel', handleWheel, options)
     return () => {
-      window.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('wheel', handleWheel, options as EventListenerOptions)
     }
   }, [])
 

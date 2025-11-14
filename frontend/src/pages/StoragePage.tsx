@@ -1762,9 +1762,10 @@ export default function StoragePage() {
       }
     }
 
-    window.addEventListener('wheel', handleGlobalWheel, { passive: false, capture: true })
+    const wheelOptions = { passive: false, capture: true }
+    window.addEventListener('wheel', handleGlobalWheel, wheelOptions)
     return () => {
-      window.removeEventListener('wheel', handleGlobalWheel, { capture: true })
+      window.removeEventListener('wheel', handleGlobalWheel, wheelOptions as EventListenerOptions)
     }
   }, [])
 
@@ -1830,14 +1831,18 @@ export default function StoragePage() {
     }
 
     // 在 window 级别监听，确保优先级最高
-    window.addEventListener('wheel', preventBackNavigation, { passive: false, capture: true })
-    window.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true })
+    const wheelOptions = { passive: false, capture: true }
+    const touchStartOptions = { passive: true, capture: true }
+    const touchMoveOptions = { passive: false, capture: true }
+
+    window.addEventListener('wheel', preventBackNavigation, wheelOptions)
+    window.addEventListener('touchstart', handleTouchStart, touchStartOptions)
+    window.addEventListener('touchmove', handleTouchMove, touchMoveOptions)
 
     return () => {
-      window.removeEventListener('wheel', preventBackNavigation, { capture: true })
-      window.removeEventListener('touchstart', handleTouchStart, { capture: true })
-      window.removeEventListener('touchmove', handleTouchMove, { capture: true })
+      window.removeEventListener('wheel', preventBackNavigation, wheelOptions as EventListenerOptions)
+      window.removeEventListener('touchstart', handleTouchStart, touchStartOptions as EventListenerOptions)
+      window.removeEventListener('touchmove', handleTouchMove, touchMoveOptions as EventListenerOptions)
     }
   }, [])
 
