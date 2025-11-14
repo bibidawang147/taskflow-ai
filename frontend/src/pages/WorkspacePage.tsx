@@ -95,7 +95,8 @@ export default function WorkspacePage() {
   const handleResetZoom = () => setZoom(1)
 
   // 创建新容器
-  const handleCreateContainer = () => {
+  const handleCreateContainer = async () => {
+    let newCards: CardConfig[] = []
     setCards(prev => {
       const maxZIndex = prev.length > 0 ? Math.max(...prev.map(c => c.zIndex), 0) : 0
       const newContainer: CardConfig = {
@@ -105,8 +106,32 @@ export default function WorkspacePage() {
         size: { width: 300, height: 200 },
         zIndex: maxZIndex + 1
       }
-      return [...prev, newContainer]
+      newCards = [...prev, newContainer]
+      return newCards
     })
+
+    // 保存新的布局
+    try {
+      const layout = newCards.map(card => ({
+        id: card.id,
+        type: card.type,
+        position: card.position,
+        size: card.size,
+        zIndex: card.zIndex
+      }))
+
+      const snapshot: WorkspaceSnapshot = {
+        cards: layout,
+        zoom,
+        expandedCards: Array.from(expandedCards),
+        selectedModules: Object.fromEntries(selectedModules),
+        selectedWorkItems: Object.fromEntries(selectedWorkItems)
+      }
+
+      await saveWorkspaceLayout(layout, zoom, snapshot)
+    } catch (error) {
+      console.error('保存新容器失败:', error)
+    }
   }
 
   // 切换避让功能
@@ -1228,7 +1253,7 @@ export default function WorkspacePage() {
       }
     }
 
-    const handleMouseUp = () => {
+    const handleMouseUp = async () => {
       // 如果是调整大小，保存新的尺寸
       if (resizingCard) {
         const resizedCard = cards.find(c => c.id === resizingCard)
@@ -1262,7 +1287,13 @@ export default function WorkspacePage() {
           selectedWorkItems: Object.fromEntries(selectedWorkItems)
         }
 
-        saveWorkspaceLayout(layout, zoom, snapshot)
+        // 使用 await 确保保存完成
+        try {
+          await saveWorkspaceLayout(layout, zoom, snapshot)
+        } catch (error) {
+          console.error('自动保存布局失败:', error)
+          // 不显示错误提示，避免打断用户操作
+        }
       }
 
       // 清除避让状态
@@ -1283,6 +1314,38 @@ export default function WorkspacePage() {
       }
     }
   }, [draggingCard, resizingCard, dragOffset, resizeStart, cards, zoom])
+
+  // 自动保存展开/收起状态变化
+  useEffect(() => {
+    // 防抖保存：只在用户停止操作500ms后保存
+    const timeoutId = setTimeout(async () => {
+      if (cards.length === 0) return
+
+      try {
+        const layout = cards.map(card => ({
+          id: card.id,
+          type: card.type,
+          position: card.position,
+          size: card.size,
+          zIndex: card.zIndex
+        }))
+
+        const snapshot: WorkspaceSnapshot = {
+          cards: layout,
+          zoom,
+          expandedCards: Array.from(expandedCards),
+          selectedModules: Object.fromEntries(selectedModules),
+          selectedWorkItems: Object.fromEntries(selectedWorkItems)
+        }
+
+        await saveWorkspaceLayout(layout, zoom, snapshot)
+      } catch (error) {
+        console.error('自动保存展开状态失败:', error)
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [expandedCards, selectedModules, selectedWorkItems])
 
   // 鼠标滚轮/触控板缩放
   useEffect(() => {
