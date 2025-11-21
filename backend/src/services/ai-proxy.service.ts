@@ -202,6 +202,10 @@ export class AIProxyService {
    * 调用 OpenAI API
    */
   private async callOpenAI(request: AIRequest, pricing: any): Promise<AIResponse> {
+    if (!this.openai) {
+      throw new Error('OpenAI client is not initialized. Please configure OPENAI_API_KEY.');
+    }
+
     const completion = await this.openai.chat.completions.create({
       model: request.model,
       messages: request.messages as any,
@@ -230,6 +234,10 @@ export class AIProxyService {
    * 调用 Anthropic Claude API
    */
   private async callAnthropic(request: AIRequest, pricing: any): Promise<AIResponse> {
+    if (!this.anthropic) {
+      throw new Error('Anthropic client is not initialized. Please configure ANTHROPIC_API_KEY.');
+    }
+
     const message = await this.anthropic.messages.create({
       model: request.model,
       max_tokens: request.maxTokens ?? 4096,
