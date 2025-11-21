@@ -23,20 +23,27 @@ interface WorkflowStep {
 }
 
 class AIAnalyzerService {
-  private client: Anthropic;
+  private client: Anthropic | null;
 
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY 未配置');
+    if (!apiKey || apiKey === 'sk-ant-placeholder-needs-configuration') {
+      console.warn('⚠️  ANTHROPIC_API_KEY 未配置，AI分析功能将不可用');
+      this.client = null;
+    } else {
+      this.client = new Anthropic({ apiKey });
     }
-    this.client = new Anthropic({ apiKey });
   }
 
   /**
    * 分析小红书笔记，提取工作流
    */
   async analyzeNoteToWorkflow(note: CrawledNote): Promise<AnalyzedWorkflow | null> {
+    if (!this.client) {
+      logger.warn('AI分析服务未初始化，跳过笔记分析');
+      return null;
+    }
+
     try {
       logger.info(`分析笔记: ${note.title}`);
 

@@ -35,19 +35,29 @@ export interface AIResponse {
 }
 
 export class AIProxyService {
-  private openai: OpenAI;
-  private anthropic: Anthropic;
+  private openai: OpenAI | null;
+  private anthropic: Anthropic | null;
   private creditService: CreditService;
 
   constructor() {
-    // 初始化各个 AI 服务客户端
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    // 初始化各个 AI 服务客户端（可选）
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder-needs-configuration') {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    } else {
+      console.warn('⚠️  OPENAI_API_KEY 未配置，OpenAI 功能将不可用');
+      this.openai = null;
+    }
 
-    this.anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'sk-ant-placeholder-needs-configuration') {
+      this.anthropic = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    } else {
+      console.warn('⚠️  ANTHROPIC_API_KEY 未配置，Anthropic 功能将不可用');
+      this.anthropic = null;
+    }
 
     this.creditService = new CreditService();
   }
