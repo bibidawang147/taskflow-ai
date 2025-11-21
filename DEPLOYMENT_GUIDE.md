@@ -5,11 +5,18 @@
 ### 1. GitHub 推送
 - ✅ 代码已成功推送到 GitHub: `https://github.com/bibidawang147/-.git`
 - ✅ 提交记录：修复 AI Chat 工作流执行显示空白和发布状态问题
+- ✅ 提交记录：使 OpenAI 和 Anthropic API Keys 变为可选配置
 
 ### 2. 服务器部署
 - ✅ 代码已上传到阿里云服务器：`47.93.218.80`
 - ✅ 前端已构建并运行：http://47.93.218.80:5173
-- ⚠️ 后端需要配置 API Keys 后才能完全启动
+- ✅ 后端已成功启动：http://47.93.218.80:3000
+- ✅ 服务健康检查通过：http://47.93.218.80:3000/health
+
+### 3. 服务状态
+- ✅ workflow-frontend: 正常运行
+- ✅ workflow-backend: 正常运行
+- ⚠️ AI功能暂时不可用（需要配置 API Keys）
 
 ## 🔧 需要完成的配置
 
