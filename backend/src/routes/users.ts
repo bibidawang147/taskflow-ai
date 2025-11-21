@@ -18,9 +18,11 @@ router.get('/workflows', async (req: AuthenticatedRequest, res: Response) => {
         description: true,
         thumbnail: true,
         isPublic: true,
+        isDraft: true,
         category: true,
         tags: true,
         version: true,
+        config: true,
         createdAt: true,
         updatedAt: true,
         _count: {

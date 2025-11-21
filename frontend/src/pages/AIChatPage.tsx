@@ -27,7 +27,8 @@ import {
   Paperclip,
   File,
   History,
-  Trash2
+  Trash2,
+  ExternalLink
 } from 'lucide-react'
 import type { ChatMessage as BaseChatMessage, AIModel, AIProvider } from '../types/ai'
 import { workspaceContainers } from '../data/workspaceContainers'
@@ -38,17 +39,20 @@ import {
   deleteChatSession,
   type ChatSession
 } from '../services/chatApi'
+import { ChatHistorySidebar } from '../components/ChatHistorySidebar'
 import {
   favoriteWorkflow,
   unfavoriteWorkflow,
   getFavoriteWorkflows,
   getUserWorkflows,
+  getPublicWorkflows,
   cloneWorkflow,
   type Workflow
 } from '../services/workflowApi'
 import { chatWithAI, chatWithAIStream } from '../services/aiApi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { detectStepsInText, convertStepsToWorkflowData, type StepDetectionResult } from '../utils/stepDetection'
 
 // 合并className的工具函数
 function cn(...classes: (string | boolean | undefined | null)[]) {
@@ -145,10 +149,22 @@ type AIToolCard = {
   }
 }
 
-// 推荐项类型（可以是工作流或AI工具）
+// 工具快速链接卡片类型（用于直接跳转到工具）
+type ToolLinkCard = {
+  id: string
+  name: string
+  logo?: string
+  url: string
+  description?: string
+  category?: string
+  badge?: string // 如 "免费"、"推荐"、"热门" 等
+}
+
+// 推荐项类型（可以是工作流、AI工具或快速链接）
 type RecommendationCard =
   | ({ itemType: 'workflow' } & WorkflowCard)
   | ({ itemType: 'ai-tool' } & AIToolCard)
+  | ({ itemType: 'tool-link' } & ToolLinkCard)
 
 type WorkflowTool = NonNullable<WorkflowCard['aiTools']>[number]
 
@@ -169,6 +185,8 @@ type ChatMessage = BaseChatMessage & {
   recommendedWorkflows?: WorkflowCard[]
   recommendedItems?: RecommendationCard[] // 新的推荐项列表
   toolExecutions?: ToolExecutionResult[]
+  stepDetection?: StepDetectionResult // 步骤检测结果
+  userQuestion?: string // 用户的原始问题
 }
 
 type ExecutionResult =
@@ -183,62 +201,7 @@ interface AIChatPageProps {
 const baseWorkflows: WorkflowCard[] = []
 
 // AI工具库 - 预定义的AI工具
-const baseAITools: AIToolCard[] = [
-  {
-    id: 'ai-writer',
-    name: 'AI写作助手',
-    description: '智能文案生成，支持多种写作风格',
-    category: '文本生成',
-    logo: '✍️',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  },
-  {
-    id: 'ai-translator',
-    name: 'AI翻译',
-    description: '多语言实时翻译，准确流畅',
-    category: '语言处理',
-    logo: '🌐',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  },
-  {
-    id: 'ai-summarizer',
-    name: 'AI摘要生成',
-    description: '快速提取文章要点，生成摘要',
-    category: '文本处理',
-    logo: '📝',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  },
-  {
-    id: 'ai-coder',
-    name: 'AI代码助手',
-    description: '代码生成、调试、优化一站式服务',
-    category: '编程辅助',
-    logo: '💻',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  },
-  {
-    id: 'ai-analyzer',
-    name: 'AI数据分析',
-    description: '智能数据分析与可视化建议',
-    category: '数据分析',
-    logo: '📊',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  },
-  {
-    id: 'ai-brainstorm',
-    name: 'AI头脑风暴',
-    description: '创意激发，思维发散',
-    category: '创意辅助',
-    logo: '💡',
-    type: 'model',
-    model: { provider: 'qwen', modelId: 'qwen-plus', modelName: '通义千问Plus' }
-  }
-]
+// 移除预设的AI工具列表，只使用模型实际返回的内容
 const defaultModel: { provider: AIProvider; model: AIModel } = {
   provider: 'openai',
   model: {
@@ -297,6 +260,8 @@ export function AIChatPage({ initialView = 'chat', mode = 'full' }: AIChatPagePr
 
   // 用户工作流库
   const [userWorkflows, setUserWorkflows] = useState<Workflow[]>([])
+  // 公开工作流库（用于推荐）
+  const [publicWorkflows, setPublicWorkflows] = useState<Workflow[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -330,85 +295,41 @@ export function AIChatPage({ initialView = 'chat', mode = 'full' }: AIChatPagePr
     loadUserWorkflows()
   }, [])
 
+  // 加载公开工作流（用于推荐）
+  useEffect(() => {
+    const loadPublicWorkflows = async () => {
+      try {
+        const result = await getPublicWorkflows({ limit: 50 })
+        const workflows = result.workflows || []
+        console.log('🌐 加载的公开工作流：', workflows.length, '个')
+        console.log('📦 公开工作流前5个：', workflows.slice(0, 5).map(wf => ({
+          id: wf.id,
+          title: wf.title,
+          category: wf.category,
+          tags: wf.tags,
+          description: wf.description
+        })))
+        setPublicWorkflows(workflows)
+      } catch (error) {
+        console.error('加载公开工作流失败:', error)
+        setPublicWorkflows([]) // 失败时设置为空数组
+      }
+    }
+    loadPublicWorkflows()
+  }, [])
+
 const commandKeywords = ['运行', '执行', '启动', '使用', '生成', '调用', '制作', '写', '帮我']
 
-// Prompt 增强模板：自动完善简短输入
-const promptEnhancers: Record<string, string> = {
-  // 翻译相关
-  '翻译': '我需要翻译功能，请分析我可能的使用场景（如文档翻译、实时对话翻译等），并推荐合适的AI工具或工作流',
-  'translate': '我需要翻译功能，请分析我可能的使用场景（如文档翻译、实时对话翻译等），并推荐合适的AI工具或工作流',
-
-  // 写作相关
-  '写文章': '我想写文章，请告诉我你能帮助我创作哪些类型的文章（如技术博客、营销文案、小红书笔记等），并推荐对应的工具',
-  '写作': '我需要写作帮助，请分析不同的写作场景（如创意写作、商务写作、学术写作等），并推荐合适的AI工具',
-  '文案': '我需要文案创作帮助，请告诉我你支持哪些文案类型（如广告文案、社交媒体文案、产品描述等），并给出推荐',
-
-  // 数据相关
-  '数据分析': '我需要进行数据分析，请介绍你能提供的数据分析功能（如数据可视化、统计分析、报表生成等），并推荐工具或工作流',
-  '分析': '我需要分析帮助，请告诉我你支持哪些分析场景（如文本分析、数据分析、用户行为分析等），并推荐合适的工具',
-
-  // 图片相关
-  '图片': '我需要图片相关的功能，请介绍你支持的图片处理能力（如图片生成、编辑、优化等），并推荐对应的工具',
-  '生成图片': '我想生成图片，请告诉我你支持哪些图片生成场景（如AI绘画、图标生成、配图生成等），并给出详细推荐',
-  'image': '我需要图片相关的功能，请介绍你支持的图片处理能力，并推荐对应的工具',
-
-  // 代码相关
-  '代码': '我需要代码帮助，请介绍你支持的编程辅助功能（如代码生成、调试、重构等），并推荐合适的AI工具',
-  '编程': '我需要编程帮助，请告诉我你能提供哪些编程辅助（如代码审查、bug修复、算法实现等），并给出推荐',
-  'code': '我需要代码帮助，请介绍你支持的编程辅助功能，并推荐合适的AI工具',
-
-  // 总结相关
-  '摘要': '我需要文本摘要功能，请介绍你支持的摘要场景（如文章摘要、会议纪要、长文总结等），并推荐AI工具',
-  '总结': '我需要内容总结帮助，请告诉我你能处理哪些总结任务（如文档总结、视频总结、多文档汇总等），并给出推荐',
-  'summary': '我需要文本摘要功能，请介绍你支持的摘要场景，并推荐AI工具',
-
-  // 创意相关
-  '创意': '我需要创意灵感，请介绍你能提供的创意辅助（如头脑风暴、创意方案、内容策划等），并推荐合适的工具',
-  '头脑风暴': '我需要头脑风暴帮助，请告诉我你如何协助产生创意想法，并推荐AI工具',
-  'brainstorm': '我需要头脑风暴帮助，请告诉我你如何协助产生创意想法，并推荐AI工具',
-
-  // 通用帮助
-  '帮我': '我需要帮助，请先了解我的具体需求是什么，并根据需求推荐合适的工作流或AI工具',
-  '怎么': '请详细说明你的需求，我会根据你的具体场景推荐最合适的工作流或AI工具',
-}
-
-
-// 检测并增强简短的用户输入
-const enhanceShortPrompt = (input: string): { enhanced: boolean; content: string } => {
-  const trimmed = input.trim()
-
-  // 如果输入已经足够详细（超过15个字符），不需要增强
-  if (trimmed.length > 15) {
-    return { enhanced: false, content: trimmed }
-  }
-
-  // 完全匹配检查（不区分大小写）
-  const lowerInput = trimmed.toLowerCase()
-  for (const [key, template] of Object.entries(promptEnhancers)) {
-    if (lowerInput === key.toLowerCase()) {
-      return { enhanced: true, content: template }
-    }
-  }
-
-  // 包含关键词检查
-  for (const [key, template] of Object.entries(promptEnhancers)) {
-    if (trimmed.includes(key) && trimmed.length <= 10) {
-      return { enhanced: true, content: template }
-    }
-  }
-
-  // 如果输入非常短（<5字）但没有匹配到模板，给出通用提示
-  if (trimmed.length < 5 && trimmed.length > 0) {
-    return {
-      enhanced: true,
-      content: `关于"${trimmed}"，请告诉我你的具体需求，我会推荐最合适的工作流或AI工具来帮助你`
-    }
-  }
-
-  return { enhanced: false, content: trimmed }
-}
+// 已删除 promptEnhancers 和 enhanceShortPrompt 功能
+// 让AI直接处理用户原始输入，根据系统prompt自动判断是否需要澄清
 
 // 解析 AI 回复，提取意图类型和纯净内容
+// 过滤所有emoji表情符号
+const removeEmojis = (text: string): string => {
+  // 匹配所有emoji的正则表达式
+  return text.replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{2300}-\u{23FF}]|[\u{2B50}]|[\u{2B55}]|[\u{231A}-\u{231B}]|[\u{23E9}-\u{23EC}]|[\u{23F0}]|[\u{23F3}]|[\u{25FD}-\u{25FE}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{267F}]|[\u{2693}]|[\u{26A1}]|[\u{26AA}-\u{26AB}]|[\u{26BD}-\u{26BE}]|[\u{26C4}-\u{26C5}]|[\u{26CE}]|[\u{26D4}]|[\u{26EA}]|[\u{26F2}-\u{26F3}]|[\u{26F5}]|[\u{26FA}]|[\u{26FD}]|[\u{2705}]|[\u{270A}-\u{270B}]|[\u{2728}]|[\u{274C}]|[\u{274E}]|[\u{2753}-\u{2755}]|[\u{2757}]|[\u{2795}-\u{2797}]|[\u{27B0}]|[\u{27BF}]|[\u{2B1B}-\u{2B1C}]/gu, '')
+}
+
 const parseAIResponse = (content: string): {
   intentType: 'chat' | 'solution' | 'unknown'
   cleanContent: string
@@ -428,6 +349,9 @@ const parseAIResponse = (content: string): {
     intentType = 'solution'
     cleanContent = content.replace(/^\s*\[SOLUTION\]\s*/i, '').trim()
   }
+
+  // 过滤掉所有emoji
+  cleanContent = removeEmojis(cleanContent)
 
   // 只有在 solution 模式下才推荐工具
   const shouldRecommend = intentType === 'solution'
@@ -521,18 +445,7 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
   useEffect(() => {
     const initChatSession = async () => {
       try {
-        // 尝试从URL获取会话ID
-        const urlParams = new URLSearchParams(window.location.search)
-        const sessionId = urlParams.get('sessionId')
-
-        if (sessionId) {
-          // 加载指定会话
-          setCurrentSessionId(sessionId)
-        } else {
-          // 创建新会话
-          const newSession = await createChatSession('新对话')
-          setCurrentSessionId(newSession.id)
-        }
+        console.log('🔄 [AIChatPage] 初始化对话会话...')
 
         // 加载所有会话列表和收藏的工作流
         const [sessions, favorites] = await Promise.all([
@@ -540,12 +453,62 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
           getFavoriteWorkflows()
         ])
         setChatSessions(sessions)
+        console.log('📚 [AIChatPage] 加载到的会话列表:', sessions.length, '个')
 
         // 设置收藏的工作流ID
         const favoritedIds = new Set(favorites.map(wf => wf.id))
         setFavoritedWorkflows(favoritedIds)
+
+        // 尝试从 sessionStorage 获取上次的会话ID（用于页面刷新时恢复）
+        const lastSessionId = sessionStorage.getItem('currentChatSessionId')
+        console.log('💾 [AIChatPage] sessionStorage 中的会话ID:', lastSessionId)
+
+        // 尝试从URL获取会话ID（优先级最高）
+        const urlParams = new URLSearchParams(window.location.search)
+        const urlSessionId = urlParams.get('sessionId')
+
+        let targetSessionId: string | null = null
+
+        if (urlSessionId) {
+          // URL 参数优先
+          console.log('🔗 [AIChatPage] 使用 URL 参数的会话ID:', urlSessionId)
+          targetSessionId = urlSessionId
+        } else if (lastSessionId && sessions.some(s => s.id === lastSessionId)) {
+          // sessionStorage 中有上次的会话ID，且该会话还存在
+          console.log('💡 [AIChatPage] 恢复上次的会话:', lastSessionId)
+          targetSessionId = lastSessionId
+        } else if (sessions.length > 0) {
+          // 加载最近更新的会话
+          const latestSession = sessions.sort((a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0]
+          console.log('📅 [AIChatPage] 加载最近的会话:', latestSession.id)
+          targetSessionId = latestSession.id
+        }
+
+        if (targetSessionId) {
+          // 加载指定会话的消息
+          const targetSession = sessions.find(s => s.id === targetSessionId)
+          if (targetSession) {
+            console.log('✅ [AIChatPage] 恢复会话消息:', targetSession.messages.length, '条')
+            setCurrentSessionId(targetSessionId)
+            setMessages(targetSession.messages as any[])
+            // 保存到 sessionStorage
+            sessionStorage.setItem('currentChatSessionId', targetSessionId)
+          }
+        } else {
+          // 没有任何会话，创建新会话
+          console.log('🆕 [AIChatPage] 创建新会话')
+          const newSession = await createChatSession('新对话')
+          setCurrentSessionId(newSession.id)
+          sessionStorage.setItem('currentChatSessionId', newSession.id)
+
+          // 更新会话列表
+          const updatedSessions = await getChatSessions()
+          setChatSessions(updatedSessions)
+        }
       } catch (error) {
-        console.error('初始化对话会话失败:', error)
+        console.error('❌ [AIChatPage] 初始化对话会话失败:', error)
       }
     }
 
@@ -581,9 +544,6 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
       return
     }
 
-    // 增强简短的用户输入
-    const enhancedResult = enhanceShortPrompt(inputValue.trim())
-
     // 用户界面显示原始输入
     const userMessage: ChatMessage = { role: 'user', content: inputValue.trim() }
     setMessages((prev) => [...prev, userMessage])
@@ -603,60 +563,170 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
         content: msg.content
       }))
 
-      // 如果用户输入被增强了，替换发送给 AI 的最后一条用户消息
-      if (enhancedResult.enhanced && aiMessages.length > 0) {
-        aiMessages[aiMessages.length - 1].content = enhancedResult.content
+      // 每次对话都添加系统提示（确保AI持续遵循指令）
+      const systemMessage = {
+        role: 'system' as const,
+        content: `【角色定位】
+你是"小智"，AI工作流工具推荐助手。
+核心使命：推荐工具、平台和方法论，而不是直接给出内容。
+
+【核心原则】
+1. 告诉用户"用什么工具"而不是"内容是什么"
+2. 说明"在哪个平台完成"而不是直接完成任务
+3. 提供"可复用的方法论"而不是一次性的答案
+4. 每个步骤必须明确标注使用的工具/平台
+5. 在回答中推荐相关工具的直接链接，方便用户快速访问
+
+【工具链接推荐】
+当你在回答中提到具体工具时，可以在回答末尾添加工具链接列表（可选）：
+
+<TOOL_LINKS>
+[
+  {"name": "ChatGPT", "url": "https://chat.openai.com", "logo": "🤖", "badge": "推荐", "description": "OpenAI的对话AI工具"},
+  {"name": "Notion", "url": "https://notion.so", "logo": "📝", "description": "强大的笔记和协作工具"}
+]
+</TOOL_LINKS>
+
+注意：
+- 只推荐回答中实际提到的工具
+- 每个工具必须包含准确的官网链接
+- logo使用emoji表情
+- badge可选：推荐、免费、热门、新品等
+- 最多推荐4个工具链接
+
+【回复格式（严格遵守）】
+需求明确后，必须按此格式回复：
+
+第一步：[步骤名称]
+使用工具：[具体工具名称，如ChatGPT、Notion、Figma等]
+操作平台：[网站链接或应用名称]
+具体操作：
+- [操作1]
+- [操作2]
+
+第二步：[步骤名称]
+使用工具：[具体工具名称]
+操作平台：[网站链接或应用名称]
+具体操作：
+- [操作1]
+- [操作2]
+
+第三步：[步骤名称]
+使用工具：[具体工具名称]
+操作平台：[网站链接或应用名称]
+具体操作：
+- [操作1]
+- [操作2]
+
+关键提示：
+[1-2个最关键的建议]
+
+【举例示范】
+错误示例（不要这样）：
+用户："怎么写小红书文案？"
+你："标题：这款神仙面膜我爱了！内容：姐妹们，今天给大家分享..."
+❌ 这是直接给内容，不是方法论
+
+正确示例（要这样）：
+用户："怎么写小红书文案？"
+你：
+第一步：确定选题和人设
+使用工具：ChatGPT
+操作平台：https://chat.openai.com
+具体操作：
+- 输入产品特点和目标人群
+- 让AI生成3个文案角度供选择
+
+第二步：生成文案框架
+使用工具：ChatGPT + Notion
+操作平台：ChatGPT生成，Notion整理
+具体操作：
+- 用ChatGPT生成标题、开头、正文、结尾
+- 在Notion中优化排版和表情符号
+
+第三步：配图和发布
+使用工具：美图秀秀 / Canva
+操作平台：手机App或网页版
+具体操作：
+- 准备2-3张产品图
+- 添加贴纸和文字装饰
+- 在小红书发布并选择话题标签
+
+关键提示：
+标题要带情绪词（如"神仙"、"绝了"），正文多用短句+表情。
+
+【重要约束】
+1. 禁止直接输出文案、代码、设计等具体内容
+2. 必须在每个步骤标注"使用工具"和"操作平台"
+3. 步骤必须使用"第一步"、"第二步"、"第三步"的格式
+4. 每个步骤要说明在哪里做、用什么做、怎么做
+- 详细版：300-500字
+- 最多回复：不超过600字
+
+格式要求：
+- 每次最多1个列表
+- 禁止使用表格
+- 禁止使用emoji
+- 多用短句，少用长段落
+
+语言风格：
+- 口语化、接地气
+- 不用"您"，统一用"你"
+- 专业术语必须配通俗解释
+
+必备元素：
+- 明确工具名称
+- 标注时间成本
+- 给出下一步引导
+
+严禁出现：
+- 未问清需求就给完整方案
+- 一次输出超过200字（首次回复）
+- 罗列所有能力和功能
+- 使用表格
+- 使用emoji表情符号
+- 理论讲解超过2句话
+- 同时给多个方案让用户选
+- 过度使用加粗、分隔线
+
+【常见问题应对】
+Q：工具太多不知道选哪个
+"基于你的需求，就用[工具A]！
+
+理由：[一句话说明]
+
+等这个用熟了，再考虑其他的"
+
+Q：我是新手，完全不会用AI
+"没关系！咱们从最简单的开始：
+
+去ChatGPT官网（chat.openai.com）注册账号，然后复制这句话发给它：
+
+「[给出一个超简单的任务提示词]」
+
+试完告诉我结果，我再教下一步"
+
+Q：AI生成的内容质量不好
+"3个提升质量的方法：
+
+1. 提示词要具体（给例子、说要求）
+2. 分步提问（别一次问太多）
+3. 人工润色（AI只能做初稿）
+
+你现在用的提示词是什么？发给我看看"
+
+【自检清单】
+每次回复前检查：
+- 首次回复是否≤200字？
+- 是否先问清需求再给方案？
+- 是否提供了"下一步引导"？
+- 是否避免了表格和过度格式化？
+- 工具、时间、步骤是否都说清楚了？
+- 是否使用了emoji？（必须没有）
+- 是否避免了啰嗦和理论堆砌？`
       }
 
-      // 如果是第一条消息，添加系统提示
-      if (messages.length === 0) {
-        // 构建工作流信息（最多8个）
-        const workflowInfo = userWorkflows.slice(0, 8).map(wf =>
-          `- ${wf.title} (${wf.category})`
-        ).join('\n')
-
-        // 构建AI工具信息（最多6个）
-        const aiToolInfo = baseAITools.slice(0, 6).map(tool =>
-          `- ${tool.name} (${tool.category})`
-        ).join('\n')
-
-        const systemMessage = {
-          role: 'system' as const,
-          content: `你是专业的AI助手。根据用户意图自然响应。
-
-【响应规则】
-- 问候/闲聊：自然对话，在回复开头隐藏标记[CHAT]（用户看不到此标记）
-- 任务需求：给出解决方案，在回复开头隐藏标记[SOLUTION]（用户看不到此标记）
-
-【闲聊示例】
-用户："你好"
-你的回复：[CHAT]你好！很高兴见到你，有什么可以帮助你的吗？
-
-用户："今天天气不错"
-你的回复：[CHAT]是啊！这样的好天气让人心情舒畅。
-
-【任务解决示例】
-可用工作流（复杂任务）：
-${workflowInfo || '无'}
-
-可用AI工具（简单任务）：
-${aiToolInfo}
-
-用户："我想做个海报"
-你的回复：[SOLUTION]我可以帮你生成专业海报。建议使用AI海报生成工作流，支持多种风格和尺寸，适合营销、社交媒体等场景。
-
-用户："帮我翻译文档"
-你的回复：[SOLUTION]建议使用AI翻译AI工具，支持50+种语言互译，保持专业术语准确性。
-
-【重要】
-1. 标记[CHAT]和[SOLUTION]必须放在回复最开头，但不要在回复内容中提及"模式"这个词
-2. 自然对话，不要告诉用户你处于什么模式
-3. 任务类请求必须明确推荐工具："建议使用XX工作流/AI工具"
-4. 简洁回复，不超过100字`
-        }
-
-        aiMessages = [systemMessage, ...aiMessages]
-      }
+      aiMessages = [systemMessage, ...aiMessages]
 
       // 创建一个临时的 AI 消息用于流式更新
       const streamingMessage: ChatMessage = {
@@ -714,11 +784,36 @@ ${aiToolInfo}
             recommendations
           })
 
+          // 检测AI回答中的步骤
+          const stepDetection = detectStepsInText(cleanContent)
+          console.log('📝 步骤检测结果：', {
+            hasSteps: stepDetection.hasSteps,
+            stepsCount: stepDetection.steps.length,
+            steps: stepDetection.steps.map(s => ({ number: s.stepNumber, title: s.title }))
+          })
+
+          // 移除回答中的工具链接标签（不显示给用户）
+          const toolLinksMatch = cleanContent.match(/<TOOL_LINKS>\s*(\[[\s\S]*?\])\s*<\/TOOL_LINKS>/)
+          let displayContent = cleanContent
+          if (toolLinksMatch) {
+            displayContent = cleanContent.replace(/<TOOL_LINKS>[\s\S]*?<\/TOOL_LINKS>/g, '').trim()
+          }
+
+          // 不再在AI对话中显示工具链接卡片，只显示工作流推荐
+          const allRecommendations = recommendations
+
+          // 额外调试：显示AI的原始回答（前500字符）
+          console.log('🤖 AI原始回答（前500字）:', displayContent.substring(0, 500))
+          console.log('📋 完整步骤详情:', stepDetection.steps)
+
           const aiReply: ChatMessage = {
             role: 'assistant',
-            content: cleanContent,
-            // 只有在 solution 模式下才执行推荐
-            recommendedItems: recommendations
+            content: displayContent,
+            // 包含工具链接和其他推荐项
+            recommendedItems: allRecommendations,
+            // 添加步骤检测结果和用户问题
+            stepDetection: stepDetection.hasSteps ? stepDetection : undefined,
+            userQuestion: userMessage.content
           }
 
           setMessages((prev) => {
@@ -726,6 +821,50 @@ ${aiToolInfo}
             newMessages[newMessages.length - 1] = aiReply
             return newMessages
           })
+
+          // 如果是嵌入模式，通过postMessage发送推荐数据给父页面
+          console.log('🔍 嵌入模式检查:', {
+            isEmbeddedMode,
+            recommendationsLength: recommendations.length,
+            recommendations: recommendations.slice(0, 2)
+          })
+
+          if (isEmbeddedMode && recommendations.length > 0) {
+            console.log('📤 准备发送推荐数据给父页面')
+            console.log('原始推荐数据:', recommendations)
+            // 转换为父页面期望的格式
+            const formattedRecommendations = recommendations.map((rec: any, index: number) => ({
+              workflow: {
+                id: rec.id,
+                title: rec.title,
+                description: rec.description,
+                thumbnail: rec.icon || null,
+                rating: rec.rating || null,
+                usageCount: rec.usageCount || 0,
+                difficultyLevel: rec.category || 'beginner',
+              },
+              relevanceScore: 0.9 - index * 0.1,
+              matchReasons: [], // 移除默认的"相关推荐"标签
+              displayType: index === 0 ? 'highlight' as const : 'normal' as const,
+              position: index + 1
+            }))
+
+            const messageData = {
+              type: 'AI_RECOMMENDATIONS',
+              recommendations: formattedRecommendations,
+              intentTags: []
+            }
+
+            console.log('发送的完整消息:', messageData)
+            window.parent.postMessage(messageData, '*')
+            console.log('✅ 消息已发送到父页面')
+          } else {
+            console.log('⚠️ 不满足发送条件:', {
+              isEmbeddedMode,
+              hasRecommendations: recommendations.length > 0
+            })
+          }
+
           setLoading(false)
         },
         // onError: 错误时调用
@@ -765,7 +904,12 @@ ${aiToolInfo}
   const analyzeAndRecommendWorkflows = (aiResponse: string, userInput: string): RecommendationCard[] => {
     const recommendedItems: RecommendationCard[] = []
 
-    console.log('🔍 开始分析推荐：', { userInput, aiResponse })
+    console.log('🔍 开始分析推荐：', {
+      userInput,
+      aiResponse,
+      publicWorkflowsCount: publicWorkflows.length,
+      publicWorkflowsTitles: publicWorkflows.map(w => w.title)
+    })
 
     // 方法1：检测 AI 是否明确推荐了工作流
     const workflowPatterns = [
@@ -789,7 +933,7 @@ ${aiToolInfo}
 
     // 如果 AI 明确提到了工作流名称，优先匹配这些
     if (mentionedWorkflows.length > 0) {
-      const matchedByName = userWorkflows.filter(wf =>
+      const matchedByName = publicWorkflows.filter(wf =>
         mentionedWorkflows.some(mentioned =>
           wf.title.includes(mentioned) || mentioned.includes(wf.title)
         )
@@ -810,46 +954,7 @@ ${aiToolInfo}
       }
     }
 
-    // 方法1.5：检测 AI 是否明确推荐了 AI 工具
-    const aiToolPatterns = [
-      /我建议使用[《「『]?(.+?)[》」』]?AI工具/g,
-      /可以使用[《「『]?(.+?)[》」』]?AI工具/g,
-      /推荐使用[《「『]?(.+?)[》」』]?AI工具/g,
-      /试试[《「『]?(.+?)[》」』]?AI工具/g,
-      /使用[《「『]?(.+?)[》」』]?AI工具来/g,
-    ]
-
-    const mentionedAITools: string[] = []
-    for (const pattern of aiToolPatterns) {
-      let match
-      while ((match = pattern.exec(aiResponse)) !== null) {
-        mentionedAITools.push(match[1])
-      }
-    }
-
-    // 如果 AI 明确提到了 AI 工具名称，优先匹配这些
-    if (mentionedAITools.length > 0) {
-      const matchedByName = baseAITools.filter(tool =>
-        mentionedAITools.some(mentioned =>
-          tool.name.includes(mentioned) || mentioned.includes(tool.name)
-        )
-      )
-
-      matchedByName.slice(0, 2).forEach(tool => {
-        recommendedItems.push({
-          itemType: 'ai-tool',
-          id: tool.id,
-          title: tool.name,
-          description: `${tool.category}工具`,
-          category: tool.category,
-          logo: tool.logo,
-        } as any)
-      })
-
-      if (recommendedItems.length > 0) {
-        return recommendedItems
-      }
-    }
+    // 移除了AI工具推荐逻辑，只推荐工作流
 
     // 方法2：基于关键词的语义匹配（作为备用方案）
     const keywords = {
@@ -884,8 +989,8 @@ ${aiToolInfo}
 
     console.log('🔑 检测到的关键词：', detectedKeywords)
 
-    // 从用户工作流中匹配
-    const matchedWorkflows = userWorkflows.filter(wf => {
+    // 从公开工作流中匹配
+    const matchedWorkflows = publicWorkflows.filter(wf => {
       for (const [key, values] of Object.entries(keywords)) {
         if (combinedText.includes(key.toLowerCase())) {
           // 确保 tags 是数组
@@ -1062,6 +1167,8 @@ ${aiToolInfo}
 
   // 创建新对话
   const handleCreateNewChat = async () => {
+    console.log('🆕 [AIChatPage] 创建新对话')
+
     // 先清空所有内容（无论 API 是否成功都清空）
     setMessages([])
     setExecutionResults([])
@@ -1078,21 +1185,31 @@ ${aiToolInfo}
       const newSession = await createChatSession('新对话')
       setCurrentSessionId(newSession.id)
 
+      // 保存到 sessionStorage
+      sessionStorage.setItem('currentChatSessionId', newSession.id)
+      console.log('✅ [AIChatPage] 新会话已创建:', newSession.id)
+
       // 更新会话列表
       const sessions = await getChatSessions()
       setChatSessions(sessions)
     } catch (error) {
-      console.error('创建新对话失败:', error)
+      console.error('❌ [AIChatPage] 创建新对话失败:', error)
     }
   }
 
   // 切换对话会话
   const handleSwitchSession = (sessionId: string) => {
+    console.log('🔄 [AIChatPage] 切换到会话:', sessionId)
+
     setCurrentSessionId(sessionId)
     const session = chatSessions.find(s => s.id === sessionId)
     if (session) {
       setMessages(session.messages as any[])
+      console.log('✅ [AIChatPage] 恢复消息:', session.messages.length, '条')
     }
+
+    // 保存到 sessionStorage，以便刷新后恢复
+    sessionStorage.setItem('currentChatSessionId', sessionId)
 
     // 切换会话时清空其他内容，每个会话有独立的状态
     setExecutionResults([])
@@ -1104,8 +1221,7 @@ ${aiToolInfo}
   }
 
   // 删除对话会话
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleDeleteSession = async (sessionId: string) => {
     try {
       await deleteChatSession(sessionId)
 
@@ -1213,6 +1329,62 @@ ${aiToolInfo}
   if (isEmbeddedMode) {
     return (
       <div className="flex h-screen flex-col bg-gradient-to-br from-white via-violet-50/30 to-white">
+        {/* 历史记录侧边栏 */}
+        {showSessionList && createPortal(
+          <div
+            className="fixed inset-0 z-50 flex"
+            onClick={() => setShowSessionList(false)}
+          >
+            <div
+              className="w-[320px] bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ChatHistorySidebar
+                sessions={chatSessions}
+                currentSessionId={currentSessionId}
+                onSelectSession={handleSwitchSession}
+                onNewChat={handleCreateNewChat}
+                onDeleteSession={handleDeleteSession}
+                onToggleCollapse={() => setShowSessionList(false)}
+              />
+            </div>
+            <div className="flex-1 bg-black/20" onClick={() => setShowSessionList(false)} />
+          </div>,
+          document.body
+        )}
+
+        {/* 顶部标题栏和按钮 */}
+        <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-4 py-3 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
+            <p className="text-[11px] text-slate-600 font-medium mt-0.5">智能推荐工作流</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                console.log('🔘 [Embedded] 历史记录按钮被点击')
+                setShowSessionList((prev) => !prev)
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
+              title="对话历史"
+            >
+              <History className="h-5 w-5 stroke-2" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                console.log('🔘 [Embedded] 新建对话按钮被点击')
+                handleCreateNewChat()
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
+              title="创建新对话"
+            >
+              <Plus className="h-5 w-5 stroke-2" />
+            </button>
+          </div>
+        </header>
+
         {/* 对话消息区域 */}
         <div
           className={cn(
@@ -1284,6 +1456,45 @@ ${aiToolInfo}
                       </ReactMarkdown>
                     )}
                   </div>
+
+                  {/* 一键生成工作流按钮 - 嵌入模式 */}
+                  {message.stepDetection && message.stepDetection.hasSteps && (
+                    <div className="mt-2 flex justify-end" data-testid="workflow-generator-button-embedded">
+                      <button
+                        onClick={() => {
+                          const workflowData = convertStepsToWorkflowData(
+                            message.stepDetection!.steps,
+                            message.userQuestion || ''
+                          )
+
+                          console.log('💾 [AIChatPage] 存下来按钮点击，转换后的工作流数据:', {
+                            title: workflowData.title,
+                            stepsCount: workflowData.steps.length,
+                            steps: workflowData.steps.map(s => ({
+                              title: s.title,
+                              promptLength: s.prompt?.length || 0,
+                              promptPreview: s.prompt?.substring(0, 100)
+                            }))
+                          })
+
+                          // 将数据存储到 sessionStorage
+                          sessionStorage.setItem('prefilledWorkflowData', JSON.stringify({
+                            prefilled: true,
+                            data: workflowData
+                          }))
+
+                          console.log('✅ [AIChatPage] 数据已存储到 sessionStorage')
+
+                          // 在新标签页打开工作流创建页面
+                          window.open('/workflow/create', '_blank')
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" />
+                        存下来
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1312,6 +1523,10 @@ ${aiToolInfo}
               }}
               rows={2}
               placeholder="输入你的需求，按 Enter 发送..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-300 focus:ring-2 focus:ring-violet-100 focus:outline-none"
             />
             <button
@@ -1329,14 +1544,43 @@ ${aiToolInfo}
   }
 
   const containerClass = 'flex h-[calc(100vh-64px)] flex-col bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50'
-  const mainClassName = 'grid flex-1 gap-2 overflow-hidden px-2 pb-3 pt-3 lg:gap-2.5 lg:px-3 xl:px-4 xl:grid-cols-[1.2fr_0.8fr_1.2fr]'
+  // 响应式布局：占满整个屏幕宽度
+  // - 小屏(<md): 单列，AI助手全屏
+  // - 中屏(md-lg): 左40% 右60%
+  // - 大屏(lg-xl): 左42% 右58%
+  // - 超大屏(>xl): 左侧固定最大700px，右侧自适应
+  const mainClassName = 'flex flex-1 gap-4 overflow-hidden px-2 pb-2 pt-2 md:gap-6 md:px-3 lg:gap-8 lg:px-4 w-full'
 
   return (
     <div className={containerClass}>
       <main className={mainClassName}>
-        {/* 会话面板 */}
-        <section className={`${panelBaseClass} w-full`}>
-          <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-3 py-2">
+        {/* 左侧：AI对话助手 */}
+        <section className={`${panelBaseClass} flex-shrink-0 w-full md:w-[40%] lg:w-[42%] xl:w-[700px] min-w-0 md:min-w-[400px] relative`}>
+          {/* 历史记录侧边栏 */}
+          {showSessionList && createPortal(
+            <div
+              className="fixed inset-0 z-50 flex"
+              onClick={() => setShowSessionList(false)}
+            >
+              <div
+                className="w-[320px] bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ChatHistorySidebar
+                  sessions={chatSessions}
+                  currentSessionId={currentSessionId}
+                  onSelectSession={handleSwitchSession}
+                  onNewChat={handleCreateNewChat}
+                  onDeleteSession={handleDeleteSession}
+                  onToggleCollapse={() => setShowSessionList(false)}
+                />
+              </div>
+              <div className="flex-1 bg-black/20" onClick={() => setShowSessionList(false)} />
+            </div>,
+            document.body
+          )}
+
+          <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-3 py-2" style={{ position: 'relative', zIndex: 10 }}>
             <div>
               <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
               <p className="text-[11px] text-slate-600 font-medium mt-0.5">输入需求获取建议</p>
@@ -1344,19 +1588,25 @@ ${aiToolInfo}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setShowSessionList((prev) => !prev)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-violet-100 transition-all duration-200"
+                onClick={() => {
+                  console.log('🔘 历史记录按钮被点击')
+                  setShowSessionList((prev) => !prev)
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
                 title="对话历史"
               >
-                <History className="h-4 w-4" />
+                <History className="h-5 w-5 stroke-2" />
               </button>
               <button
                 type="button"
-                onClick={handleCreateNewChat}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-violet-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-violet-100 transition-all duration-200"
+                onClick={() => {
+                  console.log('🔘 新建对话按钮被点击')
+                  handleCreateNewChat()
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
                 title="创建新对话"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5 stroke-2" />
               </button>
             </div>
           </header>
@@ -1396,239 +1646,112 @@ ${aiToolInfo}
                     {message.content}
                   </p>
                 ) : (
-                  <div className="max-w-[85%] text-base leading-relaxed text-slate-800">
-                    <ReactMarkdown
+                  <div className="max-w-[90%] rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 px-5 py-4 shadow-sm">
+                    <div className="max-w-[800px]">
+                      <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        // 自定义样式 - 更紧凑的布局
-                        p: ({node, ...props}) => <p className="mb-2 leading-7 last:mb-0" {...props} />,
+                        // 段落：更大字号，更舒适行高
+                        p: ({node, ...props}) => <p className="mb-5 text-base leading-[2] text-slate-700 last:mb-0" {...props} />,
+
+                        // 代码：更清晰的样式
                         code: ({node, ...props}) => {
                           const inline = (props as any).inline
                           return inline ? (
-                            <code className="px-1.5 py-0.5 rounded bg-slate-100 text-sm font-mono text-red-600" {...props} />
+                            <code className="px-2 py-1 rounded-md bg-indigo-100 text-[15px] font-mono text-indigo-700 font-medium" {...props} />
                           ) : (
-                            <code className="block p-3 my-2 rounded-lg bg-slate-100 text-sm font-mono overflow-x-auto" {...props} />
+                            <code className="block p-4 my-4 rounded-xl bg-slate-800 text-[14px] font-mono text-slate-100 overflow-x-auto shadow-inner" {...props} />
                           )
                         },
-                        ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-2 space-y-0.5" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-2 space-y-0.5" {...props} />,
-                        li: ({node, ...props}) => <li className="leading-6" {...props} />,
-                        strong: ({node, ...props}) => <strong className="font-bold text-slate-900" {...props} />,
-                        em: ({node, ...props}) => <em className="italic" {...props} />,
-                        h1: ({node, ...props}) => <h1 className="text-xl font-bold mb-2 mt-4 first:mt-0" {...props} />,
-                        h2: ({node, ...props}) => <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0" {...props} />,
-                        h3: ({node, ...props}) => <h3 className="text-base font-bold mb-2 mt-2 first:mt-0" {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-slate-300 pl-4 italic my-2" {...props} />,
+
+                        // 列表：更大间距，更清晰
+                        ul: ({node, ...props}) => <ul className="mb-5 space-y-2.5 list-none" {...props} />,
+                        ol: ({node, ...props}) => <ol className="mb-5 space-y-2.5 list-decimal pl-6" {...props} />,
+                        li: ({node, ordered, ...props}) => {
+                          // 有序列表：使用默认数字
+                          if (ordered) {
+                            return <li className="text-base leading-[1.9] text-slate-700 pl-2" {...props} />
+                          }
+
+                          // 无序列表：使用自定义圆点
+                          return (
+                            <li className="flex items-start gap-2.5 text-base leading-[1.9] text-slate-700" {...props}>
+                              <span className="mt-[0.4em] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-indigo-500"></span>
+                              <span className="flex-1">{props.children}</span>
+                            </li>
+                          )
+                        },
+
+                        // 强调：更突出
+                        strong: ({node, ...props}) => <strong className="font-bold text-slate-900 bg-yellow-100 px-1 rounded" {...props} />,
+                        em: ({node, ...props}) => <em className="italic text-indigo-700" {...props} />,
+
+                        // 标题：更有层次
+                        h1: ({node, ...props}) => (
+                          <h1 className="text-xl font-bold text-slate-900 mb-4 mt-6 first:mt-0 pb-2 border-b-2 border-indigo-200" {...props} />
+                        ),
+                        h2: ({node, ...props}) => (
+                          <h2 className="text-lg font-bold text-slate-900 mb-3 mt-5 first:mt-0" {...props} />
+                        ),
+                        h3: ({node, ...props}) => (
+                          <h3 className="text-base font-bold text-slate-800 mb-2 mt-4 first:mt-0" {...props} />
+                        ),
+
+                        // 引用：更明显
+                        blockquote: ({node, ...props}) => (
+                          <blockquote className="border-l-4 border-indigo-400 bg-indigo-50 pl-4 pr-4 py-2 italic my-4 rounded-r-lg text-slate-600" {...props} />
+                        ),
                       }}
                     >
                       {message.content}
                     </ReactMarkdown>
+                    </div>
                   </div>
                 )}
 
-                {/* 推荐项卡片（AI工具和工作流）*/}
-                {message.recommendedItems && message.recommendedItems.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {message.recommendedItems.slice(0, expandedRecommendations.get(idx) || 4).map((item) => {
-                        if (item.itemType === 'ai-tool') {
-                          // AI工具卡片
-                          const tool = item as AIToolCard & { itemType: 'ai-tool' }
-                          return (
-                            <div
-                              key={tool.id}
-                              className="group relative flex h-full flex-col rounded-lg border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-3 shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-cyan-400 hover:shadow-2xl"
-                              draggable={true}
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('ai-tool', JSON.stringify(tool))
-                              }}
-                              onClick={() => {
-                                setSelectedAIToolDetail(tool)
-                              }}
-                            >
-                              {/* 标题行：Logo + 名称 + 分类 */}
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className="text-lg">{tool.logo || '🤖'}</span>
-                                <h4 className="text-sm font-bold text-slate-900">{tool.name}</h4>
-                                <span className="text-[10px] font-bold text-cyan-600 bg-cyan-100 px-1.5 py-0.5 rounded">
-                                  {tool.category}
-                                </span>
-                              </div>
+                {/* 一键生成工作流按钮 - 当检测到步骤时显示 */}
+                {console.log('🎨 渲染检查:', {
+                  messageIndex: idx,
+                  hasStepDetection: !!message.stepDetection,
+                  hasSteps: message.stepDetection?.hasSteps,
+                  isEmbeddedMode
+                })}
+                {message.stepDetection && message.stepDetection.hasSteps && (
+                  <div className="mt-3 flex justify-end" data-testid="workflow-generator-button">
+                    <button
+                      onClick={() => {
+                        // 转换步骤为工作流数据
+                        const workflowData = convertStepsToWorkflowData(
+                          message.stepDetection!.steps,
+                          message.userQuestion || ''
+                        )
 
-                              {/* 描述 */}
-                              <p className="mb-2 text-xs leading-snug text-slate-600 line-clamp-2">{tool.description}</p>
+                        console.log('💾 [AIChatPage] 存下来按钮点击，转换后的工作流数据:', {
+                          title: workflowData.title,
+                          stepsCount: workflowData.steps.length,
+                          steps: workflowData.steps.map(s => ({
+                            title: s.title,
+                            promptLength: s.prompt?.length || 0,
+                            promptPreview: s.prompt?.substring(0, 100)
+                          }))
+                        })
 
-                              {/* 能力标签 */}
-                              {tool.capabilities && tool.capabilities.length > 0 && (
-                                <div className="mb-2 flex flex-wrap gap-1.5">
-                                  {tool.capabilities.slice(0, 3).map((capability, capIdx) => (
-                                    <span
-                                      key={capIdx}
-                                      className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-cyan-600"
-                                    >
-                                      {capability}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                        // 将数据存储到 sessionStorage
+                        sessionStorage.setItem('prefilledWorkflowData', JSON.stringify({
+                          prefilled: true,
+                          data: workflowData
+                        }))
 
-                              {/* 按钮行 */}
-                              <div className="mt-auto flex items-center gap-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleAddAITool(tool)
-                                  }}
-                                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                  使用此工具
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedAIToolDetail(tool)
-                                  }}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-200 bg-white text-cyan-600 hover:bg-cyan-50 hover:scale-110 transition-all"
-                                  title="查看详情"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleToggleFavorite(tool.id, e)}
-                                  className={cn(
-                                    "inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-all",
-                                    favoritedWorkflows.has(tool.id)
-                                      ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                                      : "border-rose-200 bg-white text-rose-500 hover:bg-rose-50 hover:scale-110"
-                                  )}
-                                  title={favoritedWorkflows.has(tool.id) ? "取消收藏" : "收藏"}
-                                >
-                                  <Heart className={cn("h-3.5 w-3.5", favoritedWorkflows.has(tool.id) && "fill-rose-600")} />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        } else {
-                          // 工作流卡片
-                          const workflow = item as WorkflowCard & { itemType: 'workflow' }
-                          return (
-                            <div
-                              key={workflow.id}
-                              className="group relative flex h-full flex-col rounded-lg border border-dashed border-violet-200 bg-gradient-to-br from-white to-violet-50 p-3 shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-2xl"
-                              draggable
-                              onClick={() => setSelectedWorkflowDetail(workflow)}
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('workflow', JSON.stringify(workflow))
-                              }}
-                            >
-                              {/* 标题行：图标 + 标题 + 分类 */}
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <Sparkles className="h-4 w-4 text-violet-500 flex-shrink-0" />
-                                <h4 className="text-sm font-bold text-slate-900">{workflow.title}</h4>
-                                <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">
-                                  {workflow.category}
-                                </span>
-                              </div>
+                        console.log('✅ [AIChatPage] 数据已存储到 sessionStorage')
 
-                              {/* 描述 */}
-                              <p className="mb-2 text-xs leading-snug text-slate-600 line-clamp-2">{workflow.description}</p>
-
-                              {/* 使用场景标签 */}
-                              {workflow.useCases && workflow.useCases.length > 0 && (
-                                <div className="mb-2 flex flex-wrap gap-1.5">
-                                  {workflow.useCases.slice(0, 3).map((useCase, ucIdx) => (
-                                    <span
-                                      key={ucIdx}
-                                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-violet-600"
-                                    >
-                                      {useCase}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* AI工具标签（如果有）*/}
-                              {workflow.aiTools && workflow.aiTools.length > 0 && (
-                                <div className="mb-2 flex items-center gap-1">
-                                  <span className="text-[10px] text-slate-500 font-medium">集成:</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {workflow.aiTools.slice(0, 3).map((tool, toolIdx) => (
-                                      <span
-                                        key={toolIdx}
-                                        className="inline-flex items-center gap-0.5 text-[10px] font-medium text-violet-600"
-                                      >
-                                        {tool.logo && <span>{tool.logo}</span>}
-                                        <span>{tool.name}</span>
-                                      </span>
-                                    ))}
-                                    {workflow.aiTools.length > 3 && (
-                                      <span className="text-[10px] text-slate-500">+{workflow.aiTools.length - 3}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* 按钮行 */}
-                              <div className="mt-auto flex items-center gap-2">
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation()
-                                    await handleAddWorkflow(workflow)
-                                  }}
-                                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                  使用此工作流
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedWorkflowDetail(workflow)
-                                  }}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-white text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all"
-                                  title="查看详情"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleToggleFavorite(workflow.id, e)}
-                                  className={cn(
-                                    "inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-all",
-                                    favoritedWorkflows.has(workflow.id)
-                                      ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                                      : "border-rose-200 bg-white text-rose-500 hover:bg-rose-50 hover:scale-110"
-                                  )}
-                                  title={favoritedWorkflows.has(workflow.id) ? "取消收藏" : "收藏"}
-                                >
-                                  <Heart className={cn("h-3.5 w-3.5", favoritedWorkflows.has(workflow.id) && "fill-rose-600")} />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        }
-                      })}
-                    </div>
-
-                    {/* 更多按钮 */}
-                    {message.recommendedItems.length > 4 && (
-                      <button
-                        onClick={() => {
-                          const currentLimit = expandedRecommendations.get(idx) || 4
-                          if (currentLimit === 4) {
-                            const newMap = new Map(expandedRecommendations)
-                            newMap.set(idx, 8)
-                            setExpandedRecommendations(newMap)
-                          } else {
-                            navigate(`/search?q=${encodeURIComponent(message.content)}`)
-                          }
-                        }}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-violet-200 text-violet-700 font-semibold text-sm hover:from-violet-100 hover:to-indigo-100 hover:border-violet-300 hover:shadow-md transition-all duration-200"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                        {(expandedRecommendations.get(idx) || 4) === 4 ? '查看更多推荐' : '探索全部相关内容'}
-                      </button>
-                    )}
+                        // 在新标签页打开工作流创建页面
+                        window.open('/workflow/create', '_blank')
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      存下来
+                    </button>
                   </div>
                 )}
 
@@ -1871,6 +1994,10 @@ ${aiToolInfo}
                   }}
                   rows={3}
                   placeholder="✨ 描述你想完成的任务... (支持拖拽文件)"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   className="w-full h-full resize-none rounded-xl border-2 border-slate-200 bg-white pl-12 pr-4 py-3.5 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-400 focus:ring-4 focus:ring-violet-100 focus:shadow-md focus:outline-none"
                 />
               </div>
@@ -1885,6 +2012,80 @@ ${aiToolInfo}
               </button>
             </div>
           </footer>
+        </section>
+
+        {/* 右侧：工作流推荐列表 */}
+        <section className={`${panelBaseClass} hidden md:flex md:flex-col flex-1 min-w-0`}>
+          <header className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50 px-4 py-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">推荐工作流</h2>
+              <p className="text-xs text-slate-600 font-medium mt-0.5">为你精选的AI工作流模板</p>
+            </div>
+          </header>
+
+          {/* 工作流卡片网格 */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-5 lg:p-6">
+            <div className="grid gap-4 md:gap-5 lg:gap-6 auto-rows-max" style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))'
+            }}>
+              {publicWorkflows.slice(0, 12).map((workflow) => (
+                <div
+                  key={workflow.id}
+                  className="group relative flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:border-indigo-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+                  onClick={() => {
+                    // 处理工作流点击
+                    console.log('点击工作流:', workflow.title)
+                  }}
+                >
+                  {/* 工作流标题 */}
+                  <h3 className="text-base font-bold text-slate-900 mb-2 line-clamp-2">
+                    {workflow.title}
+                  </h3>
+
+                  {/* 工作流描述 */}
+                  <p className="text-sm text-slate-600 mb-4 line-clamp-3 flex-1">
+                    {workflow.description || '暂无描述'}
+                  </p>
+
+                  {/* 底部信息 */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    {/* 分类标签 */}
+                    {workflow.category && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                        {workflow.category}
+                      </span>
+                    )}
+
+                    {/* 使用次数/评分 */}
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      {workflow.rating && (
+                        <span className="flex items-center gap-1">
+                          <span className="text-yellow-500">★</span>
+                          {workflow.rating.toFixed(1)}
+                        </span>
+                      )}
+                      {workflow.usageCount && (
+                        <span>{workflow.usageCount} 次使用</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 空状态 */}
+            {publicWorkflows.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <div className="rounded-full bg-slate-100 p-6 mb-4">
+                  <Sparkles className="h-12 w-12 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">暂无推荐工作流</h3>
+                <p className="text-sm text-slate-600 max-w-md">
+                  开始与AI对话，我会根据你的需求推荐合适的工作流
+                </p>
+              </div>
+            )}
+          </div>
         </section>
 
         {!isEmbeddedMode && showLegacyPanels && (

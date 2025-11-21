@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react'
 import { X, CheckCircle2, Circle, Clock, Pencil } from 'lucide-react'
+import { executeTempWorkflow } from '../services/workflowApi'
 
 export interface WorkflowNode {
   id: string
@@ -19,6 +20,7 @@ export interface ExecutionWorkflow {
     nodes?: WorkflowNode[]
     [key: string]: any
   }
+  executionId?: string // 用于标识每次执行的唯一ID
   [key: string]: any
 }
 
@@ -262,9 +264,33 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
   // 初始化步骤数据
   const [steps, setSteps] = useState<StepData[]>(() => {
     const nodes = workflow.config?.nodes || []
+    console.log('🔍 [ExecutionSplitPanel] 初始化步骤，收到的节点:', {
+      workflowTitle: workflow.title,
+      nodesCount: nodes.length,
+      nodes: nodes.map((n, i) => ({
+        index: i,
+        id: n.id,
+        type: n.type,
+        label: n.data?.label ?? (n as any)?.label,
+        hasDataConfig: !!n.data?.config,
+        hasNodeConfig: !!(n as any)?.config,
+        dataConfig: n.data?.config,
+        nodeConfig: (n as any)?.config
+      }))
+    })
+
     return nodes.map((node, index) => {
       const baseConfig = node.data?.config ?? (node as any)?.config ?? {}
       const safeConfig = deepClone(baseConfig)
+
+      console.log(`📋 [ExecutionSplitPanel] 步骤 ${index + 1} - ${node.data?.label ?? (node as any)?.label}:`, {
+        baseConfig,
+        safeConfig,
+        configKeys: Object.keys(safeConfig),
+        hasPrompt: 'prompt' in safeConfig,
+        promptValue: safeConfig.prompt
+      })
+
       return {
         id: node.id,
         title: node.data?.label ?? (node as any)?.label ?? `节点 ${index + 1}`,
@@ -283,6 +309,39 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editingStepIds, setEditingStepIds] = useState<Set<string>>(new Set())
+
+  // 记录执行开始时间
+  const [executionStartTime, setExecutionStartTime] = useState<number>(Date.now())
+  // 标记是否已保存执行历史（避免重复保存）
+  const [executionSaved, setExecutionSaved] = useState(false)
+
+  // 监听workflow.executionId变化，重置所有步骤状态（新的执行）
+  useEffect(() => {
+    const nodes = workflow.config?.nodes || []
+    const resetSteps = nodes.map((node, index) => {
+      const baseConfig = node.data?.config ?? (node as any)?.config ?? {}
+      const safeConfig = deepClone(baseConfig)
+      return {
+        id: node.id,
+        title: node.data?.label ?? (node as any)?.label ?? `节点 ${index + 1}`,
+        type: node.type,
+        status: index === 0 ? 'active' : 'pending',
+        config: safeConfig,
+        editedConfig: deepClone(safeConfig)
+      } as StepData
+    })
+
+    setSteps(resetSteps)
+    setExpandedSteps(new Set([0])) // 展开第一步
+    setFieldDrafts({})
+    setFieldErrors({})
+    setSaveDecision(null)
+    setEditingStepIds(new Set())
+    setExecutionStartTime(Date.now()) // 重置执行开始时间
+    setExecutionSaved(false) // 重置保存标记
+
+    console.log('🔄 [ExecutionSplitPanel] 重置执行状态，executionId:', workflow.executionId)
+  }, [workflow.executionId])
 
   // 监听Enter键完成步骤
   React.useEffect(() => {
@@ -327,7 +386,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
     }
   }, [steps])
 
-  // 监听所有步骤完成,自动收缩最后一步并滚动到底部
+  // 监听所有步骤完成,自动收缩最后一步并滚动到底部，并保存执行历史
   useEffect(() => {
     if (allStepsCompleted && steps.length > 0) {
       const lastStepIndex = steps.length - 1
@@ -351,8 +410,32 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
           }
         }, 100)
       }, 300)
+
+      // 保存执行历史（避免重复保存）
+      if (!executionSaved) {
+        const executionDuration = Date.now() - executionStartTime
+        console.log('✅ [ExecutionSplitPanel] 所有步骤完成，保存执行历史...', {
+          workflowId: workflow.id,
+          executionId: workflow.executionId,
+          duration: executionDuration
+        })
+
+        executeTempWorkflow({
+          title: workflow.title,
+          description: workflow.description || `完成 ${steps.length} 个步骤`,
+          config: { nodes: workflow.config?.nodes },
+          input: { executionId: workflow.executionId, duration: executionDuration }
+        })
+          .then(result => {
+            console.log('✅ [ExecutionSplitPanel] 执行历史已保存:', result)
+            setExecutionSaved(true)
+          })
+          .catch(error => {
+            console.error('❌ [ExecutionSplitPanel] 保存执行历史失败:', error)
+          })
+      }
     }
-  }, [allStepsCompleted, steps.length])
+  }, [allStepsCompleted, steps.length, executionSaved, executionStartTime, workflow])
   const hasEditableChanges = useMemo(
     () =>
       steps.some(step => {
@@ -521,7 +604,11 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
         await onWorkflowUpdate(updatedWorkflow)
       } catch (error) {
         console.error('保存工作流配置失败:', error)
-        setSaveError(error instanceof Error ? error.message : '保存失败，请稍后重试')
+        // 如果是用户取消，不显示错误消息
+        const errorMessage = error instanceof Error ? error.message : '保存失败，请稍后重试'
+        if (errorMessage !== '用户取消保存') {
+          setSaveError(errorMessage)
+        }
         return
       } finally {
         setIsSaving(false)
@@ -1202,7 +1289,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                   gap: '0.5rem'
                 }}>
                   <CheckCircle2 size={18} />
-                  修改已永久记录
+                  修改已保存
                 </div>
               )}
 
@@ -1219,7 +1306,7 @@ const ExecutionSplitPanel: React.FC<ExecutionSplitPanelProps> = ({ workflow, onC
                   gap: '0.5rem'
                 }}>
                   <Circle size={16} />
-                  已保留原始配置
+                  保持原始设置
                 </div>
               )}
             </div>

@@ -18,10 +18,15 @@ import workflowRoutes from './routes/workflows'
 import userRoutes from './routes/users'
 import workItemRoutes from './routes/workItems'
 import aiRoutes from './routes/ai'
+import aiRecommendationRoutes from './routes/aiRecommendation'
 import creditRoutes from './routes/credit'
 import workspaceRoutes from './routes/workspace'
 import crawlerRoutes from './routes/crawler.routes'
 import queueRoutes from './routes/queue'
+import navigationRoutes from './routes/navigation'
+import favoritesRoutes from './routes/favorites'
+import communityRoutes from './routes/community'
+import chatsRoutes from './routes/chats'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticateToken } from './middleware/auth'
 import logger, { stream } from './utils/logger'
@@ -71,15 +76,20 @@ app.use(cors({
   maxAge: 86400 // 24小时
 }))
 
-// 限流配置
+// 限流配置 - 开发环境放宽限制
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100, // 每个IP最多100次请求
-  message: '请求过于频繁，请稍后再试',
+  max: process.env.NODE_ENV === 'production' ? 100 : 10000, // 开发环境10000次，生产环境100次
   standardHeaders: true, // 返回 RateLimit-* 头
   legacyHeaders: false, // 禁用 X-RateLimit-* 头
-  // 配置代理支持
-  skip: (req) => false, // 不跳过任何请求
+  // 开发环境跳过限流
+  skip: (req) => process.env.NODE_ENV !== 'production',
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: '请求过于频繁，请稍后再试'
+    })
+  }
 })
 app.use(limiter)
 
@@ -108,9 +118,14 @@ app.use('/api/workflows', workflowRoutes)
 app.use('/api/work-items', workItemRoutes)
 app.use('/api/workspace', workspaceRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/ai', aiRecommendationRoutes) // AI推荐系统路由
 app.use('/api/credit', creditRoutes)
 app.use('/api/crawler', crawlerRoutes)
 app.use('/api/queue', queueRoutes)
+app.use('/api/navigation', navigationRoutes)
+app.use('/api/favorites', favoritesRoutes)
+app.use('/api/community', communityRoutes) // 社群功能路由
+app.use('/api/chats', chatsRoutes) // AI对话会话管理
 
 // 错误处理
 app.use(errorHandler)

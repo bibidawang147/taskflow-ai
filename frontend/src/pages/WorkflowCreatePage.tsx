@@ -121,7 +121,7 @@ export default function WorkflowCreatePage() {
     }
   }, [id])
 
-  // 处理从文章导入的预填充数据
+  // 处理从文章导入的预填充数据（location.state）
   useEffect(() => {
     const state = location.state as any
     if (state?.prefilled && state?.data) {
@@ -142,6 +142,58 @@ export default function WorkflowCreatePage() {
       })
     }
   }, [location.state])
+
+  // 处理从 AI Chat 导入的预填充数据（sessionStorage）
+  useEffect(() => {
+    const prefilledDataStr = sessionStorage.getItem('prefilledWorkflowData')
+
+    if (prefilledDataStr) {
+      try {
+        const prefilledData = JSON.parse(prefilledDataStr)
+
+        console.log('📥 [WorkflowCreatePage] 读取到预填充数据:', prefilledData)
+
+        if (prefilledData?.prefilled && prefilledData?.data) {
+          const data = prefilledData.data
+
+          // 设置来源信息
+          if (data.sourceType === 'ai-chat') {
+            setIsFromArticle(true)
+            setSourceContent(data.sourceContent || '')
+            setSourceUrl('')
+            setSourceTitle('来自 AI Chat')
+          }
+
+          // 设置表单数据
+          setFormData({
+            title: data.title || '',
+            description: data.description || '',
+            tags: data.tags || [],
+            steps: data.steps || [],
+            category: data.category || 'general',
+            isPublic: data.isPublic ?? true,
+            associatedSolutions: data.associatedSolutions || [],
+            associatedThemes: data.associatedThemes || []
+          })
+
+          console.log('✅ [WorkflowCreatePage] 表单数据已设置:', {
+            title: data.title,
+            stepsCount: data.steps?.length,
+            steps: data.steps?.map((s: any) => ({
+              title: s.title,
+              promptLength: s.prompt?.length || 0,
+              prompt: s.prompt?.substring(0, 100) + '...'
+            }))
+          })
+
+          // 清除 sessionStorage，避免下次打开时还显示旧数据
+          sessionStorage.removeItem('prefilledWorkflowData')
+        }
+      } catch (error) {
+        console.error('❌ [WorkflowCreatePage] 解析预填充数据失败:', error)
+      }
+    }
+  }, []) // 只在组件挂载时执行一次
 
   const loadWorkflow = async () => {
     if (!id) return
@@ -362,6 +414,7 @@ export default function WorkflowCreatePage() {
         isDraft: isDraft,
         config: {
           nodes: formData.steps.map((step, index) => ({
+            id: step.id,
             type: 'ai',
             label: step.title,
             config: {
@@ -377,6 +430,20 @@ export default function WorkflowCreatePage() {
           }))
         }
       }
+
+      console.log('💾 [WorkflowCreatePage] 保存工作流，节点数据:', {
+        isDraft,
+        isPublic: workflowData.isPublic,
+        nodesCount: workflowData.config.nodes.length,
+        nodes: workflowData.config.nodes.map((n: any) => ({
+          id: n.id,
+          label: n.label,
+          hasConfig: !!n.config,
+          configKeys: n.config ? Object.keys(n.config) : [],
+          hasPrompt: !!n.config?.prompt,
+          promptLength: n.config?.prompt?.length || 0
+        }))
+      })
 
       // 添加关联信息（仅发布时）
       if (!isDraft) {

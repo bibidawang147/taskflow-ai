@@ -6,6 +6,8 @@ import {
   getFavoriteWorkflows,
   getUserWorkflows,
   updateWorkflow,
+  cloneWorkflow,
+  createWorkflow,
   getExecutionHistory,
   type Workflow,
   type ExecutionHistory
@@ -14,11 +16,11 @@ import {
   fetchWorkspaceLayout,
   saveWorkspaceLayout
 } from '../services/workspaceApi'
-import WorkflowExecutionModal from '../components/WorkflowExecutionModal'
 import ExecutionSplitPanel, { type ExecutionWorkflow, type WorkflowNode } from '../components/ExecutionSplitPanel'
 import ExecutionHistoryModal from '../components/ExecutionHistoryModal'
 import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
+import { NavigationSidebar } from '../components/NavigationSidebar'
 
 type WorkflowStatus = 'active' | 'draft' | 'paused'
 type LibrarySection = 'created' | 'favorites' | 'recent'
@@ -29,7 +31,7 @@ type Position = {
 }
 
 const CARD_WIDTH = 220
-const CARD_HEIGHT = 120
+const CARD_HEIGHT = 140
 const CONTAINER_MIN_WIDTH = 280
 const CONTAINER_MIN_HEIGHT = 200
 const CONTAINER_PADDING = 16
@@ -154,17 +156,6 @@ interface WorkflowDefinition {
   nodes?: WorkflowNode[]
 }
 
-interface AIToolDefinition {
-  id: string
-  name: string
-  summary: string
-  category: string
-  tags: string[]
-  provider: string
-  updatedAt: string
-  model?: string // 模型产品
-  prompt?: string // 原始 prompt
-}
 
 type LibraryWorkflow = WorkflowDefinition & {
   section: LibrarySection
@@ -172,11 +163,7 @@ type LibraryWorkflow = WorkflowDefinition & {
   canEdit?: boolean  // 是否可以编辑
 }
 
-type LibraryAITool = AIToolDefinition & {
-  section: 'ai-tools'
-}
-
-type LibraryItem = LibraryWorkflow | LibraryAITool
+type LibraryItem = LibraryWorkflow
 
 interface WorkflowCanvasItem {
   id: string
@@ -186,10 +173,15 @@ interface WorkflowCanvasItem {
   position: Position
 }
 
-interface AIToolCanvasItem {
+interface ToolLinkCanvasItem {
   id: string
-  type: 'ai-tool'
-  toolId: string
+  type: 'tool-link'
+  name: string
+  url: string
+  logo?: string
+  badge?: string
+  description?: string
+  category?: string
   parentId: string
   position: Position
 }
@@ -206,278 +198,12 @@ interface ContainerCanvasItem {
   color: string
 }
 
-type CanvasItem = WorkflowCanvasItem | AIToolCanvasItem | ContainerCanvasItem
+type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ContainerCanvasItem
 type CanvasItemsMap = Record<string, CanvasItem>
 
-const initialLibraryData: LibraryWorkflow[] = [
-  {
-    id: 'wf-orders',
-    name: '订单处理流程',
-    summary: '覆盖下单、库存校验、物流推送的全链路自动化流程。',
-    status: 'active',
-    category: '电商',
-    tags: ['订单', '物流', '自动化'],
-    owner: '我',
-    updatedAt: '2025-02-08',
-    section: 'created',
-    model: 'GPT-4',
-    prompt: '你是一个专业的订单处理助手。请根据用户输入的订单信息，自动执行以下步骤：\n1. 验证订单格式和完整性\n2. 校验库存是否充足\n3. 计算订单金额和优惠\n4. 生成物流推送信息\n5. 返回处理结果和追踪信息',
-    nodes: [
-      {
-        id: 'node-1',
-        type: 'input',
-        label: '订单信息录入',
-        position: { x: 0, y: 0 },
-        config: {
-          description: '请输入订单的基本信息',
-          placeholder: '例如：订单号、商品列表、收货地址、联系方式等',
-          requiredFields: ['订单号', '商品信息', '收货地址', '联系方式', '支付金额']
-        }
-      },
-      {
-        id: 'node-2',
-        type: 'llm',
-        label: '订单信息验证',
-        position: { x: 200, y: 0 },
-        config: {
-          model: 'GPT-4',
-          systemPrompt: '你是一个订单验证专家。请检查订单信息的完整性和格式正确性。',
-          userPrompt: '请验证以下订单信息是否完整且格式正确：\n- 订单号格式是否符合规范\n- 商品信息是否完整（名称、数量、价格）\n- 收货地址是否详细准确\n- 联系方式是否有效\n- 支付金额是否匹配商品总价\n\n如果发现问题，请明确指出；如果验证通过，请输出"验证通过"并总结订单信息。',
-          temperature: 0.3
-        }
-      },
-      {
-        id: 'node-3',
-        type: 'tool',
-        label: '库存查询与校验',
-        position: { x: 400, y: 0 },
-        config: {
-          toolName: '库存管理系统 API',
-          apiEndpoint: '/api/inventory/check',
-          description: '调用库存管理系统API，查询商品库存并校验是否充足',
-          parameters: {
-            productIds: '从订单中提取的商品ID列表',
-            quantities: '对应的购买数量'
-          },
-          expectedOutput: '库存充足状态和剩余库存数量'
-        }
-      },
-      {
-        id: 'node-4',
-        type: 'llm',
-        label: '订单金额计算',
-        position: { x: 600, y: 0 },
-        config: {
-          model: 'GPT-4',
-          systemPrompt: '你是一个订单金额计算专家。请根据商品价格、数量、优惠券和运费计算最终订单金额。',
-          userPrompt: '请计算订单的最终金额：\n1. 商品总价 = ∑(商品单价 × 数量)\n2. 检查是否有可用优惠券或折扣\n3. 计算优惠后金额\n4. 根据收货地址计算运费\n5. 最终金额 = 商品总价 - 优惠金额 + 运费\n\n请输出详细的金额明细和最终应付金额。',
-          temperature: 0.1
-        }
-      },
-      {
-        id: 'node-5',
-        type: 'condition',
-        label: '支付状态判断',
-        position: { x: 800, y: 0 },
-        config: {
-          conditionType: '支付完成判断',
-          conditions: [
-            { name: '已支付', expression: 'payment_status === "paid"', nextNode: 'node-6' },
-            { name: '待支付', expression: 'payment_status === "pending"', nextNode: 'node-wait' },
-            { name: '支付失败', expression: 'payment_status === "failed"', nextNode: 'node-error' }
-          ]
-        }
-      },
-      {
-        id: 'node-6',
-        type: 'tool',
-        label: '物流信息推送',
-        position: { x: 1000, y: 0 },
-        config: {
-          toolName: '物流平台 API',
-          apiEndpoint: '/api/logistics/create-order',
-          description: '将订单信息推送到物流平台，创建物流单',
-          parameters: {
-            orderNumber: '订单号',
-            receiverInfo: '收货人信息（姓名、电话、地址）',
-            productInfo: '商品信息',
-            deliveryType: '配送方式（标准/加急/次日达）'
-          },
-          expectedOutput: '物流单号和预计送达时间'
-        }
-      },
-      {
-        id: 'node-7',
-        type: 'llm',
-        label: '生成订单确认通知',
-        position: { x: 1200, y: 0 },
-        config: {
-          model: 'GPT-4',
-          systemPrompt: '你是一个客服专家。请生成友好、专业的订单确认通知。',
-          userPrompt: '请生成订单确认通知内容，包括：\n1. 感谢客户下单\n2. 订单号和下单时间\n3. 商品清单和金额明细\n4. 收货地址和联系方式\n5. 物流单号和预计送达时间\n6. 客服联系方式\n\n要求：语气友好、信息完整、格式清晰。',
-          temperature: 0.7
-        }
-      },
-      {
-        id: 'node-8',
-        type: 'output',
-        label: '输出处理结果',
-        position: { x: 1400, y: 0 },
-        config: {
-          outputFormat: 'JSON',
-          fields: [
-            { name: 'orderId', description: '订单号' },
-            { name: 'status', description: '处理状态' },
-            { name: 'totalAmount', description: '订单总金额' },
-            { name: 'logisticsNumber', description: '物流单号' },
-            { name: 'estimatedDelivery', description: '预计送达时间' },
-            { name: 'notificationContent', description: '确认通知内容' }
-          ]
-        }
-      }
-    ]
-  },
-  {
-    id: 'wf-payments',
-    name: '支付风险控制',
-    summary: '支付回调监控、风控策略执行、异常通知的闭环流程。',
-    status: 'draft',
-    category: '财务',
-    tags: ['风控', '支付', '监控'],
-    owner: '我',
-    updatedAt: '2025-02-05',
-    section: 'created',
-    model: 'GPT-4',
-    prompt: '你是一个支付安全专家。请分析支付交易数据，识别潜在风险：\n1. 检查交易金额是否异常\n2. 验证用户行为模式\n3. 评估设备和地理位置风险\n4. 应用风控规则并返回风险评分\n5. 对高风险交易生成预警'
-  },
-  {
-    id: 'wf-approvals',
-    name: '多级审批模板',
-    summary: '适用于费用、采购等审批场景，可自定义审批层级。',
-    status: 'active',
-    category: '协作',
-    tags: ['审批', '模板', '自动提醒'],
-    owner: '产品运营',
-    updatedAt: '2025-01-29',
-    section: 'favorites',
-    model: 'Claude 3.5',
-    prompt: '你是一个智能审批助手。根据审批请求，自动执行多级审批流程：\n1. 解析审批请求的类型和金额\n2. 根据规则确定审批层级\n3. 依次推送给相应审批人\n4. 跟踪审批进度\n5. 汇总审批意见并通知申请人'
-  },
-  {
-    id: 'wf-notify',
-    name: '全渠道通知流程',
-    summary: '统一触达邮件、短信、站内信的通知流程。',
-    status: 'active',
-    category: '运营',
-    tags: ['通知', '多渠道', '消息'],
-    owner: '我',
-    updatedAt: '2025-02-06',
-    section: 'favorites',
-    model: 'GPT-4',
-    prompt: '你是一个通知编排专家。根据用户输入，自动分发通知到各个渠道：\n1. 解析通知内容和目标用户\n2. 根据用户偏好选择通知渠道（邮件/短信/站内信）\n3. 格式化不同渠道的消息内容\n4. 批量发送并记录状态\n5. 返回发送结果统计'
-  },
-  {
-    id: 'wf-activity',
-    name: '活动数据回流',
-    summary: '拉取第三方平台活动数据并写入数据仓库。',
-    status: 'paused',
-    category: '数据',
-    tags: ['数据同步', 'ETL'],
-    owner: '数据团队',
-    updatedAt: '2025-02-01',
-    section: 'recent',
-    model: 'GPT-4',
-    prompt: '你是一个数据同步专家。自动从第三方平台拉取活动数据：\n1. 连接第三方API获取活动数据\n2. 清洗和标准化数据格式\n3. 验证数据完整性和准确性\n4. 将数据写入数据仓库\n5. 生成同步日志和数据质量报告'
-  },
-  {
-    id: 'wf-content',
-    name: '内容审校流程',
-    summary: '聚合多种模型进行内容检测与风格校验。',
-    status: 'active',
-    category: '内容',
-    tags: ['内容审核', '模型编排'],
-    owner: '内容团队',
-    updatedAt: '2025-02-07',
-    section: 'recent',
-    model: 'Claude 3.5',
-    prompt: '你是一个内容审核专家。对用户提交的内容进行多维度审校：\n1. 检测敏感词和违规内容\n2. 分析文本语气和情感倾向\n3. 评估内容质量和可读性\n4. 检查事实准确性\n5. 提供修改建议和风险评级'
-  }
-]
+// 工作流库数据现在完全从API获取，不再使用硬编码数据
+const initialLibraryData: LibraryWorkflow[] = []
 
-const initialAIToolsData: LibraryAITool[] = [
-  {
-    id: 'ai-gpt4',
-    name: 'GPT-4',
-    summary: '最强大的大语言模型，擅长复杂推理、代码生成和创意写作。',
-    category: '文本生成',
-    tags: ['OpenAI', 'LLM', '对话'],
-    provider: 'OpenAI',
-    updatedAt: '2025-02-10',
-    section: 'ai-tools',
-    model: 'GPT-4 Turbo',
-    prompt: '你是一个智能助手，请根据用户的输入提供准确、详细、有帮助的回答。\n\n要求：\n- 保持专业和友好的语气\n- 提供清晰的逻辑和结构化的回答\n- 必要时提供代码示例和具体步骤\n- 承认不确定性，不编造信息'
-  },
-  {
-    id: 'ai-claude',
-    name: 'Claude 3.5',
-    summary: '强大的AI助手，在代码、分析和长文本理解方面表现出色。',
-    category: '文本生成',
-    tags: ['Anthropic', 'LLM', '对话'],
-    provider: 'Anthropic',
-    updatedAt: '2025-02-09',
-    section: 'ai-tools',
-    model: 'Claude 3.5 Sonnet',
-    prompt: '你是 Claude，一个由 Anthropic 创建的 AI 助手。请根据用户输入提供有价值的帮助。\n\n特点：\n- 擅长代码分析和生成\n- 能够理解和处理长篇文本\n- 注重准确性和安全性\n- 提供清晰的解释和推理过程'
-  },
-  {
-    id: 'ai-dalle',
-    name: 'DALL·E 3',
-    summary: '根据文本描述生成高质量图像的AI工具。',
-    category: '图像生成',
-    tags: ['OpenAI', '图像', '创作'],
-    provider: 'OpenAI',
-    updatedAt: '2025-02-08',
-    section: 'ai-tools',
-    model: 'DALL·E 3',
-    prompt: '根据用户的文字描述生成相应的图像。\n\n指导原则：\n- 理解并提炼用户描述中的关键视觉元素\n- 考虑艺术风格、色彩、构图等要素\n- 确保生成的图像符合内容政策\n- 提供多样化和富有创意的视觉呈现'
-  },
-  {
-    id: 'ai-whisper',
-    name: 'Whisper',
-    summary: '高精度的语音识别模型，支持多语言转录。',
-    category: '语音识别',
-    tags: ['OpenAI', '语音', 'STT'],
-    provider: 'OpenAI',
-    updatedAt: '2025-02-07',
-    section: 'ai-tools',
-    model: 'Whisper Large V3',
-    prompt: '将音频内容转录为文本，支持多语言识别。\n\n功能：\n- 自动检测语言\n- 高精度语音识别\n- 支持长音频转录\n- 自动添加标点符号\n- 时间戳标注'
-  },
-  {
-    id: 'ai-embeddings',
-    name: 'Text Embeddings',
-    summary: '将文本转换为向量表示，用于语义搜索和相似度计算。',
-    category: '向量化',
-    tags: ['嵌入', '向量', '搜索'],
-    provider: 'OpenAI',
-    updatedAt: '2025-02-06',
-    section: 'ai-tools',
-    model: 'text-embedding-3-large',
-    prompt: '将输入的文本转换为高维向量表示，用于语义相似度计算和检索。\n\n应用场景：\n- 语义搜索和匹配\n- 文档聚类分析\n- 推荐系统\n- 相似内容检测'
-  },
-  {
-    id: 'ai-sd',
-    name: 'Stable Diffusion',
-    summary: '开源的图像生成模型，可定制化程度高。',
-    category: '图像生成',
-    tags: ['开源', '图像', 'ControlNet'],
-    provider: 'Stability AI',
-    updatedAt: '2025-02-05',
-    section: 'ai-tools',
-    model: 'Stable Diffusion XL',
-    prompt: '根据文本描述生成高质量图像，支持多种风格和控制方式。\n\n特性：\n- 支持 ControlNet 精确控制\n- 可定制 LoRA 模型\n- 支持图生图和图像修复\n- 负提示词控制\n- 批量生成和变体'
-  }
-]
 
 const SECTION_META: Record<
   LibrarySection,
@@ -510,6 +236,12 @@ type DragState =
       parentId: string
     }
   | null
+
+type ResizeState = {
+  containerId: string
+  pointerStart: Position
+  sizeStart: { width: number; height: number }
+} | null
 
 function generateId(prefix: string): string {
   return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now()}`
@@ -567,14 +299,19 @@ function getContainerOuterOrigin(items: CanvasItemsMap, containerId: string): Po
 }
 
 function getItemOuterSize(item: CanvasItem): { width: number; height: number } {
-  if (item.type === 'workflow' || item.type === 'ai-tool') {
+  if (item.type === 'workflow') {
     return { width: CARD_WIDTH, height: CARD_HEIGHT }
   }
-  const baseHeight = item.collapsed
+  if (item.type === 'tool-link') {
+    return { width: 70, height: 70 }  // 工具卡片是正方形
+  }
+  // 必然是 container 类型
+  const containerItem = item as ContainerCanvasItem
+  const baseHeight = containerItem.collapsed
     ? CONTAINER_HEADER_HEIGHT
-    : item.size.height + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING * 2
+    : containerItem.size.height + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING * 2
   return {
-    width: item.size.width + CONTAINER_PADDING * 2,
+    width: containerItem.size.width + CONTAINER_PADDING * 2,
     height: baseHeight
   }
 }
@@ -957,10 +694,6 @@ export default function StoragePage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
 
-  // 工作流执行弹窗状态
-  const [showExecutionModal, setShowExecutionModal] = useState(false)
-  const [selectedExecutionItem, setSelectedExecutionItem] = useState<WorkflowDefinition | AIToolDefinition | null>(null)
-
   // 渐进式执行模态框（改为分屏模式）
   const [showStepByStepExecution, setShowStepByStepExecution] = useState(false)
   const [selectedWorkflowForExecution, setSelectedWorkflowForExecution] = useState<ExecutionWorkflow | null>(null)
@@ -968,6 +701,35 @@ export default function StoragePage() {
 
   // 执行历史模态框
   const [showExecutionHistoryModal, setShowExecutionHistoryModal] = useState(false)
+
+  // 工具添加模态框
+  const [showToolModal, setShowToolModal] = useState(false)
+  const [toolFormData, setToolFormData] = useState({
+    url: '',
+    name: '',
+    description: ''
+  })
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    itemId: string | null
+  }>({ visible: false, x: 0, y: 0, itemId: null })
+
+  // 保存工作流确认对话框状态
+  const [saveConfirmDialog, setSaveConfirmDialog] = useState<{
+    visible: boolean
+    workflow: ExecutionWorkflow | null
+    isOwned: boolean
+  }>({ visible: false, workflow: null, isOwned: false })
+
+  // 删除确认对话框
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
+    visible: boolean
+    cardId: string | null
+  }>({ visible: false, cardId: null })
 
   // 执行历史展开状态
   const [executionHistoryExpanded, setExecutionHistoryExpanded] = useState(false)
@@ -980,10 +742,7 @@ export default function StoragePage() {
     favorites: false,
     recent: false
   })
-  const [layoutSectionExpanded, setLayoutSectionExpanded] = useState(true)
-  const [activeHeaderSection, setActiveHeaderSection] = useState<'layout' | LibrarySection | 'ai-tools'>('layout')
-  const [aiToolsSectionExpanded, setAIToolsSectionExpanded] = useState(false)
-  const [aiToolsData] = useState<LibraryAITool[]>(initialAIToolsData)
+  const [activeHeaderSection, setActiveHeaderSection] = useState<LibrarySection>('created')
   const [libraryDraggingId, setLibraryDraggingId] = useState<string | null>(null)
   const [editingContainerId, setEditingContainerId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -1004,11 +763,13 @@ export default function StoragePage() {
     }
   }))
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null)
+  const [resizingContainerId, setResizingContainerId] = useState<string | null>(null)
   const [isPanning, setIsPanning] = useState(false)
   const [spacePressed, setSpacePressed] = useState(false)
   const [currentScale, setCurrentScale] = useState(1)
 
   const dragStateRef = useRef<DragState>(null)
+  const resizeStateRef = useRef<ResizeState>(null)
   const transformRef = useRef<ReactZoomPanPinchRef | null>(null)
   const transformStateRef = useRef({
     scale: 1,
@@ -1018,21 +779,207 @@ export default function StoragePage() {
   const spacePressedRef = useRef(false)
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
   const pointerInsideCanvasRef = useRef(false)
+  const hasLoadedRef = useRef(false)
+  const hasLoadedWorkflowsRef = useRef(false)
+  const isReloadingForClonedWorkflowRef = useRef(false)
 
   // 加载画布布局
   useEffect(() => {
+    // 防止严格模式下重复加载
+    if (hasLoadedRef.current) {
+      console.log('⏭️ [StoragePage] 已加载过，跳过重复加载')
+      return
+    }
+    hasLoadedRef.current = true
+
     const loadCanvasLayout = async () => {
       console.log('🔄 [StoragePage] 开始加载画布布局...')
       try {
         const result = await fetchWorkspaceLayout()
         console.log('📦 [StoragePage] 加载结果:', result)
 
+        let loadedItems: CanvasItemsMap
         if (result.snapshot && result.snapshot.canvasItems) {
           console.log('✅ [StoragePage] 找到保存的画布布局，恢复数据...')
-          setCanvasItems(result.snapshot.canvasItems as CanvasItemsMap)
+          // 深拷贝以确保可以修改
+          loadedItems = JSON.parse(JSON.stringify(result.snapshot.canvasItems)) as CanvasItemsMap
         } else {
           console.log('⚠️ [StoragePage] 没有保存的画布布局，使用默认布局')
+          loadedItems = {
+            [ROOT_CONTAINER_ID]: {
+              id: ROOT_CONTAINER_ID,
+              type: 'container',
+              name: '工作流画布',
+              parentId: '',
+              position: { x: 0, y: 0 },
+              size: { width: 3200, height: 1800 },
+              collapsed: false,
+              childrenIds: [],
+              color: 'rgba(139, 92, 246, 0.15)'
+            }
+          }
         }
+
+        // 检查是否有待导入的工作包
+        const pendingImportData = localStorage.getItem('pendingWorkPackageImport')
+        if (pendingImportData) {
+          try {
+            const importData = JSON.parse(pendingImportData)
+            console.log('🎯 [StoragePage] 检测到工作包导入:', importData.workPackageName)
+
+            if (importData.container && importData.cards) {
+              // 查找空白位置的函数
+              const findEmptyPosition = (width: number, height: number): { x: number; y: number } => {
+                const MARGIN = 50
+                const existingContainers = Object.values(loadedItems).filter(
+                  (item): item is ContainerCanvasItem =>
+                    item.type === 'container' &&
+                    item.id !== ROOT_CONTAINER_ID &&
+                    item.parentId === ROOT_CONTAINER_ID
+                )
+
+                // 检查位置是否与现有容器重叠
+                const isOverlapping = (x: number, y: number) => {
+                  for (const container of existingContainers) {
+                    const containerRight = container.position.x + container.size.width + CONTAINER_PADDING * 2
+                    const containerBottom = container.position.y + container.size.height + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING * 2
+                    const newRight = x + width
+                    const newBottom = y + height
+
+                    if (
+                      x < containerRight + MARGIN &&
+                      newRight > container.position.x - MARGIN &&
+                      y < containerBottom + MARGIN &&
+                      newBottom > container.position.y - MARGIN
+                    ) {
+                      return true
+                    }
+                  }
+                  return false
+                }
+
+                // 尝试找到空白位置
+                let x = 100
+                let y = 100
+                const MAX_ATTEMPTS = 50
+                let attempts = 0
+
+                while (isOverlapping(x, y) && attempts < MAX_ATTEMPTS) {
+                  attempts++
+                  x += width + MARGIN
+
+                  // 如果超出画布宽度，换行
+                  if (x + width > 2800) {
+                    x = 100
+                    y += height + MARGIN
+                  }
+                }
+
+                console.log(`🔍 [StoragePage] 找到空白位置: (${x}, ${y}), 尝试次数: ${attempts}`)
+                return { x, y }
+              }
+
+              // 找到不重叠的位置
+              const newPosition = findEmptyPosition(
+                importData.container.size.width,
+                importData.container.size.height + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING * 2
+              )
+
+              // 创建容器
+              const containerId = importData.container.id
+              const containerItem: CanvasItem = {
+                id: containerId,
+                type: 'container',
+                name: importData.workPackageName,
+                parentId: ROOT_CONTAINER_ID,
+                position: newPosition,
+                size: importData.container.size,
+                collapsed: false,
+                childrenIds: importData.cards.map((c: any) => c.id),
+                color: importData.container.color
+              }
+
+              // 创建工作流卡片
+              const workflowItems: CanvasItem[] = importData.cards.map((card: any) => ({
+                id: card.id,
+                type: 'workflow' as const,
+                workflowId: card.workflowData.id,
+                parentId: containerId,
+                position: card.position
+              }))
+
+              // 合并到已加载的画布中
+              loadedItems[containerId] = containerItem
+              workflowItems.forEach((item) => {
+                loadedItems[item.id] = item
+              })
+
+              // 更新根容器的子元素列表
+              if (loadedItems[ROOT_CONTAINER_ID]) {
+                loadedItems[ROOT_CONTAINER_ID] = {
+                  ...loadedItems[ROOT_CONTAINER_ID],
+                  childrenIds: [...(loadedItems[ROOT_CONTAINER_ID].childrenIds || []), containerId]
+                }
+              }
+
+              // 将导入的工作流添加到收藏夹
+              const importedWorkflows: Workflow[] = importData.cards.map((card: any) => ({
+                id: card.workflowData.id,
+                title: card.workflowData.name,
+                description: card.workflowData.summary,
+                category: card.workflowData.category,
+                tags: card.workflowData.tags,
+                version: '1.0.0',
+                author: {
+                  id: 'imported',
+                  name: card.workflowData.owner
+                },
+                createdAt: new Date().toISOString(),
+                config: {
+                  nodes: card.workflowData.config?.nodes || []
+                },
+                nodes: card.workflowData.config?.nodes || []
+              }))
+
+              console.log('🔄 [StoragePage] 准备添加工作流到收藏夹:', importedWorkflows.length, '个')
+              console.log('📋 [StoragePage] 工作流详情:', importedWorkflows.map(w => ({ id: w.id, title: w.title })))
+
+              // 立即更新 favoriteWorkflows 状态
+              setFavoriteWorkflows(prev => {
+                const updated = [...prev, ...importedWorkflows]
+                console.log('✅ [StoragePage] favoriteWorkflows 状态已更新，总数:', updated.length)
+                return updated
+              })
+
+              // 同时保存到 localStorage 以便持久化
+              const existingFavorites = JSON.parse(localStorage.getItem('favoriteWorkflows') || '[]')
+              const updatedFavorites = [...existingFavorites, ...importedWorkflows]
+              localStorage.setItem('favoriteWorkflows', JSON.stringify(updatedFavorites))
+              console.log('💾 [StoragePage] 已保存到 localStorage，总数:', updatedFavorites.length)
+
+              console.log('✅ [StoragePage] 已添加容器和', workflowItems.length, '个工作流到画布')
+              console.log('📌 [StoragePage] 已添加', importedWorkflows.length, '个工作流到收藏夹')
+              console.log('🔍 [StoragePage] ROOT容器的childrenIds:', loadedItems[ROOT_CONTAINER_ID]?.childrenIds)
+              console.log('🔍 [StoragePage] 导入的容器ID:', containerId)
+              console.log('🔍 [StoragePage] loadedItems所有键:', Object.keys(loadedItems))
+              console.log('🔍 [StoragePage] 容器详情:', loadedItems[containerId])
+
+              // 显示成功提示
+              setTimeout(() => {
+                alert(`✅ 成功导入工作包「${importData.workPackageName}」\n\n已在画布上显示 ${workflowItems.length} 个工作流\n已添加到我的收藏`)
+              }, 500)
+            }
+
+            // 清除待处理的导入数据
+            localStorage.removeItem('pendingWorkPackageImport')
+          } catch (error) {
+            console.error('[StoragePage] 导入工作包失败:', error)
+            localStorage.removeItem('pendingWorkPackageImport')
+          }
+        }
+
+        // 设置最终的画布状态
+        setCanvasItems(loadedItems)
       } catch (error) {
         console.error('❌ [StoragePage] 加载画布布局失败:', error)
       }
@@ -1040,6 +987,17 @@ export default function StoragePage() {
 
     loadCanvasLayout()
   }, [])
+
+  // 全局点击关闭右键菜单
+  useEffect(() => {
+    const handleClick = () => {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, itemId: null })
+      }
+    }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [contextMenu.visible])
 
   // 自动保存画布布局（防抖500ms）
   useEffect(() => {
@@ -1109,25 +1067,72 @@ export default function StoragePage() {
   }, [])
 
   // 加载收藏和创建的工作流
-  useEffect(() => {
-    const loadWorkflows = async () => {
-      try {
-        setLoading(true)
-        const [favorites, created] = await Promise.all([
-          getFavoriteWorkflows(),
-          getUserWorkflows()
-        ])
-        setFavoriteWorkflows(favorites)
-        setCreatedWorkflows(created)
-      } catch (error) {
-        console.error('加载工作流失败:', error)
-      } finally {
-        setLoading(false)
+  const loadWorkflows = useCallback(async () => {
+    try {
+      console.log('🔄 [StoragePage] 开始加载工作流列表...')
+      setLoading(true)
+      const [favorites, created] = await Promise.all([
+        getFavoriteWorkflows(),
+        getUserWorkflows()
+      ])
+
+      console.log('✅ [StoragePage] 工作流列表加载完成:', {
+        favorites: favorites.length,
+        created: created.length,
+        createdDetails: created.map(w => ({
+          id: w.id,
+          title: w.title,
+          isDraft: w.isDraft,
+          isPublic: w.isPublic,
+          hasConfig: !!w.config,
+          hasNodes: !!w.nodes,
+          configNodesCount: w.config?.nodes?.length || 0
+        }))
+      })
+
+      // 详细检查第一个工作流的配置
+      if (created.length > 0) {
+        console.log('🔍 [StoragePage] 第一个工作流的完整数据:', {
+          title: created[0].title,
+          config: created[0].config,
+          nodes: created[0].nodes,
+          configJSON: JSON.stringify(created[0].config, null, 2)
+        })
       }
+
+      // 合并localStorage中导入的工作流到收藏列表
+      const localFavorites = JSON.parse(localStorage.getItem('favoriteWorkflows') || '[]')
+      if (localFavorites.length > 0) {
+        console.log('📥 从localStorage加载导入的工作流:', localFavorites.length, '个')
+        // 合并，去重（以localStorage中的为准）
+        const mergedFavorites = [...localFavorites, ...favorites.filter(
+          (f: Workflow) => !localFavorites.some((lf: any) => lf.id === f.id)
+        )]
+        setFavoriteWorkflows(mergedFavorites)
+      } else {
+        setFavoriteWorkflows(favorites)
+      }
+
+      setCreatedWorkflows(created)
+      console.log('📝 [StoragePage] 已更新 createdWorkflows 状态')
+    } catch (error) {
+      console.error('❌ [StoragePage] 加载工作流失败:', error)
+    } finally {
+      setLoading(false)
+      console.log('✨ [StoragePage] 加载完成，loading 设置为 false')
     }
+  }, [])
+
+  useEffect(() => {
+    // 防止严格模式下重复加载
+    if (hasLoadedWorkflowsRef.current) {
+      console.log('⏭️ [StoragePage] 工作流已加载过，跳过重复加载')
+      return
+    }
+    hasLoadedWorkflowsRef.current = true
 
     loadWorkflows()
-  }, [])
+  }, [loadWorkflows])
 
   // 加载执行历史
   const loadExecutionHistory = useCallback(async () => {
@@ -1215,29 +1220,60 @@ export default function StoragePage() {
   }
 
   const libraryData = useMemo(() => {
+    console.log('🔄 [libraryData] 重新计算工作流库数据')
+    console.log('📊 [libraryData] favoriteWorkflows数量:', favoriteWorkflows?.length || 0)
+    console.log('📊 [libraryData] createdWorkflows数量:', createdWorkflows?.length || 0)
+
     // 将API数据转换为LibraryWorkflow格式,并添加所有权标记
-    const convertToLibraryWorkflow = (workflow: Workflow, section: LibrarySection, isOwner: boolean): LibraryWorkflow => ({
-      id: workflow.id,
-      name: workflow.title,
-      summary: workflow.description || '',
-      status: 'active' as WorkflowStatus,
-      category: workflow.category || '未分类',
-      tags: Array.isArray(workflow.tags) ? workflow.tags : [],
-      owner: workflow.author?.name || '我',
-      updatedAt: new Date(workflow.createdAt).toISOString().split('T')[0],
-      section,
-      config: workflow.config,
-      nodes: workflow.config?.nodes || workflow.nodes,
-      isOwner,  // 标记是否拥有
-      canEdit: isOwner  // 只有拥有者才能编辑
-    })
+    const convertToLibraryWorkflow = (workflow: Workflow, section: LibrarySection, isOwner: boolean): LibraryWorkflow => {
+      const result = {
+        id: workflow.id,
+        name: workflow.title,
+        summary: workflow.description || '',
+        status: 'active' as WorkflowStatus,
+        category: workflow.category || '未分类',
+        tags: Array.isArray(workflow.tags) ? workflow.tags : [],
+        owner: workflow.author?.name || '我',
+        updatedAt: new Date(workflow.createdAt).toISOString().split('T')[0],
+        section,
+        config: workflow.config,
+        nodes: workflow.config?.nodes || workflow.nodes,
+        isOwner,  // 标记是否拥有
+        canEdit: isOwner  // 只有拥有者才能编辑
+      }
+
+      // 只为新创建的工作流打印详细日志
+      if (workflow.title.includes('创业') || workflow.title.includes('想做')) {
+        console.log(`🔍 [convertToLibraryWorkflow] ${workflow.title} 完整配置:`, {
+          hasConfig: !!workflow.config,
+          hasNodes: !!workflow.nodes,
+          configNodesCount: workflow.config?.nodes?.length || 0,
+          fullConfig: workflow.config,
+          fullNodes: workflow.nodes,
+          configNodes: JSON.stringify(workflow.config?.nodes, null, 2)
+        })
+      }
+
+      return result
+    }
 
     // created 工作流都是用户拥有的
     const favorites = (favoriteWorkflows || []).map(wf => {
       const isOwner = createdWorkflows.some(cw => cw.id === wf.id)
       return convertToLibraryWorkflow(wf, 'favorites', isOwner)
     })
-    const created = (createdWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'created', true))
+
+    // ✅ 过滤：只显示已发布的工作流（isDraft: false）
+    const publishedWorkflows = (createdWorkflows || []).filter(wf => !wf.isDraft)
+    const created = publishedWorkflows.map(wf => convertToLibraryWorkflow(wf, 'created', true))
+
+    console.log('✅ [libraryData] 转换后 favorites:', favorites.length, '个')
+    console.log('✅ [libraryData] 转换后 created:', created.length, '个')
+    console.log('📝 [libraryData] 工作流过滤:', {
+      total: createdWorkflows?.length || 0,
+      published: publishedWorkflows.length,
+      drafts: (createdWorkflows?.length || 0) - publishedWorkflows.length
+    })
 
     // 合并静态数据和API数据，优先显示API数据
     const staticFavorites = initialLibraryData.filter(wf => wf.section === 'favorites')
@@ -1318,6 +1354,200 @@ export default function StoragePage() {
     setActiveSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
+  // 自动添加克隆的工作流到画布
+  useEffect(() => {
+    console.log('🔍 [StoragePage] useEffect 检查克隆标记...', {
+      loading,
+      createdWorkflowsLength: createdWorkflows?.length,
+      hasFlag: !!localStorage.getItem('newlyClonedWorkflowId'),
+      isReloading: isReloadingForClonedWorkflowRef.current
+    })
+
+    // 检查是否有克隆标记
+    const clonedWorkflowId = localStorage.getItem('newlyClonedWorkflowId')
+    if (!clonedWorkflowId) {
+      console.log('ℹ️ [StoragePage] 没有克隆标记，跳过')
+      // 重置重新加载标记
+      isReloadingForClonedWorkflowRef.current = false
+      return
+    }
+
+    // 如果正在为克隆的工作流重新加载，则跳过 loading 检查
+    // 只在工作流加载完成后执行（除非是重新加载状态）
+    if (loading && !isReloadingForClonedWorkflowRef.current) {
+      console.log('⏳ [StoragePage] 仍在加载中，跳过检查')
+      return
+    }
+
+    if (!createdWorkflows || createdWorkflows.length === 0) {
+      console.log('⏳ [StoragePage] 工作流数据未就绪，跳过检查')
+      return
+    }
+
+    console.log('🎯 [StoragePage] 检测到克隆的工作流ID:', clonedWorkflowId)
+
+    // 在createdWorkflows中查找该工作流
+    const clonedWorkflow = createdWorkflows.find(w => w.id === clonedWorkflowId)
+
+    if (!clonedWorkflow) {
+      console.warn('⚠️ [StoragePage] 未找到克隆的工作流，可能尚未同步')
+      console.log('📋 [StoragePage] 可用的工作流IDs:', createdWorkflows.map(w => w.id))
+
+      // 如果还没有重新加载过，尝试刷新工作流列表
+      if (!isReloadingForClonedWorkflowRef.current) {
+        console.log('🔄 [StoragePage] 重新加载工作流列表以获取新克隆的工作流...')
+        isReloadingForClonedWorkflowRef.current = true
+        loadWorkflows()
+      } else {
+        console.warn('⚠️ [StoragePage] 已经重新加载过但仍未找到工作流，清除标记')
+        localStorage.removeItem('newlyClonedWorkflowId')
+        isReloadingForClonedWorkflowRef.current = false
+      }
+      return
+    }
+
+    console.log('✅ [StoragePage] 找到克隆的工作流，准备添加到画布:', clonedWorkflow.title)
+
+    // 延迟执行，确保画布已经就绪
+    setTimeout(() => {
+      // 计算画布中心位置（考虑当前的缩放和平移）
+      const { scale, positionX, positionY } = transformStateRef.current
+      const wrapperElement = transformRef.current?.instance.wrapperComponent
+
+      if (!wrapperElement) {
+        console.warn('⚠️ [StoragePage] 画布未就绪')
+        return
+      }
+
+      const wrapperRect = wrapperElement.getBoundingClientRect()
+      const centerX = wrapperRect.width / 2
+      const centerY = wrapperRect.height / 2
+
+      // 转换为画布世界坐标
+      const worldPoint = {
+        x: (centerX - positionX) / scale,
+        y: (centerY - positionY) / scale
+      }
+
+      console.log('📍 [StoragePage] 计算的画布位置:', worldPoint)
+
+      // 在画布上创建卡片
+      let newCardPosition: Position | null = null
+      let newCardId: string | null = null
+
+      setCanvasItems((prev) => {
+        console.log('🔍 [StoragePage] 当前 canvasItems 状态:', {
+          totalItems: Object.keys(prev).length,
+          rootContainer: prev[ROOT_CONTAINER_ID],
+          rootChildrenIds: prev[ROOT_CONTAINER_ID]?.type === 'container' ? prev[ROOT_CONTAINER_ID].childrenIds : []
+        })
+
+        // 获取根容器
+        const rootContainer = prev[ROOT_CONTAINER_ID]
+        if (!rootContainer || rootContainer.type !== 'container') {
+          console.error('❌ [StoragePage] 找不到根容器')
+          return prev
+        }
+
+        // 统计已存在的该工作流卡片数量（仅用于日志）
+        const existingCards = Object.values(prev).filter(
+          item => item.type === 'workflow' && item.workflowId === clonedWorkflowId
+        )
+
+        if (existingCards.length > 0) {
+          console.log('ℹ️ [StoragePage] 工作流卡片已存在', existingCards.length, '个，继续添加新卡片')
+        }
+
+        // 计算左上角第一个不重叠的位置
+        const MARGIN = 20
+        const START_X = 50
+        const START_Y = 50
+        const COLS = 4 // 每行最多4个卡片
+
+        // 获取根容器中所有现有卡片的位置
+        const existingPositions: Position[] = []
+        if (rootContainer && rootContainer.type === 'container') {
+          rootContainer.childrenIds?.forEach(childId => {
+            const child = prev[childId]
+            if (child && child.type === 'workflow') {
+              existingPositions.push(child.position)
+            }
+          })
+        }
+
+        // 计算新卡片位置（网格布局，从左上角开始）
+        let row = 0
+        let col = 0
+        let position: Position
+
+        while (true) {
+          position = {
+            x: START_X + col * (CARD_WIDTH + MARGIN),
+            y: START_Y + row * (CARD_HEIGHT + MARGIN)
+          }
+
+          // 检查是否与现有卡片重叠
+          const hasOverlap = existingPositions.some(existingPos => {
+            return Math.abs(existingPos.x - position.x) < CARD_WIDTH &&
+                   Math.abs(existingPos.y - position.y) < CARD_HEIGHT
+          })
+
+          if (!hasOverlap) {
+            break
+          }
+
+          // 移动到下一个网格位置
+          col++
+          if (col >= COLS) {
+            col = 0
+            row++
+          }
+        }
+
+        newCardPosition = position
+
+        // 创建工作流卡片
+        const cardId = generateId('workflow-card')
+        newCardId = cardId
+
+        const newCard = {
+          id: cardId,
+          type: 'workflow' as const,
+          workflowId: clonedWorkflow.id,
+          parentId: ROOT_CONTAINER_ID,
+          position
+        }
+
+        console.log('🎉 [StoragePage] 成功添加克隆的工作流卡片到画布', newCard)
+
+        // 将新卡片添加到根容器的 childrenIds 中
+        const updatedRootContainer = {
+          ...rootContainer,
+          childrenIds: [...(rootContainer.childrenIds || []), cardId]
+        }
+
+        console.log('📌 [StoragePage] 已将卡片添加到根容器的 childrenIds', {
+          cardId,
+          oldChildrenCount: rootContainer.childrenIds?.length || 0,
+          newChildrenCount: updatedRootContainer.childrenIds.length,
+          allChildrenIds: updatedRootContainer.childrenIds
+        })
+
+        return {
+          ...prev,
+          [ROOT_CONTAINER_ID]: updatedRootContainer,
+          [cardId]: newCard
+        }
+      })
+
+      // 清除localStorage标记
+      localStorage.removeItem('newlyClonedWorkflowId')
+      console.log('✨ [StoragePage] 已清除克隆标记')
+      // 重置重新加载标记
+      isReloadingForClonedWorkflowRef.current = false
+    }, 100)
+  }, [loading, createdWorkflows, loadWorkflows])
+
   const attachToParent = useCallback((items: CanvasItemsMap, parentId: string, childId: string) => {
     const parent = getContainer(items, parentId)
     if (!parent) return
@@ -1343,13 +1573,81 @@ export default function StoragePage() {
   const handleCanvasDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
+
+      // 尝试从 dataTransfer 读取工具链接数据
+      const toolLinkData = event.dataTransfer.getData('tool-link')
+
+      if (toolLinkData) {
+        // 处理工具链接拖拽
+        try {
+          const toolLink = JSON.parse(toolLinkData)
+
+          const wrapperElement = transformRef.current?.instance.wrapperComponent
+          if (!wrapperElement) return
+          const wrapperRect = wrapperElement.getBoundingClientRect()
+
+          const pointer = {
+            x: event.clientX - wrapperRect.left,
+            y: event.clientY - wrapperRect.top
+          }
+          const { scale, positionX, positionY } = transformStateRef.current
+          const worldPoint: Position = {
+            x: (pointer.x - positionX) / scale,
+            y: (pointer.y - positionY) / scale
+          }
+
+          updateCanvasItems((draft) => {
+            const dropTarget = findDropTargetContainer(draft, worldPoint)
+            const TOOL_CARD_SIZE = 70  // 工具卡片正方形尺寸
+            const topLeftGuess = {
+              x: worldPoint.x - TOOL_CARD_SIZE / 2,
+              y: worldPoint.y - TOOL_CARD_SIZE / 2
+            }
+            const relativePositionGuess = convertAbsoluteToContainerPosition(draft, dropTarget, topLeftGuess)
+
+            const relativePosition = findNonOverlappingPosition(
+              draft,
+              dropTarget,
+              relativePositionGuess,
+              TOOL_CARD_SIZE,
+              TOOL_CARD_SIZE
+            )
+
+            // 创建工具链接卡片
+            const cardId = generateId('tool-link-card')
+            draft[cardId] = {
+              id: cardId,
+              type: 'tool-link',
+              name: toolLink.name,
+              url: toolLink.url,
+              logo: toolLink.logo,
+              badge: toolLink.badge,
+              description: toolLink.description,
+              category: toolLink.category,
+              parentId: dropTarget,
+              position: relativePosition
+            }
+            attachToParent(draft, dropTarget, cardId)
+
+            const targetContainer = getContainer(draft, dropTarget)
+            if (targetContainer?.collapsed) {
+              draft[dropTarget] = { ...targetContainer, collapsed: false }
+            }
+
+            recalcContainerSizes(draft, [dropTarget])
+          })
+
+          return
+        } catch (e) {
+          console.error('Failed to parse tool-link data:', e)
+        }
+      }
+
+      // 原有的工作流拖拽逻辑
       if (!libraryDraggingId) return
 
-      // 检查是工作流还是AI工具
       const workflow = libraryData.find((item) => item.id === libraryDraggingId)
-      const aiTool = aiToolsData.find((item) => item.id === libraryDraggingId)
-
-      if (!workflow && !aiTool) return
+      if (!workflow) return
 
       const wrapperElement = transformRef.current?.instance.wrapperComponent
       if (!wrapperElement) return
@@ -1373,7 +1671,6 @@ export default function StoragePage() {
         }
         const relativePositionGuess = convertAbsoluteToContainerPosition(draft, dropTarget, topLeftGuess)
 
-        // 使用碰撞检测找到不重叠的位置
         const relativePosition = findNonOverlappingPosition(
           draft,
           dropTarget,
@@ -1382,29 +1679,15 @@ export default function StoragePage() {
           CARD_HEIGHT
         )
 
-        if (workflow) {
-          // 创建工作流卡片
-          const cardId = generateId('workflow-card')
-          draft[cardId] = {
-            id: cardId,
-            type: 'workflow',
-            workflowId: workflow.id,
-            parentId: dropTarget,
-            position: relativePosition
-          }
-          attachToParent(draft, dropTarget, cardId)
-        } else if (aiTool) {
-          // 创建AI工具卡片
-          const cardId = generateId('ai-tool-card')
-          draft[cardId] = {
-            id: cardId,
-            type: 'ai-tool',
-            toolId: aiTool.id,
-            parentId: dropTarget,
-            position: relativePosition
-          }
-          attachToParent(draft, dropTarget, cardId)
+        const cardId = generateId('workflow-card')
+        draft[cardId] = {
+          id: cardId,
+          type: 'workflow',
+          workflowId: workflow.id,
+          parentId: dropTarget,
+          position: relativePosition
         }
+        attachToParent(draft, dropTarget, cardId)
 
         const targetContainer = getContainer(draft, dropTarget)
         if (targetContainer?.collapsed) {
@@ -1416,11 +1699,13 @@ export default function StoragePage() {
 
       setLibraryDraggingId(null)
     },
-    [attachToParent, aiToolsData, libraryData, libraryDraggingId, updateCanvasItems]
+    [attachToParent, libraryData, libraryDraggingId, updateCanvasItems]
   )
 
   const handleCanvasDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (libraryDraggingId) {
+    // 允许工具链接和工作流拖拽
+    const hasToolLink = event.dataTransfer.types.includes('tool-link')
+    if (libraryDraggingId || hasToolLink) {
       event.preventDefault()
     }
   }
@@ -1568,12 +1853,98 @@ export default function StoragePage() {
     [canvasItems, handleWindowMouseMove, handleWindowMouseUp]
   )
 
+  const handleResizeMouseMove = useCallback(
+    (event: MouseEvent) => {
+      const resizeState = resizeStateRef.current
+      if (!resizeState) return
+
+      const scale = transformStateRef.current.scale
+      const deltaX = (event.clientX - resizeState.pointerStart.x) / scale
+      const deltaY = (event.clientY - resizeState.pointerStart.y) / scale
+
+      const newWidth = Math.max(CONTAINER_MIN_WIDTH, resizeState.sizeStart.width + deltaX)
+      const newHeight = Math.max(CONTAINER_MIN_HEIGHT, resizeState.sizeStart.height + deltaY)
+
+      setCanvasItems((prev) => {
+        const container = prev[resizeState.containerId]
+        if (!container || container.type !== 'container') return prev
+
+        return {
+          ...prev,
+          [resizeState.containerId]: {
+            ...container,
+            size: { width: newWidth, height: newHeight }
+          }
+        }
+      })
+    },
+    []
+  )
+
+  const handleResizeMouseUp = useCallback(() => {
+    const resizeState = resizeStateRef.current
+    if (!resizeState) return
+
+    // 调整重叠项
+    setCanvasItems((prev) => {
+      const container = prev[resizeState.containerId]
+      if (!container || container.type !== 'container') return prev
+
+      const newPositions = adjustOverlappingItemsAfterResize(prev, [resizeState.containerId])
+
+      // 应用新位置
+      const updated = { ...prev }
+      for (const [itemId, newPosition] of Object.entries(newPositions)) {
+        const item = updated[itemId]
+        if (item) {
+          updated[itemId] = {
+            ...item,
+            position: newPosition
+          }
+        }
+      }
+
+      return updated
+    })
+
+    setResizingContainerId(null)
+    resizeStateRef.current = null
+
+    window.removeEventListener('mousemove', handleResizeMouseMove)
+    window.removeEventListener('mouseup', handleResizeMouseUp)
+  }, [handleResizeMouseMove])
+
+  const handleResizeMouseDown = useCallback(
+    (event: React.MouseEvent, containerId: string) => {
+      const container = canvasItems[containerId]
+      if (!container || container.type !== 'container') return
+
+      if (event.button !== 0) return
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      setResizingContainerId(containerId)
+      resizeStateRef.current = {
+        containerId,
+        pointerStart: { x: event.clientX, y: event.clientY },
+        sizeStart: { ...container.size }
+      }
+
+      window.addEventListener('mousemove', handleResizeMouseMove)
+      window.addEventListener('mouseup', handleResizeMouseUp)
+    },
+    [canvasItems, handleResizeMouseMove, handleResizeMouseUp]
+  )
+
   useEffect(() => {
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove)
       window.removeEventListener('mouseup', handleWindowMouseUp)
+      window.removeEventListener('mousemove', handleResizeMouseMove)
+      window.removeEventListener('mouseup', handleResizeMouseUp)
     }
-  }, [handleWindowMouseMove, handleWindowMouseUp])
+  }, [handleWindowMouseMove, handleWindowMouseUp, handleResizeMouseMove, handleResizeMouseUp])
 
 
   const applyBounds = useCallback(
@@ -2152,6 +2523,237 @@ export default function StoragePage() {
     // setEditingName('新容器')
   }
 
+  // 处理添加工具
+  const handleAddTool = () => {
+    // 验证URL是否填写
+    if (!toolFormData.url.trim()) {
+      alert('请输入工具链接')
+      return
+    }
+
+    // 验证URL格式
+    let toolUrl = toolFormData.url.trim()
+    try {
+      // 如果URL没有协议，自动添加https://
+      if (!toolUrl.startsWith('http://') && !toolUrl.startsWith('https://')) {
+        toolUrl = 'https://' + toolUrl
+      }
+      new URL(toolUrl) // 验证URL格式
+    } catch (e) {
+      alert('请输入有效的URL地址')
+      return
+    }
+
+    const toolCardId = generateId('tool-link-card')
+
+    updateCanvasItems((draft) => {
+      // 首选位置：画布左上角
+      const preferredPosition = {
+        x: 20,
+        y: 20
+      }
+
+      const TOOL_CARD_SIZE = 70  // 工具卡片正方形尺寸
+
+      // 使用碰撞检测找到不重叠的位置
+      const position = findNonOverlappingPosition(
+        draft,
+        ROOT_CONTAINER_ID,
+        preferredPosition,
+        TOOL_CARD_SIZE,
+        TOOL_CARD_SIZE
+      )
+
+      // 如果没有填写名称，尝试从URL中提取
+      let toolName = toolFormData.name.trim()
+      if (!toolName) {
+        try {
+          toolName = new URL(toolUrl).hostname.replace('www.', '')
+        } catch {
+          toolName = '新工具'
+        }
+      }
+
+      draft[toolCardId] = {
+        id: toolCardId,
+        type: 'tool-link',
+        name: toolName,
+        url: toolUrl,
+        logo: '🔗',
+        description: toolFormData.description.trim() || undefined,
+        parentId: ROOT_CONTAINER_ID,
+        position
+      }
+
+      attachToParent(draft, ROOT_CONTAINER_ID, toolCardId)
+      recalcContainerSizes(draft, [ROOT_CONTAINER_ID])
+    })
+
+    // 关闭模态框并重置表单
+    setShowToolModal(false)
+    setToolFormData({
+      url: '',
+      name: '',
+      description: ''
+    })
+  }
+
+  // 处理右键菜单
+  const handleContextMenu = (e: React.MouseEvent, itemId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      itemId
+    })
+  }
+
+  // 复制卡片
+  const handleCopyItem = () => {
+    if (!contextMenu.itemId) return
+
+    const item = canvasItems[contextMenu.itemId]
+    if (!item || item.type === 'container') return
+
+    // 生成新ID
+    const newId = generateId(item.type === 'workflow' ? 'workflow-card' : 'ai-card')
+
+    // 复制卡片，增加偏移量避免重叠（从20px改为50px）
+    const newItem = {
+      ...item,
+      id: newId,
+      position: {
+        x: item.position.x + 50,
+        y: item.position.y + 50
+      }
+    }
+
+    setCanvasItems(prev => {
+      const updated = { ...prev, [newId]: newItem }
+
+      // 将新卡片添加到父容器的 childrenIds 中
+      const parentId = item.parentId || ROOT_CONTAINER_ID
+      const parent = updated[parentId]
+      if (parent && parent.type === 'container') {
+        updated[parentId] = {
+          ...parent,
+          childrenIds: [...parent.childrenIds, newId]
+        }
+      }
+
+      return updated
+    })
+
+    console.log('📋 [StoragePage] 复制卡片:', {
+      originalId: contextMenu.itemId,
+      newId,
+      type: item.type,
+      parentId: item.parentId,
+      originalPos: item.position,
+      newPos: newItem.position
+    })
+    setContextMenu({ visible: false, x: 0, y: 0, itemId: null })
+  }
+
+  // 删除卡片
+  const handleDeleteWorkflowCard = (cardId: string) => {
+    const item = canvasItems[cardId]
+    if (!item || item.type !== 'workflow') return
+
+    // 显示确认对话框
+    setDeleteConfirmDialog({ visible: true, cardId })
+  }
+
+  // 删除工具卡片
+  const handleDeleteToolCard = (cardId: string) => {
+    const item = canvasItems[cardId]
+    if (!item || item.type !== 'tool-link') return
+
+    if (!confirm('确定要删除这个工具卡片吗？')) return
+
+    updateCanvasItems((draft) => {
+      // 从父容器的 childrenIds 中移除
+      const parentId = item.parentId || ROOT_CONTAINER_ID
+      const parent = draft[parentId]
+      if (parent && parent.type === 'container') {
+        parent.childrenIds = parent.childrenIds.filter(id => id !== cardId)
+      }
+
+      // 删除卡片本身
+      delete draft[cardId]
+
+      // 重新计算容器尺寸
+      recalcContainerSizes(draft, [parentId])
+    })
+    console.log('🗑️ [StoragePage] 删除工具卡片:', cardId)
+  }
+
+  const confirmDeleteWorkflowCard = () => {
+    const cardId = deleteConfirmDialog.cardId
+    if (!cardId) return
+
+    const item = canvasItems[cardId]
+    if (!item) return
+
+    setCanvasItems(prev => {
+      const newItems = { ...prev }
+
+      // 从父容器的 childrenIds 中移除
+      const parentId = item.parentId || ROOT_CONTAINER_ID
+      const parent = newItems[parentId]
+      if (parent && parent.type === 'container') {
+        newItems[parentId] = {
+          ...parent,
+          childrenIds: parent.childrenIds.filter(id => id !== cardId)
+        }
+      }
+
+      // 删除卡片本身
+      delete newItems[cardId]
+      return newItems
+    })
+    console.log('🗑️ [StoragePage] 删除卡片:', cardId)
+
+    // 关闭对话框
+    setDeleteConfirmDialog({ visible: false, cardId: null })
+  }
+
+  const handleDeleteItem = () => {
+    if (!contextMenu.itemId) return
+
+    const item = canvasItems[contextMenu.itemId]
+    if (!item) return
+
+    // 如果是容器，使用已有的删除容器逻辑
+    if (item.type === 'container') {
+      handleDeleteContainer(contextMenu.itemId)
+    } else {
+      // 删除普通卡片
+      setCanvasItems(prev => {
+        const newItems = { ...prev }
+
+        // 从父容器的 childrenIds 中移除
+        const parentId = item.parentId || ROOT_CONTAINER_ID
+        const parent = newItems[parentId]
+        if (parent && parent.type === 'container') {
+          newItems[parentId] = {
+            ...parent,
+            childrenIds: parent.childrenIds.filter(id => id !== contextMenu.itemId)
+          }
+        }
+
+        // 删除卡片本身
+        delete newItems[contextMenu.itemId!]
+        return newItems
+      })
+      console.log('🗑️ [StoragePage] 删除卡片:', contextMenu.itemId)
+    }
+
+    setContextMenu({ visible: false, x: 0, y: 0, itemId: null })
+  }
+
   const buildExecutionWorkflowPayload = (workflow: LibraryWorkflow): ExecutionWorkflow => {
     const nodesFromConfig = workflow.config?.nodes
     const fallbackNodes = workflow.nodes
@@ -2161,18 +2763,63 @@ export default function StoragePage() {
         ? fallbackNodes
         : DEFAULT_EXECUTION_NODES
 
-    const normalizedNodes = nodesSource.map((node: any, index) => ({
-      ...node,
-      id: node.id || `node-${index + 1}`,
-      type: node.type,
-      data: node.data ?? {
-        label: node.data?.label ?? node.label ?? `节点 ${index + 1}`,
-        config: node.data?.config ?? node.config ?? {}
-      }
-    }))
+    console.log('🏗️ [buildExecutionWorkflowPayload] 原始工作流数据:', {
+      workflowName: workflow.name,
+      nodesFromConfigCount: nodesFromConfig?.length ?? 0,
+      fallbackNodesCount: fallbackNodes?.length ?? 0,
+      selectedSource: nodesFromConfig && nodesFromConfig.length > 0 ? 'config.nodes' :
+                      fallbackNodes && fallbackNodes.length > 0 ? 'nodes' : 'DEFAULT',
+      originalNodes: nodesSource.map((n: any, i) => ({
+        index: i,
+        id: n.id,
+        type: n.type,
+        label: n.label,
+        hasData: !!n.data,
+        hasConfig: !!n.config,
+        dataLabel: n.data?.label,
+        dataConfig: n.data?.config,
+        nodeConfig: n.config,
+        dataConfigKeys: n.data?.config ? Object.keys(n.data.config) : [],
+        nodeConfigKeys: n.config ? Object.keys(n.config) : []
+      }))
+    })
 
-    return {
+    const normalizedNodes = nodesSource.map((node: any, index) => {
+      const result = {
+        ...node,
+        id: node.id || `node-${index + 1}`,
+        type: node.type,
+        data: node.data ?? {
+          label: node.data?.label ?? node.label ?? `节点 ${index + 1}`,
+          config: node.data?.config ?? node.config ?? {}
+        }
+      }
+
+      console.log(`🔄 [buildExecutionWorkflowPayload] 节点 ${index + 1} 规范化:`, {
+        original: {
+          id: node.id,
+          hasData: !!node.data,
+          hasConfig: !!node.config,
+          label: node.label,
+          config: node.config,
+          dataConfig: node.data?.config
+        },
+        normalized: {
+          id: result.id,
+          dataLabel: result.data.label,
+          dataConfig: result.data.config
+        }
+      })
+
+      return result
+    })
+
+    // 为每次执行生成唯一ID
+    const executionId = `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    const payload = {
       id: workflow.id,
+      executionId,
       title: workflow.name,
       description: workflow.summary,
       config: {
@@ -2180,15 +2827,67 @@ export default function StoragePage() {
         nodes: normalizedNodes
       }
     }
+
+    console.log('✅ [buildExecutionWorkflowPayload] 最终payload:', {
+      title: payload.title,
+      nodesCount: payload.config.nodes.length,
+      nodes: payload.config.nodes.map((n: any) => ({
+        id: n.id,
+        dataLabel: n.data?.label,
+        dataConfigKeys: n.data?.config ? Object.keys(n.data.config) : []
+      }))
+    })
+
+    return payload
   }
 
+  // 显示保存确认对话框
   const handleExecutionWorkflowUpdate = useCallback(
-    async (updatedWorkflow: ExecutionWorkflow) => {
-      // 所有在用户数据库中的工作流都是副本，可以直接保存
-      try {
+    async (updatedWorkflow: ExecutionWorkflow): Promise<void> => {
+      // 检查用户是否拥有这个工作流
+      const isOwned = createdWorkflows.some((wf) => wf.id === updatedWorkflow.id)
+
+      // 创建一个 Promise 来等待用户的选择
+      return new Promise((resolve, reject) => {
+        // 保存 resolve 和 reject 函数
+        setSavePromiseResolvers({ resolve: resolve as any, reject })
+
+        // 显示确认对话框
+        setSaveConfirmDialog({
+          visible: true,
+          workflow: updatedWorkflow,
+          isOwned
+        })
+      })
+    },
+    [createdWorkflows]
+  )
+
+  // 保存操作的 Promise resolve/reject 函数
+  const [savePromiseResolvers, setSavePromiseResolvers] = useState<{
+    resolve: ((value: boolean) => void) | null
+    reject: ((reason?: any) => void) | null
+  }>({ resolve: null, reject: null })
+
+  // 实际执行保存操作
+  const handleConfirmSave = async (action: 'update' | 'clone' | 'cancel') => {
+    const { workflow: updatedWorkflow, isOwned } = saveConfirmDialog
+
+    if (!updatedWorkflow || action === 'cancel') {
+      setSaveConfirmDialog({ visible: false, workflow: null, isOwned: false })
+      // 用户取消保存，拒绝 Promise
+      if (savePromiseResolvers.reject) {
+        savePromiseResolvers.reject(new Error('用户取消保存'))
+      }
+      setSavePromiseResolvers({ resolve: null, reject: null })
+      return
+    }
+
+    try {
+      if (action === 'update' && isOwned) {
+        // 直接更新已有工作流
         await updateWorkflow(updatedWorkflow.id, { config: updatedWorkflow.config })
 
-        // 只更新 createdWorkflows (用户拥有的工作流)
         setCreatedWorkflows((prev) =>
           prev.map((wf) =>
             wf.id === updatedWorkflow.id
@@ -2197,8 +2896,7 @@ export default function StoragePage() {
           )
         )
 
-        // 如果这个工作流也在收藏列表中,同步更新(保持数据一致性)
-        // 但收藏列表中的工作流配置更新不代表用户可以编辑它
+        // 如果这个工作流也在收藏列表中,同步更新
         const isFavorited = favoriteWorkflows.some((wf) => wf.id === updatedWorkflow.id)
         if (isFavorited) {
           setFavoriteWorkflows((prev) =>
@@ -2211,13 +2909,88 @@ export default function StoragePage() {
         }
 
         setSelectedWorkflowForExecution(updatedWorkflow)
-      } catch (error) {
-        console.error('保存工作流配置失败:', error)
-        throw error
+        console.log('✅ [StoragePage] 更新已有工作流:', updatedWorkflow.id)
+      } else if (action === 'clone') {
+        // 创建新工作流
+        console.log('📋 [StoragePage] 创建工作流副本...')
+
+        // 检查工作流是否存在于数据库中
+        const isLocalExample = !createdWorkflows.some((wf) => wf.id === updatedWorkflow.id) &&
+                               !favoriteWorkflows.some((wf) => wf.id === updatedWorkflow.id)
+
+        let newWorkflow: Workflow
+
+        if (isLocalExample) {
+          // 对于本地示例工作流,直接创建新的工作流
+          console.log('📋 [StoragePage] 本地示例工作流,直接创建...')
+
+          const createdWf = await createWorkflow({
+            title: `${updatedWorkflow.title} (我的副本)`,
+            description: updatedWorkflow.description || '',
+            category: '自定义',
+            tags: [],
+            config: updatedWorkflow.config,
+            isPublic: false
+          })
+
+          newWorkflow = createdWf
+        } else {
+          // 对于数据库中的工作流,使用克隆接口
+          console.log('📋 [StoragePage] 数据库工作流,使用克隆接口...')
+
+          const cloneResponse = await cloneWorkflow(
+            updatedWorkflow.id,
+            `${updatedWorkflow.title} (我的副本)`
+          )
+
+          // 从响应中提取工作流对象
+          const clonedWorkflow = cloneResponse.workflow
+
+          // 更新克隆工作流的配置
+          await updateWorkflow(clonedWorkflow.id, { config: updatedWorkflow.config })
+
+          // 获取更新后的完整工作流数据
+          newWorkflow = {
+            ...clonedWorkflow,
+            config: updatedWorkflow.config,
+            nodes: updatedWorkflow.config?.nodes
+          }
+        }
+
+        // 添加到"我创建的"列表
+        setCreatedWorkflows((prev) => [newWorkflow, ...prev])
+
+        // 更新执行面板显示的工作流为新克隆的
+        setSelectedWorkflowForExecution({
+          ...updatedWorkflow,
+          id: newWorkflow.id,
+          title: newWorkflow.title
+        })
+
+        console.log('✅ [StoragePage] 创建新工作流副本成功:', {
+          originalId: updatedWorkflow.id,
+          newId: newWorkflow.id,
+          title: newWorkflow.title,
+          isLocalExample
+        })
       }
-    },
-    [libraryData, createdWorkflows, favoriteWorkflows]
-  )
+
+      setSaveConfirmDialog({ visible: false, workflow: null, isOwned: false })
+      // 保存成功，解析 Promise
+      if (savePromiseResolvers.resolve) {
+        savePromiseResolvers.resolve(true)
+      }
+      setSavePromiseResolvers({ resolve: null, reject: null })
+    } catch (error) {
+      console.error('❌ [StoragePage] 保存工作流配置失败:', error)
+      alert('保存失败，请重试')
+      // 保存失败，拒绝 Promise
+      if (savePromiseResolvers.reject) {
+        savePromiseResolvers.reject(error)
+      }
+      setSavePromiseResolvers({ resolve: null, reject: null })
+    }
+  }
 
   const renderWorkflowCard = (card: WorkflowCanvasItem) => {
     const workflow = libraryData.find((item) => item.id === card.workflowId)
@@ -2225,9 +2998,9 @@ export default function StoragePage() {
 
     // 状态配置
     const statusConfig = {
-      active: { color: '#10b981', label: '运行中' },
-      draft: { color: '#f59e0b', label: '草稿' },
-      paused: { color: '#6b7280', label: '已暂停' }
+      active: { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', label: '运行中' },
+      draft: { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', label: '草稿' },
+      paused: { color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)', label: '已暂停' }
     }
     const status = workflow?.status || 'draft'
     const currentStatus = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft
@@ -2240,11 +3013,12 @@ export default function StoragePage() {
         className="workflow-card no-pan"
         key={card.id}
         onMouseDown={(event) => handleItemMouseDown(event, card.id)}
+        onContextMenu={(e) => handleContextMenu(e, card.id)}
         onDoubleClick={(e) => {
           e.stopPropagation()
           if (workflow) {
-            setSelectedExecutionItem(workflow)
-            setShowExecutionModal(true)
+            // 在新标签页打开工作流介绍页面
+            window.open(`/workflow-intro/${workflow.id}`, '_blank')
           }
         }}
         style={{
@@ -2253,9 +3027,9 @@ export default function StoragePage() {
           top: card.position.y,
           width: CARD_WIDTH,
           height: CARD_HEIGHT,
-          borderRadius: '8px',
-          border: '1px solid rgba(0, 0, 0, 0.08)',
-          backgroundColor: containerColor,
+          borderRadius: '12px',
+          border: isDragging ? '2px dashed rgba(139, 92, 246, 0.8)' : '2px dashed rgba(139, 92, 246, 0.3)',
+          background: '#ffffff',
           cursor: 'grab',
           padding: '12px',
           display: 'flex',
@@ -2263,61 +3037,129 @@ export default function StoragePage() {
           gap: '8px',
           userSelect: 'none',
           // 添加位置过渡动画（拖拽时不应用）
-          transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out',
+          transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out, box-shadow 0.2s, transform 0.2s, border 0.2s',
           boxShadow: isDragging
-            ? '0 8px 24px rgba(0, 0, 0, 0.15)'
-            : '0 2px 8px rgba(0, 0, 0, 0.08)',
-          zIndex: isDragging ? 1000 : 1
+            ? '0 8px 24px rgba(139, 92, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.05)'
+            : '0 2px 8px rgba(0, 0, 0, 0.04)',
+          zIndex: isDragging ? 1000 : 1,
+          transform: isDragging ? 'scale(1.02)' : 'scale(1)'
+        }}
+        onMouseEnter={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.border = '2px dashed rgba(139, 92, 246, 0.6)'
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(139, 92, 246, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06)'
+            e.currentTarget.style.transform = 'translateY(-2px)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.border = '2px dashed rgba(139, 92, 246, 0.3)'
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)'
+            e.currentTarget.style.transform = 'translateY(0)'
+          }
         }}
       >
-        {/* 标题行 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* 状态点 */}
-          <div style={{
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            backgroundColor: currentStatus.color,
-            flexShrink: 0
-          }} />
+        {/* 删除按钮 - 右上角 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleDeleteWorkflowCard(card.id)
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            border: 'none',
+            background: 'rgba(107, 114, 128, 0.1)',
+            color: '#6b7280',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            transition: 'all 0.2s',
+            zIndex: 10,
+            padding: 0
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#6b7280'
+            e.currentTarget.style.color = '#ffffff'
+            e.currentTarget.style.transform = 'scale(1.1)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(107, 114, 128, 0.1)'
+            e.currentTarget.style.color = '#6b7280'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          title="删除卡片"
+        >
+          ✕
+        </button>
 
-          {/* 标题 */}
+        {/* 标题行 */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          marginBottom: '2px',
+          paddingRight: '28px' // 为删除按钮留出空间
+        }}>
+          {/* 标题 + 状态标签 */}
           <h3 style={{
             margin: 0,
-            fontSize: '13px',
-            fontWeight: 600,
-            color: '#1f2937',
+            fontSize: '14px',
+            fontWeight: 700,
             lineHeight: 1.3,
             flex: 1,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}>
-            {workflow?.name ?? '工作流'}
+            <span style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 1,
+              minWidth: 0
+            }}>
+              {workflow?.name ?? '工作流'}
+            </span>
+            {/* 状态标签 */}
+            <span style={{
+              fontSize: '9px',
+              color: currentStatus.color,
+              backgroundColor: currentStatus.bgColor,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              padding: '2px 6px',
+              borderRadius: '4px'
+            }}>
+              {currentStatus.label}
+            </span>
           </h3>
-
-          {/* 状态标签 */}
-          <span style={{
-            fontSize: '10px',
-            color: currentStatus.color,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            flexShrink: 0
-          }}>
-            {currentStatus.label}
-          </span>
         </div>
 
         {/* 描述 */}
         <p style={{
           margin: 0,
-          fontSize: '12px',
-          color: '#6b7280',
+          fontSize: '11.5px',
+          color: '#4b5563',
           lineHeight: 1.5,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           display: '-webkit-box',
-          WebkitLineClamp: 3,
+          WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           flex: 1
         }}>
@@ -2325,18 +3167,19 @@ export default function StoragePage() {
         </p>
 
         {/* 底部标签和操作按钮 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: 'auto' }}>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', flex: 1 }}>
             {(workflow?.tags ?? ['workflow']).slice(0, 2).map((tag) => (
               <span
                 key={tag}
                 style={{
                   fontSize: '10px',
-                  padding: '3px 6px',
-                  borderRadius: '4px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(124, 58, 237, 0.15) 100%)',
                   color: '#7c3aed',
-                  fontWeight: 500
+                  fontWeight: 600,
+                  border: '1px solid rgba(139, 92, 246, 0.2)'
                 }}
               >
                 {tag}
@@ -2349,6 +3192,17 @@ export default function StoragePage() {
             onClick={(e) => {
               e.stopPropagation()
               if (workflow) {
+                console.log('🎯 [StoragePage] 点击执行按钮，工作流数据:', {
+                  id: workflow.id,
+                  name: workflow.name,
+                  hasConfig: !!workflow.config,
+                  hasNodes: !!workflow.nodes,
+                  configNodesCount: workflow.config?.nodes?.length || 0,
+                  nodesCount: workflow.nodes?.length || 0,
+                  configNodesJSON: JSON.stringify(workflow.config?.nodes, null, 2),
+                  nodesJSON: JSON.stringify(workflow.nodes, null, 2)
+                })
+
                 const executionPayload = buildExecutionWorkflowPayload(workflow)
                 setSelectedWorkflowForExecution(executionPayload)
                 setLeftPanelWidth(65) // 立即设置为65%，右侧面板35%
@@ -2356,25 +3210,28 @@ export default function StoragePage() {
               }
             }}
             style={{
-              padding: '4px 8px',
-              borderRadius: '4px',
+              padding: '6px 12px',
+              borderRadius: '8px',
               border: 'none',
-              backgroundColor: '#8b5cf6',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
               color: 'white',
               cursor: 'pointer',
-              fontSize: '10px',
-              fontWeight: 600,
+              fontSize: '11px',
+              fontWeight: 700,
               whiteSpace: 'nowrap',
               flexShrink: 0,
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#7c3aed'
+              e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)'
               e.currentTarget.style.transform = 'scale(1.05)'
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#8b5cf6'
+              e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
               e.currentTarget.style.transform = 'scale(1)'
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.25)'
             }}
           >
             执行 ▶
@@ -2384,122 +3241,170 @@ export default function StoragePage() {
     )
   }
 
-  const renderAIToolCard = (card: AIToolCanvasItem) => {
-    const tool = aiToolsData.find((item) => item.id === card.toolId)
+  const renderToolLinkCard = (card: ToolLinkCanvasItem) => {
     const isDragging = draggingItemId === card.id
-    const isInRoot = card.parentId === ROOT_CONTAINER_ID
-    const containerColor = isInRoot ? 'rgba(0, 0, 0, 0.15)' : getRootContainerColor(canvasItems, card.parentId)
+    const TOOL_CARD_SIZE = 70  // 正方形尺寸，缩小一半
+
     return (
       <div
-        className="ai-tool-card no-pan"
+        className="tool-link-card no-pan"
         key={card.id}
         onMouseDown={(event) => handleItemMouseDown(event, card.id)}
         onDoubleClick={(e) => {
           e.stopPropagation()
-          if (tool) {
-            setSelectedExecutionItem(tool)
-            setShowExecutionModal(true)
-          }
+          window.open(card.url, '_blank')
         }}
         style={{
           position: 'absolute',
           left: card.position.x,
           top: card.position.y,
-          width: CARD_WIDTH,
-          height: CARD_HEIGHT,
+          width: TOOL_CARD_SIZE,
+          height: TOOL_CARD_SIZE,
           borderRadius: '8px',
-          border: '1px solid rgba(0, 0, 0, 0.08)',
-          backgroundColor: containerColor,
+          background: `
+            linear-gradient(180deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 50%),
+            linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+          `,
           cursor: 'grab',
-          padding: '12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
-          userSelect: 'none',
-          // 添加位置过渡动画（拖拽时不应用）
-          transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '4px',
+          padding: '8px',
           boxShadow: isDragging
-            ? '0 8px 24px rgba(0, 0, 0, 0.15)'
-            : '0 2px 8px rgba(0, 0, 0, 0.08)',
-          zIndex: isDragging ? 1000 : 1
+            ? `
+              inset 0 1px 0 rgba(255, 255, 255, 0.3),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.2),
+              0 4px 0 0 rgba(103, 126, 234, 0.5),
+              0 6px 12px rgba(0, 0, 0, 0.3)
+            `
+            : `
+              inset 0 1px 0 rgba(255, 255, 255, 0.4),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.15),
+              0 3px 0 0 rgba(103, 126, 234, 0.4),
+              0 4px 8px rgba(0, 0, 0, 0.2)
+            `,
+          transform: isDragging ? 'translateY(1px)' : 'translateY(0)',
+          transition: isDragging ? 'none' : 'left 0.3s, top 0.3s, transform 0.2s, box-shadow 0.2s',
+          zIndex: isDragging ? 1000 : 1,
+          userSelect: 'none',
+          border: '1px solid rgba(255, 255, 255, 0.2)'
+        }}
+        onMouseEnter={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.boxShadow = `
+              inset 0 1px 0 rgba(255, 255, 255, 0.5),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.15),
+              0 4px 0 0 rgba(103, 126, 234, 0.5),
+              0 6px 12px rgba(0, 0, 0, 0.3)
+            `
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = `
+              inset 0 1px 0 rgba(255, 255, 255, 0.4),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.15),
+              0 3px 0 0 rgba(103, 126, 234, 0.4),
+              0 4px 8px rgba(0, 0, 0, 0.2)
+            `
+          }
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(124, 58, 237, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '10px',
-              fontWeight: 700,
-              color: '#7c3aed'
-            }}
-          >
-            AI
-          </div>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: '13px',
-              fontWeight: 600,
-              color: '#1f2937',
-              flex: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {tool?.name ?? 'AI 工具'}
-          </h3>
-          <span
-            style={{
-              fontSize: '10px',
-              color: '#7c3aed',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              flexShrink: 0
-            }}
-          >
-            {tool?.provider ?? '自定义'}
-          </span>
-        </div>
-        <p
-          style={{
-            margin: 0,
-            fontSize: '12px',
-            color: '#6b7280',
-            lineHeight: 1.5,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-            flex: 1
+        {/* 删除按钮 - 右上角 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleDeleteToolCard(card.id)
           }}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '4px',
+            right: '4px',
+            width: '16px',
+            height: '16px',
+            borderRadius: '3px',
+            border: 'none',
+            background: 'rgba(255, 255, 255, 0.2)',
+            color: '#ffffff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            transition: 'all 0.2s',
+            zIndex: 10,
+            padding: 0,
+            opacity: 0.7
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)'
+            e.currentTarget.style.opacity = '1'
+            e.currentTarget.style.transform = 'scale(1.1)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+            e.currentTarget.style.opacity = '0.7'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          title="删除工具"
         >
-          {tool?.summary ?? '拖拽的 AI 工具卡片'}
-        </p>
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {(tool?.tags ?? ['ai']).slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              style={{
-                fontSize: '10px',
-                padding: '3px 6px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(124, 58, 237, 0.12)',
-                color: '#7c3aed',
-                fontWeight: 500
-              }}
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
+          ✕
+        </button>
+
+        {/* Logo - 使用网站favicon */}
+        {(() => {
+          try {
+            const url = new URL(card.url)
+            const faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=24`
+            return (
+              <img
+                src={faviconUrl}
+                alt={card.name}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  padding: '2px',
+                  filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2))',
+                  objectFit: 'contain'
+                }}
+                onError={(e) => {
+                  // 如果favicon加载失败，隐藏图片
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+            )
+          } catch {
+            // URL解析失败，不显示logo
+            return null
+          }
+        })()}
+
+        {/* 工具名称 */}
+        <h3 style={{
+          margin: 0,
+          fontSize: '10px',
+          fontWeight: '700',
+          color: 'white',
+          textAlign: 'center',
+          textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          width: '100%',
+          lineHeight: 1.2
+        }}>
+          {card.name}
+        </h3>
       </div>
     )
   }
@@ -2518,8 +3423,8 @@ export default function StoragePage() {
       if (item.type === 'workflow') {
         return renderWorkflowCard(item)
       }
-      if (item.type === 'ai-tool') {
-        return renderAIToolCard(item)
+      if (item.type === 'tool-link') {
+        return renderToolLinkCard(item)
       }
       return renderContainer(item)
     })
@@ -2543,14 +3448,15 @@ export default function StoragePage() {
           width: outerWidth,
           height: outerHeight,
           userSelect: 'none',
-          backgroundColor: 'rgba(0, 0, 0, 0.1)',
-          borderRadius: '8px',
+          backgroundColor: '#ffffff',
+          border: isDragging ? '2px dashed rgba(139, 92, 246, 0.8)' : '2px dashed rgba(139, 92, 246, 0.3)',
+          borderRadius: '12px',
           overflow: container.collapsed ? 'hidden' : 'visible',
           // 添加位置过渡动画（拖拽时不应用）
-          transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out',
+          transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out, border 0.2s, box-shadow 0.2s',
           boxShadow: isDragging
-            ? '0 10px 30px rgba(0, 0, 0, 0.2)'
-            : '0 2px 8px rgba(0, 0, 0, 0.08)',
+            ? '0 8px 24px rgba(139, 92, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.05)'
+            : '0 2px 8px rgba(0, 0, 0, 0.04)',
           zIndex: isDragging ? 1000 : 1
         }}
       >
@@ -2562,10 +3468,11 @@ export default function StoragePage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 10px',
+            padding: '0 12px',
             cursor: 'grab',
-            backgroundColor: container.color,
-            borderBottom: container.collapsed ? 'none' : '1px dashed rgba(107, 114, 128, 0.4)'
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(124, 58, 237, 0.05) 100%)',
+            borderBottom: container.collapsed ? 'none' : '1px dashed rgba(139, 92, 246, 0.2)',
+            borderRadius: '10px 10px 0 0'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2577,10 +3484,17 @@ export default function StoragePage() {
                 background: 'transparent',
                 cursor: 'pointer',
                 fontSize: '14px',
-                color: '#6b7280',
-                padding: 0
+                color: '#8b5cf6',
+                padding: 0,
+                transition: 'color 0.2s'
               }}
               title={container.collapsed ? '展开容器' : '折叠容器'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#7c3aed'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#8b5cf6'
+              }}
             >
               {container.collapsed ? '▸' : '▾'}
             </button>
@@ -2608,10 +3522,10 @@ export default function StoragePage() {
                 }}
                 style={{
                   fontSize: '13px',
-                  fontWeight: 600,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
+                  fontWeight: 700,
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: '6px',
+                  padding: '2px 8px',
                   outline: 'none',
                   backgroundColor: '#ffffff'
                 }}
@@ -2619,13 +3533,21 @@ export default function StoragePage() {
             ) : (
               <span
                 onDoubleClick={() => handleStartRename(container.id, container.name)}
-                style={{ fontSize: '13px', fontWeight: 600, color: '#374151', cursor: 'text' }}
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  cursor: 'text'
+                }}
                 title="双击重命名容器"
               >
                 {container.name}
               </span>
             )}
-            <span style={{ fontSize: '11px', color: '#9ca3af' }}>({container.childrenIds.length})</span>
+            <span style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: 600 }}>({container.childrenIds.length})</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {/* 取出容器按钮 */}
@@ -2644,17 +3566,20 @@ export default function StoragePage() {
                   background: 'transparent',
                   cursor: 'pointer',
                   fontSize: '11px',
-                  color: '#6b7280',
-                  padding: '2px 4px',
-                  borderRadius: '4px',
-                  transition: 'color 0.2s'
+                  color: '#8b5cf6',
+                  padding: '2px 6px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                  fontWeight: 600
                 }}
                 title="取出到画布根层"
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#3b82f6'
+                  e.currentTarget.style.color = '#ffffff'
+                  e.currentTarget.style.background = '#8b5cf6'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#6b7280'
+                  e.currentTarget.style.color = '#8b5cf6'
+                  e.currentTarget.style.background = 'transparent'
                 }}
               >
                 独立
@@ -2678,18 +3603,21 @@ export default function StoragePage() {
                 background: 'transparent',
                 cursor: 'pointer',
                 fontSize: '16px',
-                color: '#6b7280',
-                padding: '2px 4px',
-                borderRadius: '4px',
-                transition: 'color 0.2s',
-                lineHeight: 1
+                color: '#ef4444',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                lineHeight: 1,
+                fontWeight: 600
               }}
               title="删除容器"
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#ef4444'
+                e.currentTarget.style.color = '#ffffff'
+                e.currentTarget.style.background = '#ef4444'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#6b7280'
+                e.currentTarget.style.color = '#ef4444'
+                e.currentTarget.style.background = 'transparent'
               }}
             >
               ✕
@@ -2723,6 +3651,43 @@ export default function StoragePage() {
                 拖拽工作流或子容器到这里
               </div>
             )}
+
+            {/* 右下角调整大小手柄 */}
+            <div
+              className="no-pan"
+              onMouseDown={(event) => handleResizeMouseDown(event, container.id)}
+              style={{
+                position: 'absolute',
+                right: 0,
+                bottom: 0,
+                width: '20px',
+                height: '20px',
+                cursor: 'nwse-resize',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: resizingContainerId === container.id ? 1 : 0.3,
+                transition: 'opacity 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (resizingContainerId !== container.id) {
+                  e.currentTarget.style.opacity = '0.3'
+                }
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M14 10L10 14M14 6L6 14M14 2L2 14"
+                  stroke="#8b5cf6"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
           </div>
         )}
       </div>
@@ -2797,9 +3762,12 @@ export default function StoragePage() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+            justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
             padding: '16px',
-            borderBottom: '1px solid #e5e7eb'
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #f5f3ff 100%)',
+            borderRadius: '12px',
+            margin: '12px',
+            boxShadow: '0 2px 8px rgba(139, 92, 246, 0.08)'
           }}
           onWheel={(e) => {
             // 冻结工作流库标题区域，阻止滚动事件冒泡
@@ -2810,90 +3778,10 @@ export default function StoragePage() {
           {!sidebarCollapsed && (
             <div>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>工作流库</h2>
-              <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>拖拽到画布以引用已有工作流</p>
             </div>
           )}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
-              style={{
-                border: '1px solid #c4b5fd',
-                backgroundColor: '#f5f3ff',
-                borderRadius: '8px',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#7c3aed'
-              }}
-              title={sidebarCollapsed ? '展开工作流库' : '折叠工作流库'}
-            >
-              {sidebarCollapsed ? '◀' : '▶'}
-            </button>
-          </div>
         </div>
 
-        {!sidebarCollapsed && (
-          <div
-            style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}
-            onWheel={(e) => {
-              // 冻结搜索框区域，阻止滚动事件冒泡
-              e.stopPropagation()
-              e.preventDefault()
-            }}
-          >
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input
-                type="text"
-                value={librarySearch}
-                placeholder="搜索工作流、标签或描述"
-                onChange={(event) => setLibrarySearch(event.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '13px',
-                  backgroundColor: '#fafafa'
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setExecutionHistoryExpanded(!executionHistoryExpanded)}
-                style={{
-                  border: '1px solid #8b5cf6',
-                  backgroundColor: executionHistoryExpanded ? '#ede9fe' : '#f5f3ff',
-                  borderRadius: '10px',
-                  width: '42px',
-                  height: '42px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#8b5cf6',
-                  flexShrink: 0,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ede9fe'
-                  e.currentTarget.style.borderColor = '#7c3aed'
-                  e.currentTarget.style.color = '#7c3aed'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = executionHistoryExpanded ? '#ede9fe' : '#f5f3ff'
-                  e.currentTarget.style.borderColor = '#8b5cf6'
-                  e.currentTarget.style.color = '#8b5cf6'
-                }}
-                title={executionHistoryExpanded ? '收起执行历史' : '展开执行历史'}
-              >
-                <Clock size={20} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* 执行历史列表 */}
         {!sidebarCollapsed && executionHistoryExpanded && (
@@ -3142,406 +4030,31 @@ export default function StoragePage() {
           </div>
         )}
 
-        {!sidebarCollapsed && (
-          <div
-            className="workflow-library-list"
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              padding: '0 16px 24px',
-              minHeight: 0
-            }}
-            onWheel={(e) => {
-              // 允许列表区域滚动，阻止事件冒泡到外层
-              e.stopPropagation()
-            }}
-          >
-            {/* 我的工作布局区域 */}
-            <div style={{ marginTop: '18px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setLayoutSectionExpanded(!layoutSectionExpanded)
-                  setActiveHeaderSection('layout')
-                }}
-                style={{
-                  width: '100%',
-                  border: activeHeaderSection === 'layout' ? '1px solid rgba(0, 0, 0, 0.1)' : 'none',
-                  backgroundColor: activeHeaderSection === 'layout' ? 'rgba(0, 0, 0, 0.08)' : 'transparent',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  color: '#4b5563',
-                  padding: activeHeaderSection === 'layout' ? '8px 10px' : '6px 4px',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (activeHeaderSection === 'layout') {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.12)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeHeaderSection === 'layout') {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'
-                  }
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>我的工作布局</div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>画布中的容器和工作流</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                  {layoutSectionExpanded ? '收起' : '展开'}
-                </span>
-              </button>
-
-              {layoutSectionExpanded && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {(() => {
-                    const renderContainerTree = (containerId: string, level: number = 0): React.ReactElement[] => {
-                      const container = getContainer(canvasItems, containerId)
-                      if (!container) return []
-
-                      const elements: React.ReactElement[] = []
-
-                      // 只显示非根容器
-                      if (containerId !== ROOT_CONTAINER_ID) {
-                        elements.push(
-                          <div
-                            key={containerId}
-                            style={{
-                              marginLeft: `${level * 12 + 12}px`,
-                              padding: '6px 8px',
-                              borderRadius: '6px',
-                              backgroundColor: '#f9fafb',
-                              border: '1px solid #e5e7eb',
-                              fontSize: '13px',
-                              color: '#374151',
-                              fontWeight: 600
-                            }}
-                          >
-                            {container.name} ({container.childrenIds.length})
-                          </div>
-                        )
-                      }
-
-                      // 渲染子项
-                      for (const childId of container.childrenIds) {
-                        const child = canvasItems[childId]
-                        if (!child) continue
-
-                        if (child.type === 'container') {
-                          // 递归渲染子容器
-                          elements.push(...renderContainerTree(childId, containerId === ROOT_CONTAINER_ID ? level : level + 1))
-                        } else if (child.type === 'workflow') {
-                          // 渲染工作流
-                          const workflow = libraryData.find((item) => item.id === child.workflowId)
-                          elements.push(
-                            <div
-                              key={childId}
-                              style={{
-                                marginLeft: `${(containerId === ROOT_CONTAINER_ID ? level : level + 1) * 12 + 20}px`,
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                backgroundColor: '#ffffff',
-                                border: '1px solid #e5e7eb',
-                                fontSize: '12px',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                              }}
-                            >
-                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {workflow?.name ?? '工作流'}
-                              </span>
-                            </div>
-                          )
-                        }
-                      }
-
-                      return elements
-                    }
-
-                    const treeElements = renderContainerTree(ROOT_CONTAINER_ID)
-                    return treeElements.length > 0 ? (
-                      treeElements
-                    ) : (
-                      <div
-                        style={{
-                          borderRadius: '12px',
-                          border: '1px dashed #d1d5db',
-                          padding: '14px',
-                          textAlign: 'center',
-                          fontSize: '12px',
-                          color: '#9ca3af'
-                        }}
-                      >
-                        暂无布局内容，请从下方拖拽工作流到画布
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* 工作流库区域 */}
-            {(Object.keys(SECTION_META) as LibrarySection[]).map((sectionKey) => {
-              const workflows = sectionedLibrary[sectionKey] || []
-              const meta = SECTION_META[sectionKey]
-
-              return (
-                <div key={sectionKey} style={{ marginTop: '18px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toggleSection(sectionKey)
-                      setActiveHeaderSection(sectionKey)
-                    }}
-                    style={{
-                      width: '100%',
-                      border: activeHeaderSection === sectionKey ? '1px solid rgba(0, 0, 0, 0.1)' : 'none',
-                      backgroundColor: activeHeaderSection === sectionKey ? 'rgba(0, 0, 0, 0.08)' : 'transparent',
-                      borderRadius: '6px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      color: '#4b5563',
-                      padding: activeHeaderSection === sectionKey ? '8px 10px' : '6px 4px',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (activeHeaderSection === sectionKey) {
-                        e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.12)'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeHeaderSection === sectionKey) {
-                        e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'
-                      }
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>{meta.label}</div>
-                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>{meta.description}</div>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                      {activeSections[sectionKey] ? '收起' : '展开'}
-                    </span>
-                  </button>
-
-                  {activeSections[sectionKey] && (
-                    <div style={{ marginTop: '8px', marginLeft: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {workflows.length === 0 && (
-                        <div
-                          style={{
-                            borderRadius: '6px',
-                            border: '1px dashed #d1d5db',
-                            padding: '12px',
-                            textAlign: 'center',
-                            fontSize: '12px',
-                            color: '#9ca3af'
-                          }}
-                        >
-                          暂无数据
-                        </div>
-                      )}
-                      {workflows.map((workflow) => (
-                        <div
-                          key={workflow.id}
-                          draggable
-                          onDragStart={() => handleLibraryDragStart(workflow.id)}
-                          onDragEnd={handleLibraryDragEnd}
-                          style={{
-                            borderRadius: '6px',
-                            border: libraryDraggingId === workflow.id ? '1px solid #8b5cf6' : '1px solid rgba(0, 0, 0, 0.06)',
-                            backgroundColor: libraryDraggingId === workflow.id ? 'rgba(139, 92, 246, 0.05)' : '#ffffff',
-                            padding: '8px 10px',
-                            cursor: 'grab',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (libraryDraggingId !== workflow.id) {
-                              e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.02)'
-                              e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (libraryDraggingId !== workflow.id) {
-                              e.currentTarget.style.backgroundColor = '#ffffff'
-                              e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)'
-                            }
-                          }}
-                        >
-                          {/* 左侧状态点 */}
-                          <div style={{
-                            width: '4px',
-                            height: '4px',
-                            borderRadius: '50%',
-                            backgroundColor: workflow.status === 'active' ? '#10b981' : workflow.status === 'draft' ? '#f59e0b' : '#9ca3af',
-                            flexShrink: 0
-                          }} />
-
-                          {/* 标题 */}
-                          <span style={{
-                            fontSize: '13px',
-                            fontWeight: 500,
-                            color: '#1f2937',
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {workflow.name}
-                          </span>
-
-                          {/* 日期 */}
-                          <span style={{
-                            fontSize: '11px',
-                            color: '#9ca3af',
-                            flexShrink: 0
-                          }}>
-                            {workflow.updatedAt}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {/* AI工具区域 */}
-            <div style={{ marginTop: '18px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setAIToolsSectionExpanded(!aiToolsSectionExpanded)
-                  setActiveHeaderSection('ai-tools')
-                }}
-                style={{
-                  width: '100%',
-                  border: activeHeaderSection === 'ai-tools' ? '1px solid rgba(0, 0, 0, 0.1)' : 'none',
-                  backgroundColor: activeHeaderSection === 'ai-tools' ? 'rgba(0, 0, 0, 0.08)' : 'transparent',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  color: '#4b5563',
-                  padding: activeHeaderSection === 'ai-tools' ? '8px 10px' : '6px 4px',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (activeHeaderSection === 'ai-tools') {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.12)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeHeaderSection === 'ai-tools') {
-                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'
-                  }
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>AI工具</div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>可用的AI模型和工具</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                  {aiToolsSectionExpanded ? '收起' : '展开'}
-                </span>
-              </button>
-
-              {aiToolsSectionExpanded && (
-                <div style={{ marginTop: '8px', marginLeft: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {(aiToolsData || []).map((tool) => (
-                    <div
-                      key={tool.id}
-                      draggable
-                      onDragStart={() => handleLibraryDragStart(tool.id)}
-                      onDragEnd={handleLibraryDragEnd}
-                      style={{
-                        borderRadius: '6px',
-                        border: libraryDraggingId === tool.id ? '1px solid #8b5cf6' : '1px solid rgba(0, 0, 0, 0.06)',
-                        backgroundColor: libraryDraggingId === tool.id ? 'rgba(139, 92, 246, 0.05)' : '#ffffff',
-                        padding: '8px 10px',
-                        cursor: 'grab',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (libraryDraggingId !== tool.id) {
-                          e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.02)'
-                          e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (libraryDraggingId !== tool.id) {
-                          e.currentTarget.style.backgroundColor = '#ffffff'
-                          e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)'
-                        }
-                      }}
-                    >
-                      {/* 左侧AI图标 */}
-                      <div style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '4px',
-                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        color: '#8b5cf6',
-                        flexShrink: 0
-                      }}>
-                        AI
-                      </div>
-
-                      {/* 标题 */}
-                      <span style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: '#1f2937',
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {tool.name}
-                      </span>
-
-                      {/* Provider */}
-                      <span style={{
-                        fontSize: '10px',
-                        color: '#9ca3af',
-                        flexShrink: 0
-                      }}>
-                        {tool.provider}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div
+          className="workflow-library-list"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '0 16px 24px',
+            minHeight: 0,
+            display: sidebarCollapsed ? 'none' : 'block'
+          }}
+          onWheel={(e) => {
+            // 允许列表区域滚动，阻止事件冒泡到外层
+            e.stopPropagation()
+          }}
+        >
+          {/* 工作流库区域 - 使用新的NavigationSidebar组件 */}
+          <div style={{ marginTop: '18px' }}>
+            <NavigationSidebar
+              onWorkflowDragStart={handleLibraryDragStart}
+              onWorkflowDragEnd={handleLibraryDragEnd}
+              canvasItems={canvasItems}
+              libraryData={libraryData}
+            />
           </div>
-        )}
+        </div>
       </aside>
 
       <main
@@ -3621,13 +4134,13 @@ export default function StoragePage() {
             flexShrink: 0
           }}
           onWheel={(e) => {
-            // 冻结工作流画布管理标题区域，阻止滚动事件冒泡
+            // 冻结工作画布标题区域，阻止滚动事件冒泡
             e.stopPropagation()
             e.preventDefault()
           }}
         >
           <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#1f2937' }}>工作流画布管理</h1>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#1f2937' }}>工作画布</h1>
             <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
               拖拽工作流卡片，在画布中按业务团队或模块进行可视化分组。
             </p>
@@ -3758,21 +4271,41 @@ export default function StoragePage() {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleCreateContainer}
-              style={{
-                padding: '10px 14px',
-                borderRadius: '10px',
-                border: '1px solid #c4b5fd',
-                backgroundColor: '#f5f3ff',
-                color: '#5b21b6',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            >
-              新建容器
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleCreateContainer}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #c4b5fd',
+                  backgroundColor: '#f5f3ff',
+                  color: '#5b21b6',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                新建容器
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowToolModal(true)}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #fed7aa',
+                  backgroundColor: '#fef3c7',
+                  color: '#92400e',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+                title="添加工具链接到画布"
+              >
+                添加工具
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3831,7 +4364,7 @@ export default function StoragePage() {
               allowRightClickPan: false,
               activationKeys: ['Space'],
               wheelPanning: true,
-              excluded: ['.no-pan']
+              excluded: ['no-pan']
             }}
             smooth={true}
             alignmentAnimation={{
@@ -3906,17 +4439,6 @@ export default function StoragePage() {
           </TransformWrapper>
         </div>
       </main>
-
-      {/* 工作流执行弹窗 */}
-      {showExecutionModal && selectedExecutionItem && (
-        <WorkflowExecutionModal
-          item={selectedExecutionItem}
-          onClose={() => {
-            setShowExecutionModal(false)
-            setSelectedExecutionItem(null)
-          }}
-        />
-      )}
 
       {/* 右侧执行面板触发器 - 继续 */}
       {selectedWorkflowForExecution && !showStepByStepExecution && (
@@ -4014,11 +4536,502 @@ export default function StoragePage() {
         </>
       )}
 
+      {/* 右键菜单 */}
+      {contextMenu.visible && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            backgroundColor: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            zIndex: 10000,
+            minWidth: '140px',
+            overflow: 'hidden'
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleCopyItem()
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#374151',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f3f4f6'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
+            📋 制作副本
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeleteItem()
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontSize: '14px',
+              color: '#dc2626',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#fef2f2'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
+            🗑️ 删除
+          </button>
+        </div>
+      )}
+
+      {/* 保存工作流确认对话框 */}
+      {saveConfirmDialog.visible && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10001
+          }}
+          onClick={() => handleConfirmSave('cancel')}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '480px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <h3
+              style={{
+                margin: '0 0 16px 0',
+                fontSize: '18px',
+                fontWeight: 600,
+                color: '#1f2937'
+              }}
+            >
+              {saveConfirmDialog.isOwned ? '保存工作流' : '创建工作流副本'}
+            </h3>
+            <p
+              style={{
+                margin: '0 0 24px 0',
+                fontSize: '14px',
+                color: '#6b7280',
+                lineHeight: '1.6'
+              }}
+            >
+              {saveConfirmDialog.isOwned
+                ? '您正在修改自己的工作流，请选择保存方式：'
+                : '此工作流由他人创建，您无法直接修改。是否创建一个属于您的副本？'}
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'flex-end'
+              }}
+            >
+              <button
+                onClick={() => handleConfirmSave('cancel')}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f9fafb'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white'
+                }}
+              >
+                取消
+              </button>
+              {saveConfirmDialog.isOwned && (
+                <button
+                  onClick={() => handleConfirmSave('update')}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    backgroundColor: '#8b5cf6',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#7c3aed'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#8b5cf6'
+                  }}
+                >
+                  更新现有工作流
+                </button>
+              )}
+              <button
+                onClick={() => handleConfirmSave('clone')}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  backgroundColor: saveConfirmDialog.isOwned ? '#10b981' : '#8b5cf6',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = saveConfirmDialog.isOwned
+                    ? '#059669'
+                    : '#7c3aed'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = saveConfirmDialog.isOwned
+                    ? '#10b981'
+                    : '#8b5cf6'
+                }}
+              >
+                {saveConfirmDialog.isOwned ? '创建新工作流' : '创建我的副本'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 执行历史模态框 */}
       <ExecutionHistoryModal
         isOpen={showExecutionHistoryModal}
         onClose={() => setShowExecutionHistoryModal(false)}
       />
+
+      {/* 工具添加模态框 */}
+      {showToolModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => {
+            setShowToolModal(false)
+            setToolFormData({
+              url: '',
+              name: '',
+              description: ''
+            })
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: '420px',
+              maxWidth: '500px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: '0 0 16px 0',
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1f2937'
+            }}>
+              添加工具链接
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* URL输入 - 必填 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '6px'
+                }}>
+                  工具链接 <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="url"
+                  value={toolFormData.url}
+                  onChange={(e) => setToolFormData({ ...toolFormData, url: e.target.value })}
+                  placeholder="https://example.com"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+              </div>
+
+              {/* 工具名称 - 可选 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '6px'
+                }}>
+                  工具名称 <span style={{ fontSize: '12px', color: '#9ca3af' }}>(选填，留空自动从URL提取)</span>
+                </label>
+                <input
+                  type="text"
+                  value={toolFormData.name}
+                  onChange={(e) => setToolFormData({ ...toolFormData, name: e.target.value })}
+                  placeholder="例如：ChatGPT、Notion"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+              </div>
+
+              {/* 描述 - 可选 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#374151',
+                  marginBottom: '6px'
+                }}>
+                  描述 <span style={{ fontSize: '12px', color: '#9ca3af' }}>(选填)</span>
+                </label>
+                <textarea
+                  value={toolFormData.description}
+                  onChange={(e) => setToolFormData({ ...toolFormData, description: e.target.value })}
+                  placeholder="简短描述这个工具的用途"
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+              </div>
+            </div>
+
+            {/* 按钮 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              marginTop: '20px'
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowToolModal(false)
+                  setToolFormData({
+                    url: '',
+                    name: '',
+                    description: ''
+                  })
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleAddTool}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认对话框 */}
+      {deleteConfirmDialog.visible && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => setDeleteConfirmDialog({ visible: false, cardId: null })}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: '320px',
+              maxWidth: '400px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: '0 0 12px 0',
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1f2937'
+            }}>
+              删除工作流卡片
+            </h3>
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '14px',
+              color: '#6b7280',
+              lineHeight: 1.5
+            }}>
+              确定要删除这个工作流卡片吗？此操作不会删除工作流本身，您可以随时从工作流库重新添加。
+            </p>
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setDeleteConfirmDialog({ visible: false, cardId: null })}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteWorkflowCard}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#dc2626'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ef4444'
+                }}
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   )

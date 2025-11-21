@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
+import { AuthenticatedRequest, authenticateToken, optionalAuthenticateToken } from '../middleware/auth'
 import { Response } from 'express'
 import prisma from '../utils/database'
 import { WorkflowTemplateService } from '../services/workflowTemplateService'
@@ -213,9 +213,9 @@ router.get('/my', authenticateToken, async (req: AuthenticatedRequest, res: Resp
   }
 })
 
-// 获取工作流详情（不需要认证）
+// 获取工作流详情（使用可选认证）
 // 注意: 此路由会匹配所有GET请求，因此特定路由(如/executions, /templates等)应定义在此路由之前
-router.get('/:id', async (req, res: Response, next) => {
+router.get('/:id', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params
 
@@ -275,9 +275,13 @@ router.get('/:id', async (req, res: Response, next) => {
 
     // 检查是否为私有工作流
     if (!workflow.isPublic) {
-      return res.status(403).json({
-        error: '无权访问此工作流'
-      })
+      // 如果是私有工作流，检查用户是否是作者
+      const userId = req.user?.id
+      if (!userId || userId !== workflow.authorId) {
+        return res.status(403).json({
+          error: '无权访问此工作流'
+        })
+      }
     }
 
     res.status(200).json({
@@ -302,6 +306,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
       tags,
       config,
       isPublic = false,
+      isDraft = false,
       sourceType,
       sourceUrl,
       sourceContent,
@@ -321,6 +326,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         tags: Array.isArray(tags) ? tags.join(',') : (tags || null),
         config,
         isPublic,
+        isDraft,
         authorId: userId,
         // 保存原始来源信息
         sourceType: sourceType || null,
@@ -462,7 +468,7 @@ router.post('/:id/clone', authenticateToken, async (req: AuthenticatedRequest, r
   try {
     const userId = req.user!.id
     const { id: workflowId } = req.params
-    const { customTitle } = req.body // 可选：自定义标题
+    const { customTitle } = req.body || {} // 可选：自定义标题
 
     // 1. 获取原工作流的完整信息
     const originalWorkflow = await prisma.workflow.findUnique({
@@ -2337,6 +2343,193 @@ router.post('/proxy-image', authenticateToken, async (req: AuthenticatedRequest,
     res.status(500).json({
       error: '图片下载失败: ' + error.message
     })
+  }
+})
+
+/**
+ * 搜索工作流（增强版）
+ * GET /api/workflows/search
+ */
+router.get('/search', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id
+    const {
+      q,              // 搜索关键词
+      status,         // 'draft' | 'published' | 'all'
+      source,         // 'own' | 'favorite' | 'public' | 'team'
+      days,           // 最近N天
+      sortBy = 'relevance', // 'relevance' | 'lastUsed' | 'useCount' | 'created'
+      limit = 20,
+      offset = 0
+    } = req.query
+
+    const searchQuery = (q as string || '').trim()
+
+    // 基础查询条件
+    const where: any = {}
+    const orderBy: any = []
+
+    // 状态过滤
+    if (status === 'draft') {
+      where.isDraft = true
+    } else if (status === 'published') {
+      where.isDraft = false
+    }
+
+    // 来源过滤
+    if (source === 'own' && userId) {
+      where.authorId = userId
+    } else if (source === 'favorite' && userId) {
+      where.favorites = {
+        some: {
+          userId
+        }
+      }
+    } else if (source === 'public') {
+      where.isPublic = true
+    } else if (source === 'team') {
+      // TODO: 实现团队过滤逻辑
+    }
+
+    // 时间过滤
+    if (days && userId) {
+      const daysAgo = new Date()
+      daysAgo.setDate(daysAgo.getDate() - Number(days))
+
+      where.executions = {
+        some: {
+          userId,
+          startedAt: {
+            gte: daysAgo
+          }
+        }
+      }
+    }
+
+    // 搜索关键词过滤
+    if (searchQuery) {
+      where.OR = [
+        { title: { contains: searchQuery, mode: 'insensitive' } },
+        { description: { contains: searchQuery, mode: 'insensitive' } },
+        { tags: { contains: searchQuery, mode: 'insensitive' } },
+        { category: { contains: searchQuery, mode: 'insensitive' } }
+      ]
+    }
+
+    // 排序
+    if (sortBy === 'lastUsed') {
+      orderBy.push({ updatedAt: 'desc' })
+    } else if (sortBy === 'useCount') {
+      orderBy.push({ usageCount: 'desc' })
+    } else if (sortBy === 'created') {
+      orderBy.push({ createdAt: 'desc' })
+    } else {
+      // relevance - 优先按评分，然后使用次数
+      orderBy.push({ rating: 'desc' })
+      orderBy.push({ usageCount: 'desc' })
+    }
+
+    const workflows = await prisma.workflow.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnail: true,
+        category: true,
+        tags: true,
+        isDraft: true,
+        isPublic: true,
+        usageCount: true,
+        rating: true,
+        createdAt: true,
+        updatedAt: true,
+        authorId: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true
+          }
+        },
+        _count: {
+          select: {
+            executions: true,
+            favorites: true
+          }
+        },
+        executions: userId ? {
+          where: {
+            userId
+          },
+          orderBy: {
+            startedAt: 'desc'
+          },
+          take: 1,
+          select: {
+            startedAt: true
+          }
+        } : undefined
+      },
+      orderBy,
+      skip: Number(offset),
+      take: Number(limit)
+    })
+
+    // 计算总数
+    const total = await prisma.workflow.count({ where })
+
+    // 格式化结果
+    const results = workflows.map(workflow => {
+      const lastUsed = workflow.executions?.[0]?.startedAt || workflow.updatedAt
+      const isOwn = userId && workflow.authorId === userId
+      const isFavorite = workflow._count.favorites > 0
+
+      let matchType: string = 'description'
+      let matchText = workflow.description?.substring(0, 100) || ''
+
+      if (searchQuery) {
+        if (workflow.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+          matchType = 'title'
+          matchText = workflow.title
+        } else if (workflow.tags?.toLowerCase().includes(searchQuery.toLowerCase())) {
+          matchType = 'tag'
+          matchText = workflow.tags
+        } else if (workflow.category?.toLowerCase().includes(searchQuery.toLowerCase())) {
+          matchType = 'category'
+          matchText = workflow.category
+        }
+      }
+
+      return {
+        id: workflow.id,
+        title: workflow.title,
+        description: workflow.description,
+        thumbnail: workflow.thumbnail,
+        matchType,
+        matchText,
+        lastUsed,
+        useCount: workflow._count.executions,
+        favoriteCount: workflow._count.favorites,
+        source: isOwn ? 'own' : isFavorite ? 'favorite' : workflow.isPublic ? 'public' : 'team',
+        category: workflow.category,
+        tags: workflow.tags,
+        isDraft: workflow.isDraft,
+        rating: workflow.rating,
+        author: workflow.author
+      }
+    })
+
+    res.json({
+      results,
+      total,
+      limit: Number(limit),
+      offset: Number(offset),
+      hasMore: Number(offset) + workflows.length < total
+    })
+  } catch (error) {
+    console.error('搜索工作流失败:', error)
+    res.status(500).json({ error: '搜索工作流失败' })
   }
 })
 
