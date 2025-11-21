@@ -79,7 +79,7 @@ app.use(cors({
 // 限流配置 - 开发环境放宽限制
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: process.env.NODE_ENV === 'production' ? 100 : 10000, // 开发环境10000次，生产环境100次
+  max: process.env.NODE_ENV === 'production' ? 5000 : 10000, // 开发环境10000次，生产环境5000次
   standardHeaders: true, // 返回 RateLimit-* 头
   legacyHeaders: false, // 禁用 X-RateLimit-* 头
   // 开发环境跳过限流
