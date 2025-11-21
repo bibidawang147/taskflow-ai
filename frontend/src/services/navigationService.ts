@@ -90,7 +90,7 @@ export const navigationService = {
    */
   async getSidebarData(): Promise<SidebarData> {
     const token = localStorage.getItem('token')
-    const response = await axios.get(`${API_BASE_URL}/api/navigation/sidebar`, {
+    const response = await axios.get(`${API_BASE_URL}/navigation/sidebar`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -106,7 +106,7 @@ export const navigationService = {
   ): Promise<NavigationPreferences> {
     const token = localStorage.getItem('token')
     const response = await axios.patch(
-      `${API_BASE_URL}/api/navigation/preferences`,
+      `${API_BASE_URL}/navigation/preferences`,
       preferences,
       {
         headers: {
@@ -129,7 +129,7 @@ export const favoritesService = {
     icon?: string
   }): Promise<FavoriteTag> {
     const token = localStorage.getItem('token')
-    const response = await axios.post(`${API_BASE_URL}/api/favorites/tags`, data, {
+    const response = await axios.post(`${API_BASE_URL}/favorites/tags`, data, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -143,7 +143,7 @@ export const favoritesService = {
    */
   async getTags(): Promise<FavoriteTag[]> {
     const token = localStorage.getItem('token')
-    const response = await axios.get(`${API_BASE_URL}/api/favorites/tags`, {
+    const response = await axios.get(`${API_BASE_URL}/favorites/tags`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -160,7 +160,7 @@ export const favoritesService = {
   ): Promise<FavoriteTag> {
     const token = localStorage.getItem('token')
     const response = await axios.patch(
-      `${API_BASE_URL}/api/favorites/tags/${id}`,
+      `${API_BASE_URL}/favorites/tags/${id}`,
       data,
       {
         headers: {
@@ -177,7 +177,7 @@ export const favoritesService = {
    */
   async deleteTag(id: string): Promise<void> {
     const token = localStorage.getItem('token')
-    await axios.delete(`${API_BASE_URL}/api/favorites/tags/${id}`, {
+    await axios.delete(`${API_BASE_URL}/favorites/tags/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -190,7 +190,7 @@ export const favoritesService = {
   async addTagsToFavorite(favoriteId: string, tagIds: string[]): Promise<void> {
     const token = localStorage.getItem('token')
     await axios.post(
-      `${API_BASE_URL}/api/favorites/${favoriteId}/tags`,
+      `${API_BASE_URL}/favorites/${favoriteId}/tags`,
       { tagIds },
       {
         headers: {
@@ -206,7 +206,7 @@ export const favoritesService = {
    */
   async removeTagFromFavorite(favoriteId: string, tagId: string): Promise<void> {
     const token = localStorage.getItem('token')
-    await axios.delete(`${API_BASE_URL}/api/favorites/${favoriteId}/tags/${tagId}`, {
+    await axios.delete(`${API_BASE_URL}/favorites/${favoriteId}/tags/${tagId}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -219,7 +219,7 @@ export const favoritesService = {
   async reorderTags(tagOrders: { id: string; order: number }[]): Promise<void> {
     const token = localStorage.getItem('token')
     await axios.post(
-      `${API_BASE_URL}/api/favorites/tags/reorder`,
+      `${API_BASE_URL}/favorites/tags/reorder`,
       { tagOrders },
       {
         headers: {
