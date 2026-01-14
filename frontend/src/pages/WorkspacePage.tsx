@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, type CSSProperties, KeyboardEvent, FocusEvent } from 'react'
+
 import { useNavigate } from 'react-router-dom'
 import {
   fetchWorkspaceLayout,
@@ -238,7 +239,14 @@ export default function WorkspacePage() {
     content: string // 对于text是文本内容，对于media是URL
     caption?: string // 可选的说明文字
   }
-  const [workflowExecutionData, setWorkflowExecutionData] = useState<Map<string, { prompt: string; outputs: OutputItem[]; isExecuting: boolean }>>(new Map())
+  type ExecutionData = {
+    prompt: string
+    outputs: OutputItem[]
+    isExecuting: boolean
+    isCompleted: boolean  // 是否执行完成
+    executionId?: string  // 后端执行记录ID
+  }
+  const [workflowExecutionData, setWorkflowExecutionData] = useState<Map<string, ExecutionData>>(new Map())
 
   // 工作流编辑模式（是否进入工作流编辑页面）
   const [editingWorkflow, setEditingWorkflow] = useState<Set<string>>(new Set())
@@ -757,6 +765,37 @@ export default function WorkspacePage() {
     })
   }
 
+  // 保存执行记录到后端
+  const saveExecutionHistory = async (jobRoleId: string, input: string, outputs: OutputItem[]): Promise<string | undefined> => {
+    try {
+      const workflowInfo = executingWorkflow.get(jobRoleId)
+      const response = await api.post('/api/workflows/execute-temp', {
+        tempConfig: {
+          nodes: [
+            { id: 'input', type: 'input', label: '输入' },
+            { id: 'process', type: 'process', label: workflowInfo?.toolName || '处理' },
+            { id: 'output', type: 'output', label: '输出' }
+          ]
+        },
+        input: { prompt: input },
+        title: `${workflowInfo?.toolName || '工作流'}执行记录`,
+        description: `执行时间: ${new Date().toLocaleString()}`
+      })
+
+      // 模拟执行完成，更新执行记录状态
+      const executionId = response.data.execution.id
+      if (executionId) {
+        // 这里可以调用更新执行记录的API，但由于是mock执行，我们暂时跳过
+        console.log('执行记录已创建:', executionId)
+      }
+
+      return executionId
+    } catch (error) {
+      console.error('保存执行记录失败:', error)
+      return undefined
+    }
+  }
+
   // 开始执行工作流
   const handleStartWorkflowExecution = (jobRoleId: string, workItemId: number, toolId: number, toolName: string) => {
     setExecutingWorkflow(prev => {
@@ -765,12 +804,31 @@ export default function WorkspacePage() {
       return newMap
     })
 
-    // 初始化执行数据
+    // 初始化或恢复执行数据
     setWorkflowExecutionData(prev => {
       const newMap = new Map(prev)
-      if (!newMap.has(jobRoleId)) {
-        newMap.set(jobRoleId, { prompt: '', outputs: [], isExecuting: false })
+      const existingData = newMap.get(jobRoleId)
+
+      // 清除其他已完成的工作流状态
+      for (const [key, data] of newMap.entries()) {
+        if (key !== jobRoleId && data.isCompleted) {
+          newMap.delete(key)
+        }
       }
+
+      // 如果当前工作流已有数据且未完成，保留状态继续执行
+      if (existingData && !existingData.isCompleted) {
+        // 保留现有数据，不重置
+        return newMap
+      }
+
+      // 否则初始化新的执行数据
+      newMap.set(jobRoleId, {
+        prompt: '',
+        outputs: [],
+        isExecuting: false,
+        isCompleted: false
+      })
       return newMap
     })
 
@@ -885,9 +943,32 @@ export default function WorkspacePage() {
                 }
               ]
 
+              // 保存执行记录到后端
+              saveExecutionHistory(jobRoleId, currentData.prompt, mockOutputs).then(executionId => {
+                updatedMap.set(jobRoleId, {
+                  ...currentData,
+                  isExecuting: false,
+                  isCompleted: true,  // 标记为执行完成
+                  executionId,  // 保存执行记录ID
+                  outputs: mockOutputs
+                })
+                setWorkflowExecutionData(new Map(updatedMap))
+              }).catch(error => {
+                console.error('保存执行记录失败:', error)
+                updatedMap.set(jobRoleId, {
+                  ...currentData,
+                  isExecuting: false,
+                  isCompleted: true,
+                  outputs: mockOutputs
+                })
+                setWorkflowExecutionData(new Map(updatedMap))
+              })
+
+              // 先更新UI显示完成状态
               updatedMap.set(jobRoleId, {
                 ...currentData,
                 isExecuting: false,
+                isCompleted: true,
                 outputs: mockOutputs
               })
             }
@@ -1112,11 +1193,23 @@ export default function WorkspacePage() {
 
   // 停止工作流执行，返回工作流列表
   const handleStopWorkflowExecution = (jobRoleId: string) => {
+    const executionData = workflowExecutionData.get(jobRoleId)
+
     setExecutingWorkflow(prev => {
       const newMap = new Map(prev)
       newMap.delete(jobRoleId)
       return newMap
     })
+
+    // 只有执行完成时才清除执行数据
+    if (executionData?.isCompleted) {
+      setWorkflowExecutionData(prev => {
+        const newMap = new Map(prev)
+        newMap.delete(jobRoleId)
+        return newMap
+      })
+    }
+    // 如果未完成，保留状态，下次打开继续执行
 
     // 恢复到工作流列表状态的尺寸
     setCards(currentCards => {
@@ -1164,8 +1257,172 @@ export default function WorkspacePage() {
     setWorkflowSelectionCardId(null)
   }
 
+  // 处理工作流卡片点击（区分单击和双击）
+  const handleWorkflowCardClick = (workflow: typeof myWorkflows[0]) => {
+    console.log('🔥 工作流卡片被点击了!', workflow.name)
+    clickCountRef.current += 1
+
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+    }
+
+    clickTimerRef.current = setTimeout(() => {
+      if (clickCountRef.current === 1) {
+        // 单击 - 选择工作流
+        console.log('✅ 单击工作流卡片 - 选择工作流')
+        handleSelectWorkflow(workflow)
+      } else if (clickCountRef.current >= 2) {
+        // 双击 - 打开介绍页
+        console.log('✅ 双击工作流卡片 - 打开介绍页:', workflow.id, workflow.name)
+        window.open(`/workflow-intro/${workflow.id}`, '_blank')
+      }
+      clickCountRef.current = 0
+    }, 250) // 250ms 内的点击视为双击
+  }
+
+  // 处理工作流库卡片的双击
+  const handleWorkflowLibraryDoubleClick = (workflow: typeof myWorkflows[0], e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (workflowLibraryClickTimerRef.current) {
+      clearTimeout(workflowLibraryClickTimerRef.current)
+      workflowLibraryClickTimerRef.current = null
+    }
+    // 清除单击的定时器，防止单击事件执行
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+    }
+    clickCountRef.current = 0
+    console.log('✅ 双击工作流库卡片 - 打开介绍页:', workflow.id, workflow.name)
+    window.open(`/workflow-intro/${workflow.id}`, '_blank')
+  }
+
+  // 处理工作流库卡片的单击
+  const handleWorkflowLibraryClick = (workflow: typeof myWorkflows[0], e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log('🔥 工作流库卡片被点击了!', workflow.name)
+    // 关闭右键菜单
+    setContextMenu({ visible: false, x: 0, y: 0, workflow: null })
+    // 延时处理单击，避免双击时触发单击逻辑
+    if (workflowLibraryClickTimerRef.current) {
+      clearTimeout(workflowLibraryClickTimerRef.current)
+    }
+    workflowLibraryClickTimerRef.current = setTimeout(() => {
+      handleSelectWorkflow(workflow)
+    }, 220)
+  }
+
+  // 处理右键菜单
+  const handleContextMenu = (workflow: typeof myWorkflows[0], e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('🖱️ 右键菜单打开:', workflow.name)
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      workflow
+    })
+  }
+
+  // 关闭右键菜单
+  const closeContextMenu = () => {
+    setContextMenu({ visible: false, x: 0, y: 0, workflow: null })
+  }
+
+  // 右键菜单 - 打开工作流
+  const handleOpenWorkflow = () => {
+    if (contextMenu.workflow) {
+      console.log('✅ 打开工作流:', contextMenu.workflow.id, contextMenu.workflow.name)
+      window.open(`/workflow-intro/${contextMenu.workflow.id}`, '_blank')
+      closeContextMenu()
+    }
+  }
+
+  // 右键菜单 - 复制工作流
+  const handleCopyWorkflow = async () => {
+    if (contextMenu.workflow) {
+      console.log('📋 复制工作流:', contextMenu.workflow.name)
+      // TODO: 实现复制工作流逻辑
+      alert(`复制工作流「${contextMenu.workflow.name}」功能开发中...`)
+      closeContextMenu()
+    }
+  }
+
+  // 右键菜单 - 删除工作流
+  const handleDeleteWorkflow = async () => {
+    if (contextMenu.workflow) {
+      const confirmed = window.confirm(`确定要删除工作流「${contextMenu.workflow.name}」吗？`)
+      if (confirmed) {
+        console.log('🗑️ 删除工作流:', contextMenu.workflow.id)
+        // TODO: 实现删除工作流逻辑
+        alert(`删除工作流「${contextMenu.workflow.name}」功能开发中...`)
+      }
+      closeContextMenu()
+    }
+  }
+
+  // 删除工作流（新增）
+  const deleteWorkflowFromList = async (workflowId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止事件冒泡到卡片的onClick
+
+    const workflow = (workItems[activeWorkflow?.moduleId || ''] || []).find(item => item.id === workflowId)
+    if (!workflow) return
+
+    const confirmed = window.confirm(`确定要删除工作流「${workflow.name}」吗？此操作无法撤销。`)
+    if (confirmed) {
+      try {
+        // TODO: 调用API删除工作流
+        // await api.delete(`/api/workflows/${workflowId}`)
+
+        // 从本地状态中移除
+        setWorkItems(prev => {
+          const newItems = { ...prev }
+          if (activeWorkflow?.moduleId && newItems[activeWorkflow.moduleId]) {
+            newItems[activeWorkflow.moduleId] = newItems[activeWorkflow.moduleId].filter(
+              item => item.id !== workflowId
+            )
+          }
+          return newItems
+        })
+
+        // 同时从myWorkflows中移除
+        setMyWorkflows(prev => prev.filter(wf => wf.id !== workflowId))
+
+        console.log('✅ 工作流删除成功:', workflowId)
+      } catch (error) {
+        console.error('删除工作流失败:', error)
+        alert('删除失败，请重试')
+      }
+    }
+  }
+
   // 关闭工作流画布
   const handleCloseWorkflow = () => {
+    // 获取当前激活的工作流信息
+    if (activeWorkflow) {
+      const { jobRoleId } = activeWorkflow
+      const executionData = workflowExecutionData.get(jobRoleId)
+
+      // 只有在执行完成时才清除状态
+      if (executionData?.isCompleted) {
+        // 清除该工作流的执行数据
+        setWorkflowExecutionData(prev => {
+          const newMap = new Map(prev)
+          newMap.delete(jobRoleId)
+          return newMap
+        })
+
+        // 清除该工作流的执行状态
+        setExecutingWorkflow(prev => {
+          const newMap = new Map(prev)
+          newMap.delete(jobRoleId)
+          return newMap
+        })
+      }
+      // 如果未完成，保留状态，下次打开继续执行
+    }
+
     setActiveWorkflow(null)
   }
 
@@ -1475,7 +1732,53 @@ export default function WorkspacePage() {
   const [showWorkflowSelectionModal, setShowWorkflowSelectionModal] = useState(false)
   const [workflowSelectionCardId, setWorkflowSelectionCardId] = useState<string | null>(null)
   const [workflowSearchQuery, setWorkflowSearchQuery] = useState('')
-  const [workflowFilterStatus, setWorkflowFilterStatus] = useState<'all' | '运行中' | '草稿'>('运行中')
+  const [workflowFilterStatus, setWorkflowFilterStatus] = useState<'all' | '运行中' | '草稿'>('all')
+
+  // 双击检测
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const clickCountRef = useRef<number>(0)
+  const workflowLibraryClickTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    workflow: typeof myWorkflows[0] | null
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    workflow: null
+  })
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current)
+      }
+      if (workflowLibraryClickTimerRef.current) {
+        clearTimeout(workflowLibraryClickTimerRef.current)
+      }
+    }
+  }, [])
+
+  // 监听全局点击事件，关闭右键菜单
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.visible) {
+        closeContextMenu()
+      }
+    }
+
+    if (contextMenu.visible) {
+      document.addEventListener('click', handleClickOutside)
+      return () => {
+        document.removeEventListener('click', handleClickOutside)
+      }
+    }
+  }, [contextMenu.visible])
 
   // 最近常用工作流显示数量
   const [visibleWorkflowCount, setVisibleWorkflowCount] = useState(6)
@@ -1527,7 +1830,8 @@ export default function WorkspacePage() {
           icon: aiTool.logo || '🤖',
           color: '#ec4899',
           modules: ['ai'],
-          description: aiTool.description || ''
+          description: aiTool.description || '',
+          url: aiTool.url || ''
         }
 
         // 计算放置位置（考虑缩放和偏移）
@@ -1628,26 +1932,83 @@ export default function WorkspacePage() {
     if (pendingImportData) {
       try {
         const importData = JSON.parse(pendingImportData)
-        const { module, workPackage } = importData
 
-        // 将工作包的items添加到对应模块的workItems中
-        setWorkItems(prevWorkItems => {
-          const moduleItems = prevWorkItems[module] || []
-          const newItems = workPackage.items.map((item: any) => ({
-            ...item,
-            // 确保ID不冲突
-            id: Date.now() + item.id
-          }))
-          return {
-            ...prevWorkItems,
-            [module]: [...moduleItems, ...newItems]
+        // 新格式：{ container, cards, workPackageName, workPackageId, timestamp }
+        if (importData.container && importData.cards) {
+          console.log('🎯 检测到工作包导入:', importData.workPackageName)
+          console.log('📦 容器:', importData.container)
+          console.log('📋 卡片数量:', importData.cards.length)
+
+          // 创建容器CardConfig
+          const containerCard: CardConfig = {
+            id: importData.container.id,
+            type: 'container',
+            position: importData.container.position,
+            size: importData.container.size,
+            zIndex: 10
           }
-        })
+
+          // 创建工作流卡片的CardConfig
+          const workflowCards: CardConfig[] = importData.cards.map((card: any, index: number) => ({
+            id: card.id,
+            type: 'card' as const,
+            position: {
+              x: importData.container.position.x + card.position.x,
+              y: importData.container.position.y + card.position.y
+            },
+            size: { width: 200, height: 150 },
+            zIndex: 11 + index
+          }))
+
+          // 添加到画布
+          setCards((prevCards) => [...prevCards, containerCard, ...workflowCards])
+          console.log('✅ 已添加容器和', workflowCards.length, '个工作流卡片到画布')
+
+          // 将导入的工作流添加到"我的收藏"
+          const favoriteWorkflows = importData.cards.map((card: any) => ({
+            id: card.workflowData.id,
+            title: card.workflowData.name,
+            description: card.workflowData.summary,
+            category: card.workflowData.category,
+            tags: card.workflowData.tags,
+            isFavorite: true,
+            isImported: true,
+            importedFrom: importData.workPackageName,
+            createdAt: new Date().toISOString()
+          }))
+
+          // 保存到本地存储的收藏列表
+          const existingFavorites = JSON.parse(localStorage.getItem('favoriteWorkflows') || '[]')
+          const updatedFavorites = [...existingFavorites, ...favoriteWorkflows]
+          localStorage.setItem('favoriteWorkflows', JSON.stringify(updatedFavorites))
+          console.log('✅ 已添加', favoriteWorkflows.length, '个工作流到收藏')
+
+          // 显示成功提示
+          alert(`✅ 成功导入工作包「${importData.workPackageName}」\n\n已在工作区画布上显示 ${workflowCards.length} 个工作流\n并添加到"我的收藏"`)
+        }
+        // 旧格式兼容：{ module, workPackage }
+        else if (importData.module && importData.workPackage) {
+          const { module, workPackage } = importData
+
+          // 将工作包的items添加到对应模块的workItems中
+          setWorkItems(prevWorkItems => {
+            const moduleItems = prevWorkItems[module] || []
+            const newItems = workPackage.items.map((item: any) => ({
+              ...item,
+              // 确保ID不冲突
+              id: Date.now() + item.id
+            }))
+            return {
+              ...prevWorkItems,
+              [module]: [...moduleItems, ...newItems]
+            }
+          })
+
+          console.log(`已导入工作包「${workPackage.name}」到模块「${module}」`)
+        }
 
         // 清除待处理的导入数据
         localStorage.removeItem('pendingWorkPackageImport')
-
-        console.log(`已导入工作包「${workPackage.name}」到模块「${module}」`)
       } catch (error) {
         console.error('导入工作包失败:', error)
         localStorage.removeItem('pendingWorkPackageImport')
@@ -2518,6 +2879,7 @@ export default function WorkspacePage() {
       try {
         const response = await api.get('/api/workflows/my')
         const workflows = response.data.workflows
+        console.log('📊 获取到的工作流数据:', workflows)
 
         // 将后端数据映射到前端格式
         const formattedWorkflows = workflows.map((wf: any) => {
@@ -2577,7 +2939,7 @@ export default function WorkspacePage() {
 
   // 工作流选择弹窗的过滤逻辑
   const getFilteredWorkflowsForSelection = () => {
-    return myWorkflows.filter(workflow => {
+    const filtered = myWorkflows.filter(workflow => {
       // 按状态过滤
       if (workflowFilterStatus !== 'all' && workflow.status !== workflowFilterStatus) {
         return false
@@ -2601,6 +2963,14 @@ export default function WorkspacePage() {
 
       return true
     })
+    console.log('🔍 工作流库过滤结果:', {
+      total: myWorkflows.length,
+      filtered: filtered.length,
+      filterStatus: workflowFilterStatus,
+      searchQuery: workflowSearchQuery,
+      cardId: workflowSelectionCardId
+    })
+    return filtered
   }
 
   // 模块使用统计数据
@@ -3175,30 +3545,93 @@ export default function WorkspacePage() {
                   cursor: 'pointer'
                 }}
               >
-                {/* AI工具特殊显示：大Logo + 名称 */}
+                {/* AI工具特殊显示：正方形立体按钮 */}
                 {cardConfig.id.startsWith('ai-tool-') ? (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: isExpanded ? '1rem' : '0.5rem',
-                    width: '100%',
-                    justifyContent: isExpanded ? 'flex-start' : 'center'
-                  }}>
+                  isExpanded ? (
+                    // 展开状态：横向布局
                     <div style={{
-                      fontSize: isExpanded ? '3rem' : '2rem',
-                      lineHeight: 1
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      width: '100%'
                     }}>
-                      {jobRole.icon}
+                      <div style={{
+                        fontSize: '3rem',
+                        lineHeight: 1
+                      }}>
+                        {jobRole.icon}
+                      </div>
+                      <div style={{
+                        flex: 1,
+                        fontWeight: 600,
+                        color: '#111827',
+                        fontSize: '1.5rem'
+                      }}>
+                        {jobRole.name}
+                      </div>
                     </div>
+                  ) : (
+                    // 未展开状态：正方形立体按钮
                     <div style={{
-                      flex: 1,
-                      fontWeight: 600,
-                      color: '#111827',
-                      fontSize: isExpanded ? '1.5rem' : '1rem'
-                    }}>
-                      {jobRole.name}
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: '12px',
+                      boxShadow: '0 6px 0 0 rgba(103, 126, 234, 0.4), 0 8px 16px rgba(0, 0, 0, 0.2)',
+                      transform: 'translateY(0)',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 8px 0 0 rgba(103, 126, 234, 0.4), 0 10px 20px rgba(0, 0, 0, 0.3)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 6px 0 0 rgba(103, 126, 234, 0.4), 0 8px 16px rgba(0, 0, 0, 0.2)'
+                    }}
+                    onMouseDown={(e) => {
+                      e.currentTarget.style.transform = 'translateY(2px)'
+                      e.currentTarget.style.boxShadow = '0 3px 0 0 rgba(103, 126, 234, 0.4), 0 4px 8px rgba(0, 0, 0, 0.2)'
+                    }}
+                    onMouseUp={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 6px 0 0 rgba(103, 126, 234, 0.4), 0 8px 16px rgba(0, 0, 0, 0.2)'
+                    }}
+                    >
+                      <div style={{
+                        fontSize: '3rem',
+                        lineHeight: 1,
+                        filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2))'
+                      }}>
+                        {jobRole.icon}
+                      </div>
+                      <div style={{
+                        fontWeight: 700,
+                        color: 'white',
+                        fontSize: '0.9rem',
+                        textAlign: 'center',
+                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+                        padding: '0 0.5rem',
+                        maxWidth: '90%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {jobRole.name}
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : (
                   <>
                     {/* 拖拽图标 */}
@@ -5110,35 +5543,93 @@ export default function WorkspacePage() {
               return (
                 <div
                   key={workflow.id}
+                  className="workspace-frequent-workflow-card"
                   style={{
                     backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
-                    borderRadius: '14px',
-                    padding: '1.25rem',
+                    borderRadius: '12px',
+                    padding: '1rem',
                     cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    position: 'relative'
+                    transition: 'all 0.3s ease',
+                    position: 'relative',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
                   }}
-                  onClick={() => {
-                    navigate(`/workflow-intro/${workflow.id}`)
-                    setShowRecentWorkflowsModal(false)
+                  onDoubleClick={() => {
+                    console.log('双击工作流卡片，在新标签页打开:', workflow.id)
+                    window.open(`/workflow-intro/${workflow.id}`, '_blank')
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.1)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px rgba(0, 0, 0, 0.12)'
                     e.currentTarget.style.transform = 'translateY(-2px)'
-                    e.currentTarget.style.borderColor = '#8b5cf6'
+                    e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.3)'
+                    const deleteBtn = e.currentTarget.querySelector('.delete-btn-frequent') as HTMLElement
+                    if (deleteBtn) deleteBtn.style.opacity = '1'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = 'none'
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
                     e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.borderColor = '#e5e7eb'
+                    const deleteBtn = e.currentTarget.querySelector('.delete-btn-frequent') as HTMLElement
+                    if (deleteBtn) deleteBtn.style.opacity = '0'
                   }}
                 >
+                  {/* 删除按钮 */}
+                  <button
+                    className="delete-btn-frequent"
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: '#fee',
+                      color: '#dc2626',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: 0,
+                      transition: 'all 0.2s',
+                      zIndex: 10
+                    }}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const confirmed = window.confirm(`确定要删除工作流「${workflow.name}」吗？此操作无法撤销。`)
+                      if (confirmed) {
+                        try {
+                          // TODO: 调用API删除
+                          // await api.delete(`/api/workflows/${workflow.id}`)
+
+                          // 从状态中移除
+                          setMyWorkflows(prev => prev.filter(wf => wf.id !== workflow.id))
+                          console.log('✅ 工作流删除成功:', workflow.id)
+                        } catch (error) {
+                          console.error('删除失败:', error)
+                          alert('删除失败，请重试')
+                        }
+                      }
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#dc2626'
+                      e.currentTarget.style.color = 'white'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#fee'
+                      e.currentTarget.style.color = '#dc2626'
+                    }}
+                    title="删除工作流"
+                  >
+                    ×
+                  </button>
+
                   {/* 排名标识 */}
                   <div
                     style={{
                       position: 'absolute',
-                      top: '-8px',
+                      top: '-10px',
                       left: '12px',
                       width: '24px',
                       height: '24px',
@@ -5147,61 +5638,71 @@ export default function WorkspacePage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '12px',
+                      fontSize: '11px',
                       fontWeight: 700,
                       color: 'white',
-                      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)'
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                      border: '2px solid white'
                     }}
                   >
                     {index + 1}
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'start', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'start', gap: '0.875rem', paddingRight: '32px' }}>
                     <div style={{
-                      fontSize: '32px',
-                      width: '48px',
-                      height: '48px',
+                      fontSize: '28px',
+                      width: '44px',
+                      height: '44px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '12px'
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: '10px',
+                      flexShrink: 0
                     }}>
-                      {workflow.icon}
+                      {workflow.icon || '📊'}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827', margin: 0 }}>
-                          {workflow.name}
-                        </h3>
-                      </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3 style={{
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        color: '#1f2937',
+                        margin: '0 0 0.5rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {workflow.name}
+                      </h3>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                         <span style={{
-                          fontSize: '12px',
+                          fontSize: '11px',
                           backgroundColor: freqColor.bg,
                           color: freqColor.color,
-                          padding: '4px 10px',
-                          borderRadius: '8px',
+                          padding: '3px 8px',
+                          borderRadius: '100px',
                           fontWeight: 600,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px'
+                          gap: '3px',
+                          border: '1px solid ' + freqColor.color + '30'
                         }}>
                           {freqColor.icon && <span>{freqColor.icon}</span>}
                           {workflow.useFrequency} · {workflow.useCount}次
                         </span>
                         <span style={{
-                          fontSize: '12px',
+                          fontSize: '11px',
                           backgroundColor: statusColors.bg,
                           color: statusColors.color,
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          fontWeight: 600
+                          padding: '3px 8px',
+                          borderRadius: '100px',
+                          fontWeight: 600,
+                          border: '1px solid ' + statusColors.color + '30'
                         }}>
                           {workflow.status}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                          最后使用：{workflow.lastUsed}
+                        <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>
+                          {workflow.lastUsed}
                         </span>
                       </div>
                     </div>
@@ -5962,6 +6463,7 @@ export default function WorkspacePage() {
         onClick={() => {
           setShowWorkflowSelectionModal(false)
           setWorkflowSelectionCardId(null)
+          closeContextMenu()
         }}
       >
         <div
@@ -5991,7 +6493,7 @@ export default function WorkspacePage() {
                 color: '#111827',
                 margin: '0 0 0.25rem'
               }}>
-                选择工作流
+                【✅已更新】工作流库
               </h2>
               <p style={{
                 margin: 0,
@@ -6035,60 +6537,6 @@ export default function WorkspacePage() {
             </button>
           </div>
 
-          {/* 过滤器 */}
-          <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            marginBottom: '1.5rem',
-            flexWrap: 'wrap'
-          }}>
-            {/* 状态过滤 */}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(['all', '运行中', '草稿'] as const).map(status => (
-                <button
-                  key={status}
-                  onClick={() => setWorkflowFilterStatus(status)}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '8px',
-                    border: workflowFilterStatus === status ? 'none' : '1px solid #e5e7eb',
-                    backgroundColor: workflowFilterStatus === status ? '#8b5cf6' : 'white',
-                    color: workflowFilterStatus === status ? 'white' : '#6b7280',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {status === 'all' ? '全部' : status}
-                </button>
-              ))}
-            </div>
-
-            {/* 搜索输入 */}
-            <input
-              type="text"
-              placeholder="搜索工作流..."
-              value={workflowSearchQuery}
-              onChange={(e) => setWorkflowSearchQuery(e.target.value)}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                fontSize: '14px',
-                flex: 1,
-                minWidth: '200px',
-                outline: 'none'
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = '#8b5cf6'
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#e5e7eb'
-              }}
-            />
-          </div>
-
           {/* 工作流列表 */}
           <div style={{
             display: 'flex',
@@ -6105,9 +6553,18 @@ export default function WorkspacePage() {
                   padding: '1.25rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  position: 'relative'
+                  position: 'relative',
+                  userSelect: 'none'
                 }}
-                onClick={() => handleSelectWorkflow(workflow)}
+                onClick={(e) => {
+                  console.log('🎯 卡片onClick被触发:', workflow.name)
+                  handleWorkflowLibraryClick(workflow, e)
+                }}
+                onDoubleClick={(e) => {
+                  console.log('🎯 卡片onDoubleClick被触发:', workflow.name)
+                  handleWorkflowLibraryDoubleClick(workflow, e)
+                }}
+                onContextMenu={(e) => handleContextMenu(workflow, e)}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.1)'
                   e.currentTarget.style.transform = 'translateY(-2px)'
@@ -6123,7 +6580,8 @@ export default function WorkspacePage() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-start',
-                  marginBottom: '0.5rem'
+                  marginBottom: '0.5rem',
+                  pointerEvents: 'none'
                 }}>
                   <h3 style={{
                     margin: '0 0 0.5rem',
@@ -6148,7 +6606,8 @@ export default function WorkspacePage() {
                 <p style={{
                   margin: '0 0 0.75rem',
                   fontSize: '13px',
-                  color: '#6b7280'
+                  color: '#6b7280',
+                  pointerEvents: 'none'
                 }}>
                   分类: {moduleCategories.find(m => m.id === workflow.category)?.name || workflow.category}
                 </p>
@@ -6158,7 +6617,8 @@ export default function WorkspacePage() {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   fontSize: '12px',
-                  color: '#9ca3af'
+                  color: '#9ca3af',
+                  pointerEvents: 'none'
                 }}>
                   <span>使用频率: {workflow.useFrequency} ({workflow.useCount}次)</span>
                   <span>最后使用: {workflow.lastUsed}</span>
@@ -6178,6 +6638,102 @@ export default function WorkspacePage() {
             )}
           </div>
         </div>
+
+        {/* 右键菜单 */}
+        {contextMenu.visible && (
+          <div
+            style={{
+              position: 'fixed',
+              top: contextMenu.y,
+              left: contextMenu.x,
+              backgroundColor: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              zIndex: 10000,
+              minWidth: '180px',
+              overflow: 'hidden'
+            }}
+          >
+            <button
+              onClick={handleOpenWorkflow}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                backgroundColor: 'white',
+                border: 'none',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#111827',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f4f6'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'white'
+              }}
+            >
+              🔗 打开工作流
+            </button>
+            <div style={{ height: '1px', backgroundColor: '#e5e7eb' }} />
+            <button
+              onClick={handleCopyWorkflow}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                backgroundColor: 'white',
+                border: 'none',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#111827',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f4f6'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'white'
+              }}
+            >
+              📋 复制工作流
+            </button>
+            <div style={{ height: '1px', backgroundColor: '#e5e7eb' }} />
+            <button
+              onClick={handleDeleteWorkflow}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                backgroundColor: 'white',
+                border: 'none',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#dc2626',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#fef2f2'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'white'
+              }}
+            >
+              🗑️ 删除工作流
+            </button>
+          </div>
+        )}
       </div>
     )}
 
@@ -6309,85 +6865,137 @@ export default function WorkspacePage() {
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '1.5rem'
+              gap: '1rem'
             }}>
               {(workItems[activeWorkflow.moduleId] || []).map((item) => (
                 <div
                   key={item.id}
+                  className="workspace-workflow-card"
                   style={{
                     backgroundColor: 'white',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '16px',
-                    padding: '1.5rem',
-                    transition: 'all 0.2s',
-                    cursor: 'pointer'
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#8b5cf6'
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.15)'
+                    e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.3)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px rgba(0, 0, 0, 0.12)'
                     e.currentTarget.style.transform = 'translateY(-2px)'
+                    const deleteBtn = e.currentTarget.querySelector('.delete-btn') as HTMLElement
+                    if (deleteBtn) deleteBtn.style.opacity = '1'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#e5e7eb'
-                    e.currentTarget.style.boxShadow = 'none'
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
                     e.currentTarget.style.transform = 'translateY(0)'
+                    const deleteBtn = e.currentTarget.querySelector('.delete-btn') as HTMLElement
+                    if (deleteBtn) deleteBtn.style.opacity = '0'
                   }}
                   onClick={() => {
-                    // 这里可以打开工作流编辑器
                     navigate(`/workflow-intro/${item.id}`)
                   }}
                 >
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'start',
-                    marginBottom: '1rem'
-                  }}>
-                    <div style={{
-                      flex: 1
-                    }}>
-                      <h4 style={{
-                        margin: '0 0 0.5rem',
-                        fontSize: '1rem',
-                        fontWeight: 600,
-                        color: '#111827'
-                      }}>
-                        {item.name}
-                      </h4>
-                      <p style={{
-                        margin: 0,
-                        fontSize: '13px',
-                        color: '#6b7280',
-                        lineHeight: 1.5
-                      }}>
-                        {item.description}
-                      </p>
-                    </div>
-                  </div>
+                  {/* 删除按钮 */}
+                  <button
+                    className="delete-btn"
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: '#fee',
+                      color: '#dc2626',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: 0,
+                      transition: 'all 0.2s',
+                      zIndex: 10
+                    }}
+                    onClick={(e) => deleteWorkflowFromList(item.id, e)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#dc2626'
+                      e.currentTarget.style.color = 'white'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#fee'
+                      e.currentTarget.style.color = '#dc2626'
+                    }}
+                    title="删除工作流"
+                  >
+                    ×
+                  </button>
 
                   <div style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid #f3f4f6'
+                    flexDirection: 'column',
+                    gap: '10px'
                   }}>
-                    <div style={{
-                      padding: '0.25rem 0.75rem',
-                      backgroundColor: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color + '15' || '#8b5cf615',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      color: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color || '#8b5cf6'
+                    {/* 标题 */}
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      letterSpacing: '-0.01em',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      paddingRight: '32px'
                     }}>
-                      {item.difficulty}
-                    </div>
-                    <div style={{
-                      marginLeft: 'auto',
-                      fontSize: '12px',
-                      color: '#9ca3af'
+                      {item.name}
+                    </h4>
+
+                    {/* 描述 */}
+                    <p style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      lineHeight: 1.6,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
                     }}>
-                      点击编辑 →
+                      {item.description}
+                    </p>
+
+                    {/* 底部标签 */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid #f3f4f6'
+                    }}>
+                      <div style={{
+                        padding: '4px 12px',
+                        backgroundColor: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color + '15' || 'rgba(102, 126, 234, 0.1)',
+                        borderRadius: '100px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color || '#667eea',
+                        border: '1px solid ' + (moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color + '30' || 'rgba(102, 126, 234, 0.2)')
+                      }}>
+                        {item.difficulty}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#9ca3af',
+                        fontWeight: 500
+                      }}>
+                        点击编辑 →
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -6840,6 +7448,43 @@ export default function WorkspacePage() {
         overflowY: 'auto',
         padding: '1.5rem'
       }}>
+        {/* 历史搜索框 */}
+        <div style={{
+          position: 'relative',
+          marginBottom: '1rem'
+        }}>
+          <span style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '16px',
+            color: '#9ca3af',
+            pointerEvents: 'none'
+          }}>
+            🕐
+          </span>
+          <input
+            type="text"
+            placeholder="搜索历史对话..."
+            style={{
+              width: '100%',
+              padding: '10px 12px 10px 36px',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              fontSize: '14px',
+              outline: 'none',
+              transition: 'all 0.2s'
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = '#8b5cf6'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = '#e5e7eb'
+            }}
+          />
+        </div>
+
         <h3 style={{
           margin: '0 0 1rem',
           fontSize: '14px',

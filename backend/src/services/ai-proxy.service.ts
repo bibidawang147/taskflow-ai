@@ -617,10 +617,38 @@ export class AIProxyService {
       },
     });
 
-    // 过滤用户等级可用的模型
+    // 过滤用户等级可用的模型，并且只返回已配置 API Key 的 provider
     return models.filter(model => {
       const allowedTiers = model.allowedTiers.split(',');
-      return allowedTiers.includes(userTier);
+      const isTierAllowed = allowedTiers.includes(userTier);
+
+      // 检查该 provider 是否已配置
+      let isProviderConfigured = false;
+      switch (model.provider) {
+        case 'openai':
+          isProviderConfigured = this.openai !== null;
+          break;
+        case 'anthropic':
+          isProviderConfigured = this.anthropic !== null;
+          break;
+        case 'alibaba':
+        case 'qwen':
+          // 阿里云通过 API key 检查
+          isProviderConfigured = !!(process.env.ALIBABA_API_KEY || process.env.QWEN_API_KEY);
+          break;
+        case 'zhipu':
+          // 智谱 AI 通过 API key 检查
+          isProviderConfigured = !!process.env.ZHIPU_API_KEY;
+          break;
+        case 'doubao':
+          // 豆包通过 API key 检查
+          isProviderConfigured = !!process.env.DOUBAO_API_KEY;
+          break;
+        default:
+          isProviderConfigured = false;
+      }
+
+      return isTierAllowed && isProviderConfigured;
     });
   }
 }

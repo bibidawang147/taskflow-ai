@@ -15,7 +15,7 @@ type Rect = {
   height: number
 }
 
-type CanvasItemType = 'workflow' | 'ai-tool' | 'container'
+type CanvasItemType = 'workflow' | 'ai-tool' | 'tool-link' | 'container'
 
 interface CanvasItemBase {
   id: string
@@ -34,6 +34,16 @@ interface AIToolCanvasItem extends CanvasItemBase {
   toolId: string
 }
 
+interface ToolLinkCanvasItem extends CanvasItemBase {
+  type: 'tool-link'
+  name: string
+  url: string
+  logo?: string
+  badge?: string
+  description?: string
+  category?: string
+}
+
 interface ContainerCanvasItem extends CanvasItemBase {
   type: 'container'
   name: string
@@ -43,7 +53,7 @@ interface ContainerCanvasItem extends CanvasItemBase {
   color: string
 }
 
-type CanvasItem = WorkflowCanvasItem | AIToolCanvasItem | ContainerCanvasItem
+type CanvasItem = WorkflowCanvasItem | AIToolCanvasItem | ToolLinkCanvasItem | ContainerCanvasItem
 
 type CanvasItemsMap = Record<string, CanvasItem>
 
@@ -66,8 +76,8 @@ export function getItemSize(item: CanvasItem): { width: number; height: number }
   if (item.type === 'container') {
     return item.size
   }
-  // workflow 和 ai-tool 卡片的固定尺寸
-  return { width: 220, height: 120 }
+  // workflow、ai-tool 和 tool-link 卡片的固定尺寸
+  return { width: 220, height: 140 }
 }
 
 /**

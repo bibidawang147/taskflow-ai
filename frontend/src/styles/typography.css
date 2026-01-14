@@ -1,0 +1,120 @@
+/**
+ * 字体层次系统
+ * Typography System
+ */
+
+/* ========== 页面标题 ========== */
+.page-title {
+  font-size: var(--font-page-title);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ========== 区块标题 ========== */
+.section-title {
+  font-size: var(--font-section-title);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ========== 卡片标题 ========== */
+.card-title {
+  font-size: var(--font-card-title);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--line-normal);
+  margin: 0;
+}
+
+/* ========== 正文文字 ========== */
+.body-text {
+  font-size: var(--font-body);
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ========== 辅助文字 ========== */
+.caption-text {
+  font-size: var(--font-caption);
+  font-weight: var(--weight-regular);
+  color: var(--text-tertiary);
+  line-height: var(--line-normal);
+  margin: 0;
+}
+
+/* ========== 小号文字 ========== */
+.small-text {
+  font-size: var(--font-small);
+  font-weight: var(--weight-regular);
+  color: var(--text-tertiary);
+  line-height: var(--line-normal);
+  margin: 0;
+}
+
+/* ========== 文字颜色工具类 ========== */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.text-disabled {
+  color: var(--text-disabled);
+}
+
+/* ========== 字重工具类 ========== */
+.font-regular {
+  font-weight: var(--weight-regular);
+}
+
+.font-medium {
+  font-weight: var(--weight-medium);
+}
+
+.font-semibold {
+  font-weight: var(--weight-semibold);
+}
+
+.font-bold {
+  font-weight: var(--weight-bold);
+}
+
+/* ========== 文字截断 ========== */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

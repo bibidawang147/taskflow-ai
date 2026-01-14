@@ -19,7 +19,7 @@ export interface ChatSession {
 // 创建新对话会话
 export const createChatSession = async (title: string = '新对话'): Promise<ChatSession> => {
   try {
-    const response = await api.post('/chats', { title })
+    const response = await api.post('/api/chats', { title })
     return response.data
   } catch (error) {
     console.error('创建对话会话失败:', error)
@@ -30,7 +30,7 @@ export const createChatSession = async (title: string = '新对话'): Promise<Ch
 // 获取所有对话会话列表
 export const getChatSessions = async (): Promise<ChatSession[]> => {
   try {
-    const response = await api.get('/chats')
+    const response = await api.get('/api/chats')
     return response.data
   } catch (error) {
     console.error('获取对话列表失败:', error)
@@ -41,7 +41,7 @@ export const getChatSessions = async (): Promise<ChatSession[]> => {
 // 获取单个对话会话详情
 export const getChatSession = async (sessionId: string): Promise<ChatSession> => {
   try {
-    const response = await api.get(`/chats/${sessionId}`)
+    const response = await api.get(`/api/chats/${sessionId}`)
     return response.data
   } catch (error) {
     console.error('获取对话详情失败:', error)
@@ -55,7 +55,7 @@ export const updateChatSession = async (
   data: { title?: string; messages?: ChatMessage[] }
 ): Promise<ChatSession> => {
   try {
-    const response = await api.put(`/chats/${sessionId}`, data)
+    const response = await api.put(`/api/chats/${sessionId}`, data)
     return response.data
   } catch (error) {
     console.error('更新对话失败:', error)
@@ -80,7 +80,7 @@ export const saveChatMessage = async (
 // 删除对话会话
 export const deleteChatSession = async (sessionId: string): Promise<void> => {
   try {
-    await api.delete(`/chats/${sessionId}`)
+    await api.delete(`/api/chats/${sessionId}`)
   } catch (error) {
     console.error('删除对话失败:', error)
     throw error
@@ -93,7 +93,7 @@ export const saveChatMessages = async (
   messages: ChatMessage[]
 ): Promise<ChatSession> => {
   try {
-    const response = await api.put(`/chats/${sessionId}`, { messages })
+    const response = await api.put(`/api/chats/${sessionId}`, { messages })
     return response.data
   } catch (error) {
     console.error('批量保存消息失败:', error)

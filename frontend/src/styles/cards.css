@@ -1,0 +1,196 @@
+/**
+ * 卡片系统
+ * Card System
+ */
+
+/* ========== 基础卡片 ========== */
+.card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+/* ========== 卡片内部结构 ========== */
+.card-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.card-body {
+  margin-bottom: var(--spacing-lg);
+}
+
+.card-footer {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  margin-top: var(--spacing-lg);
+}
+
+/* ========== 工作流卡片 ========== */
+.workflow-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.workflow-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.workflow-card-title {
+  font-size: var(--font-card-title);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--line-normal);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.workflow-card-description {
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 var(--spacing-md) 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.workflow-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+  font-size: var(--font-body);
+  color: var(--text-tertiary);
+}
+
+.workflow-card-downloads {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.workflow-card-rating {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--warning);
+}
+
+.workflow-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+/* ========== 推荐卡片（已有样式，保持不变） ========== */
+.recommendation-card {
+  /* 继续使用RecommendationCard.css中的样式 */
+}
+
+/* ========== 主题卡片 ========== */
+.theme-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.theme-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+/* ========== 空状态卡片 ========== */
+.empty-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4xl) var(--spacing-xl);
+  border: 2px dashed var(--border-default);
+  text-align: center;
+}
+
+.empty-card-icon {
+  font-size: 48px;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.5;
+  color: var(--text-disabled);
+}
+
+.empty-card-text {
+  font-size: var(--font-body);
+  color: var(--text-tertiary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.empty-card-hint {
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+}
+
+/* ========== 卡片变体 ========== */
+.card-compact {
+  padding: var(--spacing-md);
+}
+
+.card-spacious {
+  padding: var(--spacing-3xl);
+}
+
+.card-borderless {
+  border: none;
+}
+
+.card-elevated {
+  box-shadow: var(--shadow-lg);
+}
+
+/* ========== 卡片网格 ========== */
+.card-grid {
+  display: grid;
+  gap: var(--spacing-2xl);
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.card-grid-2 {
+  display: grid;
+  gap: var(--spacing-xl);
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-grid-3 {
+  display: grid;
+  gap: var(--spacing-xl);
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 768px) {
+  .card-grid,
+  .card-grid-2,
+  .card-grid-3 {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+  }
+}

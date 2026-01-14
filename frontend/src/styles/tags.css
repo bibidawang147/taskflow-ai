@@ -1,0 +1,264 @@
+/**
+ * 标签/徽章系统
+ * Tags & Badges System
+ */
+
+/* ========== 基础标签 ========== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-caption);
+  font-weight: var(--weight-medium);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.tag:hover {
+  background: var(--border-default);
+}
+
+/* ========== 标签尺寸 ========== */
+.tag-sm {
+  padding: 2px 8px;
+  font-size: var(--font-small);
+}
+
+.tag-md {
+  padding: 4px 12px;
+  font-size: var(--font-caption);
+}
+
+.tag-lg {
+  padding: 6px 16px;
+  font-size: var(--font-body);
+}
+
+/* ========== 类型标签颜色 ========== */
+.tag-text {
+  background: var(--tag-text-bg);
+  color: var(--tag-text-color);
+}
+
+.tag-text:hover {
+  background: #DDD6FE;
+}
+
+.tag-product {
+  background: var(--tag-product-bg);
+  color: var(--tag-product-color);
+}
+
+.tag-product:hover {
+  background: #BFDBFE;
+}
+
+.tag-analysis {
+  background: var(--tag-analysis-bg);
+  color: var(--tag-analysis-color);
+}
+
+.tag-analysis:hover {
+  background: #FDE68A;
+}
+
+.tag-marketing {
+  background: var(--tag-marketing-bg);
+  color: var(--tag-marketing-color);
+}
+
+.tag-marketing:hover {
+  background: #FED7AA;
+}
+
+.tag-image {
+  background: var(--tag-image-bg);
+  color: var(--tag-image-color);
+}
+
+.tag-image:hover {
+  background: #FBCFE8;
+}
+
+.tag-video {
+  background: var(--tag-video-bg);
+  color: var(--tag-video-color);
+}
+
+.tag-video:hover {
+  background: #C7D2FE;
+}
+
+.tag-growth {
+  background: var(--tag-growth-bg);
+  color: var(--tag-growth-color);
+}
+
+.tag-growth:hover {
+  background: #A7F3D0;
+}
+
+.tag-ai {
+  background: var(--tag-ai-bg);
+  color: var(--tag-ai-color);
+}
+
+.tag-ai:hover {
+  background: #C7D2FE;
+}
+
+/* ========== 语义化标签 ========== */
+.tag-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.tag-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.tag-error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.tag-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* ========== 可关闭标签 ========== */
+.tag-closable {
+  padding-right: 6px;
+}
+
+.tag-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all var(--transition-fast);
+}
+
+.tag-close-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* ========== 带图标的标签 ========== */
+.tag-with-icon {
+  gap: 4px;
+}
+
+.tag-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* ========== 徽章 ========== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  background: var(--primary);
+  color: white;
+  line-height: 1;
+}
+
+.badge-sm {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+}
+
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* ========== 徽章颜色变体 ========== */
+.badge-success {
+  background: var(--success);
+}
+
+.badge-warning {
+  background: var(--warning);
+}
+
+.badge-error {
+  background: var(--error);
+}
+
+.badge-info {
+  background: var(--info);
+}
+
+.badge-secondary {
+  background: var(--text-tertiary);
+}
+
+/* ========== 标签组 ========== */
+.tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+/* ========== 状态徽章 ========== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-caption);
+  font-weight: var(--weight-medium);
+}
+
+.status-badge-active {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.status-badge-inactive {
+  background: var(--bg-hover);
+  color: var(--text-tertiary);
+}
+
+.status-badge-pending {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.status-badge-failed {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.status-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}

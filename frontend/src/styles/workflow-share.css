@@ -884,3 +884,358 @@
     justify-content: center;
   }
 }
+
+/* ========== 成功通知提示 ========== */
+.success-notification {
+  position: fixed;
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10b981;
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  z-index: 10000;
+  animation: slideDown 0.3s ease-out, fadeOut 0.3s ease-in 1.7s;
+  pointer-events: none;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ==================== Douban风格样式 ==================== */
+.workflow-share-page-douban {
+  min-height: 100vh;
+  background: #faf7ff;
+  padding: 2rem 0;
+}
+
+.douban-workflow-container {
+  max-width: 950px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.douban-back-button {
+  background: none;
+  border: none;
+  color: #37a;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-bottom: 20px;
+  transition: color 0.2s;
+}
+
+.douban-back-button:hover {
+  color: #007722;
+  text-decoration: underline;
+}
+
+.douban-workflow-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.demo-badge {
+  background: #fff3cd;
+  color: #856404;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: inline-block;
+  border: 1px solid #ffeaa7;
+}
+
+.douban-workflow-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.douban-workflow-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.douban-author-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.douban-author-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.douban-author-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.douban-meta-divider {
+  color: #ccc;
+}
+
+.douban-rating {
+  color: #facc15;
+  font-weight: 600;
+}
+
+.douban-meta-text {
+  color: #999;
+}
+
+.douban-workflow-description {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #333;
+  margin: 0 0 16px 0;
+}
+
+.douban-source-link {
+  background: #f8f9fa;
+  border-left: 3px solid #007722;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 16px 0;
+}
+
+.source-label {
+  font-weight: 600;
+  color: #666;
+  margin-right: 8px;
+}
+
+.douban-link {
+  color: #37a;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.douban-link:hover {
+  text-decoration: underline;
+}
+
+.douban-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.douban-tag {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.douban-workflow-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.douban-action-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #333;
+}
+
+.douban-action-btn.primary {
+  background: #007722;
+  color: white;
+  border-color: #007722;
+}
+
+.douban-action-btn.primary:hover {
+  background: #005f1a;
+}
+
+.douban-action-btn.favorited {
+  color: #facc15;
+  border-color: #facc15;
+}
+
+.douban-action-btn:hover {
+  border-color: #007722;
+  background: #f0f9ff;
+}
+
+.douban-workflow-steps {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.douban-step-group {
+  margin-bottom: 24px;
+}
+
+.douban-step-group:last-child {
+  margin-bottom: 0;
+}
+
+.douban-step-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.douban-step-item:last-child {
+  border-bottom: none;
+}
+
+.douban-step-number {
+  background: #111;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  height: fit-content;
+}
+
+.douban-step-content {
+  flex: 1;
+}
+
+.douban-step-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+  margin: 0 0 8px 0;
+}
+
+.douban-step-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #666;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.douban-step-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0 0 0;
+  margin-top: 16px;
+  border-top: 1px solid #f3f4f6;
+  flex-wrap: wrap;
+}
+
+.douban-footer-label {
+  font-size: 13px;
+  color: #999;
+  font-weight: 500;
+}
+
+.douban-model-badge {
+  background: #eff6ff;
+  color: #1e40af;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid #dbeafe;
+}
+
+.douban-try-link {
+  color: #37a;
+  font-size: 13px;
+  text-decoration: none;
+  margin-left: auto;
+}
+
+.douban-try-link:hover {
+  text-decoration: underline;
+  color: #007722;
+}
+
+.douban-workflow-discussion {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-discussion-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.douban-discussion-placeholder p {
+  margin: 8px 0;
+}
+
+.placeholder-hint {
+  font-size: 13px;
+  color: #ccc;
+}

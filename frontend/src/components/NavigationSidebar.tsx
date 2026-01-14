@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag } from '../services/navigationService'
+import { authService } from '../services/auth'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 
@@ -254,6 +255,14 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   }, [])
 
   const loadSidebarData = async () => {
+    // 检查用户是否已登录
+    if (!authService.isAuthenticated()) {
+      console.log('User not authenticated, skipping sidebar data load')
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -288,13 +297,15 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     }
     setCollapsedSections(newCollapsed)
 
-    // Save to backend
-    try {
-      await navigationService.updatePreferences({
-        collapsedSections: Array.from(newCollapsed)
-      })
-    } catch (err) {
-      console.error('Failed to save preferences:', err)
+    // Save to backend only if authenticated
+    if (authService.isAuthenticated()) {
+      try {
+        await navigationService.updatePreferences({
+          collapsedSections: Array.from(newCollapsed)
+        })
+      } catch (err) {
+        console.error('Failed to save preferences:', err)
+      }
     }
   }
 

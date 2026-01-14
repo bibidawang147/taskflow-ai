@@ -65,6 +65,17 @@ export const getFavoriteWorkflows = async (): Promise<Workflow[]> => {
   }
 }
 
+// 检查工作流是否已收藏
+export const checkIsFavorited = async (workflowId: string): Promise<boolean> => {
+  try {
+    const favorites = await getFavoriteWorkflows()
+    return favorites.some(workflow => workflow.id === workflowId)
+  } catch (error) {
+    console.warn('检查收藏状态失败:', error)
+    return false
+  }
+}
+
 // 克隆工作流到用户账户
 export interface CloneWorkflowResponse {
   message: string
@@ -107,7 +118,7 @@ export const getUserWorkflows = async (): Promise<Workflow[]> => {
   }
 }
 
-// 获取公开工作流列表
+// 获取公开工作流列表（用于推荐系统）
 export const getPublicWorkflows = async (params?: {
   page?: number
   limit?: number

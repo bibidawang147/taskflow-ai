@@ -4,6 +4,7 @@ import {
   getWorkflowDetail,
   favoriteWorkflow,
   unfavoriteWorkflow,
+  checkIsFavorited,
   cloneWorkflow,
   getWorkflowExecution,
   type Workflow as APIWorkflow
@@ -338,6 +339,14 @@ export default function WorkflowSharePage() {
 
       setWorkflow(processedData)
 
+      // 检查是否已收藏（只对真实工作流检查）
+      try {
+        const favorited = await checkIsFavorited(id)
+        setIsFavorited(favorited)
+      } catch (error) {
+        console.warn('检查收藏状态失败:', error)
+      }
+
       // 如果有示例输出，使用示例输出
       if (data.exampleOutput) {
         setExecutionResult(data.exampleOutput)
@@ -353,30 +362,85 @@ export default function WorkflowSharePage() {
   const handleFavorite = async () => {
     if (!id) return
 
+    // 如果是假ID（演示工作流），显示提示
+    if (id.startsWith('fake-')) {
+      alert('这是演示工作流 🎬\n\n演示工作流仅用于预览，无法收藏。\n\n请浏览其他真实的工作流进行收藏！')
+      return
+    }
+
+    // 检查是否登录
+    const token = localStorage.getItem('token')
+    if (!token) {
+      const shouldLogin = window.confirm('收藏功能需要登录，是否前往登录？')
+      if (shouldLogin) {
+        navigate('/login')
+      }
+      return
+    }
+
     try {
       if (isFavorited) {
         await unfavoriteWorkflow(id)
         setIsFavorited(false)
+        // 使用原生提示而不是alert，体验更好
+        const notification = document.createElement('div')
+        notification.className = 'success-notification'
+        notification.textContent = '已取消收藏'
+        document.body.appendChild(notification)
+        setTimeout(() => notification.remove(), 2000)
       } else {
         await favoriteWorkflow(id)
         setIsFavorited(true)
+        const notification = document.createElement('div')
+        notification.className = 'success-notification'
+        notification.textContent = '✓ 收藏成功'
+        document.body.appendChild(notification)
+        setTimeout(() => notification.remove(), 2000)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('收藏操作失败:', error)
-      alert('操作失败，请重试')
+      const errorMsg = error.response?.data?.error || '操作失败，请重试'
+      alert(errorMsg)
     }
   }
 
   const handleClone = async () => {
     if (!id) return
 
+    // 如果是假ID（演示工作流），显示提示
+    if (id.startsWith('fake-')) {
+      alert('这是演示工作流 🎬\n\n演示工作流仅用于预览，无法添加到工作台。\n\n请浏览其他真实的工作流进行添加！')
+      return
+    }
+
+    // 检查是否登录
+    const token = localStorage.getItem('token')
+    if (!token) {
+      const shouldLogin = window.confirm('添加到工作台需要登录，是否前往登录？')
+      if (shouldLogin) {
+        navigate('/login')
+      }
+      return
+    }
+
     try {
+      console.log('🚀 [WorkflowSharePage] 开始克隆工作流，ID:', id)
       const result = await cloneWorkflow(id)
-      alert(`✅ 已收藏到"我的工作流"！\n\n您可以在工作区中查看和编辑这个工作流。`)
+      console.log('✅ [WorkflowSharePage] 克隆成功，返回结果:', result)
+
+      // 将克隆的工作流ID存储到localStorage，以便工作区能自动添加到画布
+      localStorage.setItem('newlyClonedWorkflowId', result.workflow.id)
+      console.log('📝 [WorkflowSharePage] 已设置localStorage标记:', result.workflow.id)
+      console.log('🔍 [WorkflowSharePage] 验证标记:', localStorage.getItem('newlyClonedWorkflowId'))
+
+      // 直接跳转到工作台
+      console.log('🔄 [WorkflowSharePage] 克隆成功，直接跳转到工作台...')
+      console.log('📌 [WorkflowSharePage] 跳转前最后确认标记:', localStorage.getItem('newlyClonedWorkflowId'))
       navigate('/workspace')
-    } catch (error) {
-      console.error('克隆工作流失败:', error)
-      alert('操作失败，请重试')
+    } catch (error: any) {
+      console.error('添加到工作台失败:', error)
+      const errorMsg = error.response?.data?.error || '操作失败，请重试'
+      alert(`添加失败：${errorMsg}`)
     }
   }
 
@@ -385,8 +449,21 @@ export default function WorkflowSharePage() {
   }
 
   const generateShareCard = () => {
-    // TODO: 实现生成分享卡片功能
-    alert('生成分享卡片功能开发中...')
+    // 生成分享文案
+    const shareText = `【推荐工作流】${workflow?.title}\n\n${workflow?.description}\n\n查看详情：${window.location.href}`
+
+    // 复制到剪贴板
+    navigator.clipboard.writeText(shareText).then(() => {
+      alert('分享文案已复制到剪贴板！\n\n您可以粘贴到任何地方进行分享。')
+      setShowShareModal(false)
+    }).catch(() => {
+      alert('复制失败，请手动复制链接')
+    })
+  }
+
+  const downloadAsImage = async () => {
+    alert('生成海报功能开发中...\n\n将支持：\n- 自动生成精美的工作流海报\n- 包含步骤预览和二维码\n- 适合社交媒体分享')
+    setShowShareModal(false)
   }
 
   if (loading) {
@@ -473,278 +550,157 @@ export default function WorkflowSharePage() {
   console.log('Nodes:', nodes)
 
   return (
-    <div className="workflow-share-page">
-      {/* 头部信息区 */}
-      <header className="share-header">
-        <div className="share-header-content">
-          <div className="share-title-section">
-            <h1 className="share-title">{workflow.title}</h1>
+    <div className="workflow-share-page-douban">
+      <div className="douban-workflow-container">
+        {/* 返回按钮 */}
+        <button className="douban-back-button" onClick={() => navigate('/explore')}>
+          ← 返回探索
+        </button>
 
-            {/* 作者和统计信息 */}
-            <div className="share-meta-row">
-              <div className="author-info">
-                {workflow.author?.avatar && (
-                  <img
-                    src={workflow.author.avatar}
-                    alt={workflow.author.name}
-                    className="author-avatar"
-                  />
-                )}
-                <span className="author-name">{workflow.author?.name || '匿名'}</span>
-              </div>
-
-              <div className="share-stats">
-                {workflow.rating && (
-                  <>
-                    <div className="stat-item">
-                      <span className="stat-stars">{'★'.repeat(Math.round(workflow.rating))}</span>
-                      <span className="stat-number">{workflow.rating.toFixed(1)}</span>
-                    </div>
-                    <span className="stat-divider">•</span>
-                  </>
-                )}
-                <span className="stat-text">
-                  {workflow._count?.ratings || 0} 条评价
-                </span>
-                <span className="stat-divider">•</span>
-                <span className="stat-text">
-                  {workflow._count?.executions || 0} 次使用
-                </span>
-              </div>
+        {/* 工作流卡片 */}
+        <div className="douban-workflow-card">
+          {/* 演示工作流标记 */}
+          {id?.startsWith('fake-') && (
+            <div className="demo-badge">
+              🎬 演示工作流（仅供预览）
             </div>
+          )}
 
-            {/* 描述 */}
-            {workflow.description && (
-              <p className="share-description">{workflow.description}</p>
-            )}
+          {/* 标题 */}
+          <h1 className="douban-workflow-title">{workflow.title}</h1>
 
-            {/* 原文链接 */}
-            {workflow.sourceUrl && (
-              <div className="source-link-container">
-                <span className="source-label">📄 原文链接：</span>
-                <a
-                  href={workflow.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="source-link"
-                  title={workflow.sourceTitle || '查看原文'}
-                >
-                  {workflow.sourceTitle || workflow.sourceUrl}
-                </a>
-              </div>
+          {/* 作者和统计信息 */}
+          <div className="douban-workflow-meta">
+            <div className="douban-author-info">
+              <span className="douban-author-avatar">
+                {workflow.author?.name?.[0] || '匿名'[0]}
+              </span>
+              <span className="douban-author-name">{workflow.author?.name || '匿名'}</span>
+            </div>
+            {workflow.rating && (
+              <>
+                <span className="douban-meta-divider">·</span>
+                <span className="douban-rating">
+                  ★ {workflow.rating.toFixed(1)}
+                </span>
+              </>
             )}
-
-            {/* 标签 */}
-            {workflow.tags && Array.isArray(workflow.tags) && workflow.tags.length > 0 && (
-              <div className="share-tags">
-                {workflow.tags.map((tag, index) => (
-                  <span key={index} className="share-tag">{tag}</span>
-                ))}
-              </div>
-            )}
+            <span className="douban-meta-divider">·</span>
+            <span className="douban-meta-text">{workflow._count?.ratings || 0} 条评价</span>
+            <span className="douban-meta-divider">·</span>
+            <span className="douban-meta-text">{workflow._count?.executions || 0} 次使用</span>
           </div>
 
+          {/* 描述 */}
+          {workflow.description && (
+            <p className="douban-workflow-description">{workflow.description}</p>
+          )}
+
+          {/* 原文链接 */}
+          {workflow.sourceUrl && (
+            <div className="douban-source-link">
+              <span className="source-label">原文链接：</span>
+              <a
+                href={workflow.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="douban-link"
+              >
+                {workflow.sourceTitle || workflow.sourceUrl}
+              </a>
+            </div>
+          )}
+
+          {/* 标签 */}
+          {workflow.tags && Array.isArray(workflow.tags) && workflow.tags.length > 0 && (
+            <div className="douban-tags">
+              {workflow.tags.map((tag, index) => (
+                <span key={index} className="douban-tag">{tag}</span>
+              ))}
+            </div>
+          )}
+
           {/* 操作按钮 */}
-          <div className="share-actions">
+          <div className="douban-workflow-actions">
             <button
-              className="action-btn primary-action"
+              className="douban-action-btn primary"
               onClick={handleClone}
-              title="添加到我的工作台"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              添加到工作台
+              + 添加到工作台
             </button>
-
             <button
-              className={`action-btn ${isFavorited ? 'favorited' : ''}`}
+              className={`douban-action-btn ${isFavorited ? 'favorited' : ''}`}
               onClick={handleFavorite}
-              title={isFavorited ? '取消收藏' : '收藏'}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorited ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-              {isFavorited ? '已收藏' : '收藏'}
+              {isFavorited ? '★ 已收藏' : '☆ 收藏'}
             </button>
-
             <button
-              className="action-btn"
+              className="douban-action-btn"
               onClick={handleShare}
-              title="分享"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"></circle>
-                <circle cx="6" cy="12" r="3"></circle>
-                <circle cx="18" cy="19" r="3"></circle>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-              </svg>
               分享
             </button>
           </div>
         </div>
-      </header>
 
-      {/* 主体内容区 */}
-      <div className="share-content">
-        <div className="share-main">
-          {/* 操作步骤 */}
-          <section className="steps-section">
-            <h2 className="section-title">操作步骤</h2>
-            <div className="steps-container">
-              {groupStepsByModel(nodes).map((group, groupIndex) => {
-                const firstNode = group[0]
-                return (
-                  <div key={`group-${groupIndex}`} className="step-item">
-                    <div className="step-content-wrapper">
-                      {/* 渲染组内的所有步骤 */}
-                      {group.map((node, indexInGroup) => (
-                        <div key={node.id}>
-                          {indexInGroup > 0 && <div className="step-divider step-divider-light"></div>}
-                          <div className="step-content">
-                            {/* 卡片顶部 - 步骤编号 + 标题 */}
-                            <div className="card-header">
-                              <span className="badge badge-step">步骤 {node.originalIndex + 1}</span>
-                              <h3 className="card-title">
-                                {node.config?.goal || node.label || '未命名'}
-                              </h3>
-                            </div>
-
-                            {/* 内容区 */}
-                            <div className="card-content">
-                              <p className="step-desc">{node.config?.prompt || node.config?.description || ''}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* 深色粗线分隔 */}
-                      <div className="step-divider step-divider-heavy"></div>
-
-                      {/* 卡片底部 - 模型信息栏（整个组只显示一次）*/}
-                      {(firstNode.config?.provider || firstNode.config?.model) && (
-                        <div className="card-footer">
-                          <div className="footer-left">
-                            <span className="footer-label">由以下 AI 提供支持</span>
-                            {firstNode.config?.provider && (
-                              <span className="badge badge-brand">
-                                {firstNode.config.provider}
-                              </span>
-                            )}
-                            {firstNode.config?.model && (
-                              <span className="badge badge-model">
-                                {firstNode.config.model}
-                              </span>
-                            )}
-                          </div>
-                          <div className="footer-right">
-                            <a
-                              href={getModelLink(firstNode)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="badge badge-action"
-                              title={`去试试`}
-                              aria-label="去试试"
-                            >
-                              去试试 →
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* 互动区（评论讨论） */}
-          <section className="comments-section">
-            <h2 className="section-title">
-              <span className="title-icon">💬</span>
-              讨论区
-            </h2>
-            <div className="comments-placeholder">
-              <p>评论功能开发中...</p>
-              <p className="placeholder-hint">即将支持提问和讨论功能</p>
-            </div>
-          </section>
-        </div>
-
-        {/* 右侧效果预览区（固定） */}
-        <aside className="preview-sidebar">
-          <div className="preview-sticky">
-            <h3 className="preview-title">
-              <span className="title-icon">🎨</span>
-              执行效果预览
-            </h3>
-
-            {executionResult ? (
-              <div className="preview-content">
-                {/* 如果是图片 */}
-                {executionResult.type === 'image' && executionResult.url && (
-                  <img
-                    src={executionResult.url}
-                    alt="执行结果"
-                    className="preview-image"
-                  />
-                )}
-
-                {/* 如果是文本 */}
-                {executionResult.type === 'text' && executionResult.content && (
-                  <div className="preview-text">
-                    <pre>{executionResult.content}</pre>
-                  </div>
-                )}
-
-                {/* 通用JSON显示 */}
-                {!executionResult.type && (
-                  <div className="preview-json">
-                    <pre>{JSON.stringify(executionResult, null, 2)}</pre>
-                  </div>
-                )}
-
-                {/* 缩略图 */}
-                {workflow.thumbnail && (
-                  <img
-                    src={workflow.thumbnail}
-                    alt="工作流缩略图"
-                    className="preview-thumbnail"
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="preview-placeholder">
-                <div className="placeholder-icon">📋</div>
-                <p>暂无执行结果</p>
-                <p className="placeholder-hint">运行工作流后将显示结果预览</p>
-              </div>
-            )}
-
-            {/* 推荐区 */}
-            <section className="recommendations-section">
-              <h3 className="preview-title">
-                相关推荐
-              </h3>
-              <div className="recommendations-list">
-                {[1, 2, 3, 4].map((item) => (
-                  <div key={item} className="recommendation-card">
-                    <div className="rec-content">
-                      <h4 className="rec-title">相关工作流 {item}</h4>
-                      <div className="rec-stats">
-                        <span>★ 4.5</span>
-                        <span>•</span>
-                        <span>1.2k 使用</span>
-                      </div>
+        {/* 操作步骤 */}
+        <div className="douban-workflow-steps">
+          <h3 className="douban-section-title">操作步骤</h3>
+          {groupStepsByModel(nodes).map((group, groupIndex) => {
+            const firstNode = group[0]
+            return (
+              <div key={`group-${groupIndex}`} className="douban-step-group">
+                {group.map((node, indexInGroup) => (
+                  <div key={node.id} className="douban-step-item">
+                    <div className="douban-step-number">步骤 {node.originalIndex + 1}</div>
+                    <div className="douban-step-content">
+                      <h4 className="douban-step-title">
+                        {node.config?.goal || node.label || '未命名'}
+                      </h4>
+                      <p className="douban-step-desc">
+                        {node.config?.prompt || node.config?.description || ''}
+                      </p>
                     </div>
                   </div>
                 ))}
+
+                {/* 模型信息 */}
+                {(firstNode.config?.provider || firstNode.config?.model) && (
+                  <div className="douban-step-footer">
+                    <span className="douban-footer-label">使用模型：</span>
+                    {firstNode.config?.provider && (
+                      <span className="douban-model-badge">
+                        {firstNode.config.provider}
+                      </span>
+                    )}
+                    {firstNode.config?.model && (
+                      <span className="douban-model-badge">
+                        {firstNode.config.model}
+                      </span>
+                    )}
+                    <a
+                      href={getModelLink(firstNode)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="douban-try-link"
+                    >
+                      去试试 →
+                    </a>
+                  </div>
+                )}
               </div>
-            </section>
+            )
+          })}
+        </div>
+
+        {/* 讨论区 */}
+        <div className="douban-workflow-discussion">
+          <h3 className="douban-section-title">讨论</h3>
+          <div className="douban-discussion-placeholder">
+            <p>暂无讨论</p>
+            <p className="placeholder-hint">讨论功能开发中...</p>
           </div>
-        </aside>
+        </div>
       </div>
 
       {/* 分享弹窗 */}
@@ -763,24 +719,29 @@ export default function WorkflowSharePage() {
 
             <div className="modal-content">
               <button className="share-option" onClick={generateShareCard}>
-                <span className="option-icon">🎴</span>
+                <span className="option-icon">📝</span>
                 <div className="option-text">
-                  <div className="option-title">生成分享卡片</div>
-                  <div className="option-desc">生成精美的图片卡片用于社交分享</div>
+                  <div className="option-title">复制分享文案</div>
+                  <div className="option-desc">生成包含标题、描述和链接的分享文案</div>
                 </div>
               </button>
 
-              <button className="share-option" onClick={generateShareCard}>
+              <button className="share-option" onClick={downloadAsImage}>
                 <span className="option-icon">🖼️</span>
                 <div className="option-text">
-                  <div className="option-title">生成海报</div>
-                  <div className="option-desc">生成详细的工作流海报</div>
+                  <div className="option-title">生成分享海报</div>
+                  <div className="option-desc">生成精美的工作流海报（开发中）</div>
                 </div>
               </button>
 
               <button className="share-option" onClick={() => {
                 navigator.clipboard.writeText(window.location.href)
-                alert('链接已复制到剪贴板！')
+                const notification = document.createElement('div')
+                notification.className = 'success-notification'
+                notification.textContent = '✓ 链接已复制'
+                document.body.appendChild(notification)
+                setTimeout(() => notification.remove(), 2000)
+                setShowShareModal(false)
               }}>
                 <span className="option-icon">🔗</span>
                 <div className="option-text">

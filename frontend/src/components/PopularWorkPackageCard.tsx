@@ -46,39 +46,54 @@ export default function PopularWorkPackageCard({
     const containerId = `container-${Date.now()}`
     const containerColor = workPackage.color || 'rgba(139, 92, 246, 0.15)'
 
+    // 计算三列布局
+    const COLUMNS = 3
+    const CARD_WIDTH = 220
+    const CARD_HEIGHT = 140
+    const GAP_X = 20
+    const GAP_Y = 20
+    const PADDING = 20
+
+    const rows = Math.ceil(workPackage.items.length / COLUMNS)
+    const containerWidth = PADDING + (COLUMNS * CARD_WIDTH) + ((COLUMNS - 1) * GAP_X) + PADDING
+    const containerHeight = PADDING + (rows * CARD_HEIGHT) + ((rows - 1) * GAP_Y) + PADDING + 30 // +30 for header
+
     // 创建容器
     const container = {
       id: containerId,
       type: 'container' as const,
       name: workPackage.name,
       parentId: 'canvas-root',
-      position: { x: 50, y: 50 },
+      position: { x: 100, y: 100 },
       size: {
-        width: Math.max(500, workPackage.items.length * 240),
-        height: 300
+        width: containerWidth,
+        height: containerHeight
       },
       collapsed: false,
       childrenIds: [] as string[],
       color: containerColor
     }
 
-    // 为每个工作项创建工作流卡片
+    // 为每个工作项创建工作流卡片（三列布局）
     const cards = workPackage.items.map((item, index) => {
       const cardId = `workflow-${Date.now()}-${index}`
       container.childrenIds.push(cardId)
 
+      const col = index % COLUMNS
+      const row = Math.floor(index / COLUMNS)
+
       return {
         id: cardId,
         type: 'workflow' as const,
-        workflowId: `imported-${item.id}`,
+        workflowId: `imported-${workPackage.id}-${item.id}`,
         parentId: containerId,
         position: {
-          x: 20 + (index * 240),
-          y: 50
+          x: PADDING + (col * (CARD_WIDTH + GAP_X)),
+          y: PADDING + (row * (CARD_HEIGHT + GAP_Y))
         },
         // 工作流定义
         workflowData: {
-          id: `imported-${item.id}`,
+          id: `imported-${workPackage.id}-${item.id}`,
           name: item.name,
           summary: item.description,
           status: 'draft' as const,
@@ -87,7 +102,8 @@ export default function PopularWorkPackageCard({
           owner: '我',
           updatedAt: new Date().toISOString().split('T')[0],
           model: item.tools[0]?.name || 'GPT-4',
-          prompt: `${item.description}\n\n使用工具：${item.tools.map(t => t.name).join('、')}`
+          prompt: `${item.description}\n\n使用工具：${item.tools.map(t => t.name).join('、')}`,
+          isFavorite: true // 标记为已收藏
         }
       }
     })
@@ -96,6 +112,8 @@ export default function PopularWorkPackageCard({
     const importData = {
       container,
       cards,
+      workPackageName: workPackage.name,
+      workPackageId: workPackage.id,
       timestamp: Date.now()
     }
     localStorage.setItem('pendingWorkPackageImport', JSON.stringify(importData))
@@ -105,8 +123,8 @@ export default function PopularWorkPackageCard({
       dataSize: JSON.stringify(importData).length
     })
 
-    // 显示导入成功弹窗
-    setShowImportModal(true)
+    // 直接跳转到工作区页面
+    navigate('/workspace')
   }
 
   return (

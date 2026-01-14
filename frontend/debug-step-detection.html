@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>步骤检测调试工具</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        h2 {
+            color: #666;
+            font-size: 18px;
+            margin-top: 0;
+        }
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .step-item {
+            background: #f9fafb;
+            border-left: 4px solid #10b981;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .step-number {
+            font-weight: bold;
+            color: #10b981;
+        }
+        .step-title {
+            font-size: 16px;
+            color: #111;
+            margin: 4px 0;
+        }
+        .step-content {
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+            white-space: pre-wrap;
+        }
+        pre {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 步骤检测调试工具</h1>
+    <p>粘贴AI的回答到左侧文本框，点击"检测步骤"查看结果</p>
+
+    <div class="container">
+        <div class="panel">
+            <h2>输入 AI 回答</h2>
+            <textarea id="inputText" placeholder="粘贴AI回答内容...
+
+示例：
+**第一步：确定选题和人设**
+使用工具：ChatGPT
+操作平台：https://chat.openai.com
+
+**第二步：生成文案框架**
+使用工具：ChatGPT + Notion
+
+**第三步：配图和发布**
+使用工具：美图秀秀"></textarea>
+            <button onclick="detectSteps()">🔍 检测步骤</button>
+        </div>
+
+        <div class="panel">
+            <h2>检测结果</h2>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        function parseChineseNumber(chinese) {
+            const chineseNums = {
+                '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+                '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15
+            };
+
+            if (chineseNums[chinese]) {
+                return chineseNums[chinese];
+            }
+
+            if (chinese.startsWith('十') && chinese.length > 1) {
+                const unit = chinese.substring(1);
+                if (chineseNums[unit]) {
+                    return 10 + chineseNums[unit];
+                }
+            }
+
+            return null;
+        }
+
+        function detectStepsInText(text) {
+            const lines = text.split('\n');
+            const steps = [];
+
+            const stepPatterns = [
+                /^\*\*第([一二三四五六七八九十百]+)步[：:、]?\s*(.+?)\*\*/,
+                /^\*\*(?:步骤\s*)?(\d+)[、.．。：:]\s*(.+?)\*\*/,
+                /^第([一二三四五六七八九十百]+)步[：:、]?\s*(.+)/,
+                /^(?:步骤\s*)?(\d+)[、.．。：:]\s*(.+)/,
+                /^(?:Step\s*)?(\d+)[、.．。：:]\s*(.+)/i,
+                /^##\s*(?:步骤\s*)?(\d+)[、.．。：:]\s*(.+)/,
+                /^##\s*第([一二三四五六七八九十百]+)步[：:、]?\s*(.+)/,
+            ];
+
+            let currentStep = null;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                let matched = false;
+                for (const pattern of stepPatterns) {
+                    const match = line.match(pattern);
+                    if (match) {
+                        if (currentStep) {
+                            steps.push(currentStep);
+                        }
+
+                        const numStr = match[1];
+                        const parsedNum = parseChineseNumber(numStr) || parseInt(numStr, 10);
+                        let titleAndContent = match[2].trim();
+                        titleAndContent = titleAndContent.replace(/\*\*$/, '');
+
+                        currentStep = {
+                            stepNumber: parsedNum,
+                            title: titleAndContent,
+                            content: '',
+                            rawText: line
+                        };
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched && currentStep && line) {
+                    currentStep.content += (currentStep.content ? '\n' : '') + line;
+                    currentStep.rawText += '\n' + line;
+                }
+            }
+
+            if (currentStep) {
+                steps.push(currentStep);
+            }
+
+            const hasSteps = steps.length >= 2;
+
+            return {
+                hasSteps,
+                steps,
+                rawStepsText: steps.map(s => s.rawText).join('\n\n')
+            };
+        }
+
+        function detectSteps() {
+            const input = document.getElementById('inputText').value;
+            const output = document.getElementById('output');
+
+            if (!input.trim()) {
+                output.innerHTML = '<div class="error">请先输入AI回答内容</div>';
+                return;
+            }
+
+            const result = detectStepsInText(input);
+
+            let html = '';
+
+            // 检测结果摘要
+            if (result.hasSteps) {
+                html += `<div class="success">
+                    ✅ 检测成功！找到 ${result.steps.length} 个步骤，满足生成工作流条件（至少2步）
+                </div>`;
+            } else {
+                html += `<div class="error">
+                    ❌ 检测失败：找到 ${result.steps.length} 个步骤，需要至少 2 个步骤才能生成工作流
+                </div>`;
+            }
+
+            // 显示每个步骤
+            if (result.steps.length > 0) {
+                html += '<h3>检测到的步骤：</h3>';
+                result.steps.forEach(step => {
+                    html += `
+                        <div class="step-item">
+                            <div class="step-number">步骤 ${step.stepNumber}</div>
+                            <div class="step-title">${escapeHtml(step.title)}</div>
+                            ${step.content ? `<div class="step-content">${escapeHtml(step.content)}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // 显示原始数据
+            html += '<h3>调试信息：</h3>';
+            html += '<pre>' + JSON.stringify({
+                输入文本行数: input.split('\n').length,
+                检测到的步骤数: result.steps.length,
+                是否有效: result.hasSteps,
+                步骤详情: result.steps.map(s => ({
+                    编号: s.stepNumber,
+                    标题: s.title,
+                    内容长度: s.content.length
+                }))
+            }, null, 2) + '</pre>';
+
+            output.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

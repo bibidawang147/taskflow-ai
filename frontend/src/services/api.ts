@@ -1,9 +1,9 @@
 import axios from 'axios'
 
 const API_BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL)
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL !== undefined)
     ? import.meta.env.VITE_API_BASE_URL
-    : 'http://localhost:3000'
+    : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:3000')
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -34,8 +34,15 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // 清除无效的令牌
       localStorage.removeItem('token')
-      // 重定向到登录页面
-      window.location.href = '/login'
+      // 只在需要认证的页面才重定向到登录页面
+      // 对于探索页面等公开页面，只记录错误而不重定向
+      const currentPath = window.location.pathname
+      const publicPaths = ['/explore', '/', '/workflow-intro', '/solution', '/community']
+      const isPublicPath = publicPaths.some(path => currentPath.startsWith(path) || currentPath === path)
+
+      if (!isPublicPath && currentPath !== '/login' && currentPath !== '/register') {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

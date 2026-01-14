@@ -1,0 +1,1566 @@
+/* ==================== 社群页面样式 ==================== */
+/* 参考 explore.css 的设计风格 */
+
+:root {
+  /* 色彩系统 */
+  --color-primary: #9f7aea;
+  --color-primary-hover: #805ad5;
+  --color-secondary: #6366f1;
+
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-muted: #f3f4f6;
+
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+
+  /* 字体层级 */
+  --text-section-title: 20px;
+  --text-card-title: 14px;
+  --text-body: 14px;
+  --text-caption: 13px;
+  --text-small: 12px;
+
+  --weight-bold: 600;
+  --weight-medium: 500;
+  --weight-regular: 400;
+
+  --line-tight: 1.3;
+  --line-normal: 1.5;
+  --line-relaxed: 1.6;
+
+  --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==================== 页面容器 ==================== */
+.community-page {
+  width: min(1200px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 32px 0 64px;
+  color: var(--color-text-primary);
+  line-height: var(--line-relaxed);
+  background:
+    radial-gradient(circle at top, rgba(159, 122, 234, 0.04), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.03), transparent 45%);
+}
+
+.community-container {
+  max-width: 100%;
+}
+
+/* ==================== Section ==================== */
+.section-block {
+  margin-bottom: 48px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.panel-header__main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.panel-header h2 {
+  font-size: var(--text-section-title);
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.panel-header .subtitle {
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-regular);
+}
+
+.section-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* ==================== 按钮 ==================== */
+.primary-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: var(--transition-base);
+  border: none;
+}
+
+.primary-button--solid {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(159, 122, 234, 0.25);
+}
+
+.primary-button--solid:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(159, 122, 234, 0.35);
+}
+
+.secondary-button--soft {
+  border: 1.5px solid rgba(102, 126, 234, 0.2);
+  background: rgba(102, 126, 234, 0.06);
+  color: #667eea;
+  min-width: 160px;
+}
+
+.secondary-button--soft:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  color: #764ba2;
+  transform: translateY(-1px);
+}
+
+.refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: var(--transition-base);
+  border: 1.5px solid rgba(102, 126, 234, 0.2);
+  background: rgba(102, 126, 234, 0.06);
+  color: #667eea;
+}
+
+.refresh-button:hover:not(:disabled) {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  color: #764ba2;
+  transform: translateY(-1px);
+}
+
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== 返回按钮 ==================== */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  margin-bottom: 20px;
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.back-button:hover {
+  color: #764ba2;
+  transform: translateX(-2px);
+}
+
+/* ==================== 筛选和搜索区域 ==================== */
+.filter-section {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-tab {
+  padding: 6px 16px;
+  border: 1.5px solid var(--color-border);
+  background: white;
+  color: var(--color-text-secondary);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-tab:hover {
+  border-color: rgba(102, 126, 234, 0.4);
+  color: #667eea;
+}
+
+.filter-tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.filter-categories {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.category-btn {
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-border);
+  background: white;
+  color: var(--color-text-secondary);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.category-btn:hover {
+  border-color: rgba(102, 126, 234, 0.4);
+  color: #667eea;
+}
+
+.category-btn.active {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.search-box {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.search-box input {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.search-box button {
+  padding: 8px 20px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-box button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* ==================== 工作流卡片 ==================== */
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.workflow-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.3s ease;
+  opacity: 0;
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+.workflow-card:not(:has(.workflow-card__action-btn)) {
+  cursor: pointer;
+}
+
+.workflow-card:nth-child(1) { animation-delay: 0.1s; }
+.workflow-card:nth-child(2) { animation-delay: 0.2s; }
+.workflow-card:nth-child(3) { animation-delay: 0.3s; }
+.workflow-card:nth-child(4) { animation-delay: 0.4s; }
+.workflow-card:nth-child(5) { animation-delay: 0.5s; }
+.workflow-card:nth-child(6) { animation-delay: 0.6s; }
+.workflow-card:nth-child(7) { animation-delay: 0.7s; }
+.workflow-card:nth-child(8) { animation-delay: 0.8s; }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workflow-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px) !important;
+  opacity: 1;
+  border-color: rgba(159, 122, 234, 0.3);
+}
+
+/* 卡片头部 - 标题和类别 */
+.workflow-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.workflow-card__title {
+  font-size: 16px;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+  flex: 1;
+  line-height: var(--line-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.workflow-card__category {
+  background: rgba(102, 126, 234, 0.08);
+  color: #667eea;
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 元信息行 - 作者、评分、统计 */
+.workflow-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.workflow-card__author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-card__avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: var(--weight-bold);
+  flex-shrink: 0;
+}
+
+.workflow-card__author-name {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+.workflow-card__divider {
+  color: var(--color-text-tertiary);
+  opacity: 0.5;
+}
+
+.workflow-card__rating {
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  color: #facc15;
+}
+
+.workflow-card__stat {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+/* 描述文本 */
+.workflow-card__description {
+  font-size: 14px;
+  font-weight: var(--weight-regular);
+  color: var(--color-text-secondary);
+  line-height: var(--line-relaxed);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 卡片操作按钮 */
+.workflow-card__action-btn {
+  width: 100%;
+  padding: 8px 16px;
+  margin-top: 4px;
+  border: 1.5px solid rgba(102, 126, 234, 0.2);
+  background: rgba(102, 126, 234, 0.06);
+  color: #667eea;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.workflow-card__action-btn:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  color: #764ba2;
+  transform: translateY(-1px);
+}
+
+/* ==================== 加载状态 ==================== */
+.loading-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+}
+
+/* ==================== 分页 ==================== */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 32px;
+  padding: 20px 0;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 1.5px solid var(--color-border);
+  background: white;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-1px);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+/* ==================== 讨论区 ==================== */
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-item {
+  background: white;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--color-border-light);
+  transition: var(--transition-base);
+  cursor: pointer;
+}
+
+.post-item:hover {
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-2px);
+  border-color: rgba(159, 122, 234, 0.2);
+}
+
+.post-item__title {
+  font-size: 15px;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 8px 0;
+  line-height: var(--line-normal);
+}
+
+.post-item__preview {
+  font-size: var(--text-body);
+  color: var(--color-text-secondary);
+  line-height: var(--line-relaxed);
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-caption);
+  color: var(--color-text-tertiary);
+  flex-wrap: wrap;
+}
+
+.meta-author {
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-medium);
+}
+
+.meta-divider {
+  color: var(--color-text-tertiary);
+}
+
+.meta-time,
+.meta-stat {
+  color: var(--color-text-tertiary);
+}
+
+.meta-like-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.meta-like-btn:hover {
+  color: #ec4899;
+}
+
+.meta-like-btn.liked {
+  color: #ec4899;
+}
+
+/* ==================== 帖子详情页 ==================== */
+.post-detail-page-douban {
+  min-height: 100vh;
+  background: #faf7ff;
+  padding: 2rem 0;
+}
+
+.douban-container {
+  max-width: 950px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.douban-back-button {
+  background: none;
+  border: none;
+  color: #37a;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-bottom: 20px;
+  transition: color 0.2s;
+}
+
+.douban-back-button:hover {
+  color: #007722;
+  text-decoration: underline;
+}
+
+.douban-post-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-post-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.douban-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.douban-post-time {
+  color: #999;
+}
+
+.douban-post-views {
+  color: #999;
+}
+
+.douban-post-content {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.douban-post-content p {
+  margin: 0 0 12px 0;
+}
+
+.douban-post-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.douban-like-button {
+  background: none;
+  border: 1px solid #e5e7eb;
+  color: #666;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-like-button.liked {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.douban-like-button:hover {
+  border-color: #007722;
+  background: #f0f9ff;
+}
+
+.douban-action-divider {
+  color: #ddd;
+}
+
+.douban-comment-count {
+  color: #999;
+  font-size: 14px;
+}
+
+/* 评论区 */
+.douban-comments-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-comments-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.douban-comment-input {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.douban-reply-tag {
+  background: #f3f4f6;
+  color: #666;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.douban-reply-tag button {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+}
+
+.douban-comment-input textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+  margin-bottom: 12px;
+}
+
+.douban-comment-input textarea:focus {
+  outline: none;
+  border-color: #007722;
+}
+
+.douban-submit-button {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-submit-button:hover:not(:disabled) {
+  background: #005f1a;
+}
+
+.douban-submit-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.douban-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.douban-comment-item {
+  display: flex;
+  gap: 12px;
+}
+
+.douban-comment-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.douban-comment-avatar.small {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+.douban-comment-body {
+  flex: 1;
+}
+
+.douban-comment-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.douban-comment-author {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.douban-comment-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.douban-comment-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.douban-reply-button {
+  background: none;
+  border: none;
+  color: #37a;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.douban-reply-button:hover {
+  color: #007722;
+  text-decoration: underline;
+}
+
+.douban-replies-list {
+  margin-top: 16px;
+  padding-left: 16px;
+  border-left: 2px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.douban-reply-item {
+  display: flex;
+  gap: 12px;
+}
+
+.douban-no-comments {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* ==================== 讨论区列表页 ==================== */
+.community-posts-page-douban {
+  min-height: 100vh;
+  background: #faf7ff;
+  padding: 2rem 0;
+}
+
+.douban-community-container {
+  max-width: 950px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.douban-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 20px;
+}
+
+.douban-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 8px 0;
+}
+
+.douban-page-desc {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.douban-new-post-btn {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.douban-new-post-btn:hover {
+  background: #005f1a;
+}
+
+.douban-filter-bar {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-filter-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.douban-filter-tab {
+  background: none;
+  border: 1px solid #e5e7eb;
+  color: #666;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-filter-tab:hover {
+  border-color: #007722;
+  color: #007722;
+}
+
+.douban-filter-tab.active {
+  background: #007722;
+  color: white;
+  border-color: #007722;
+}
+
+.douban-search-box {
+  display: flex;
+  gap: 8px;
+}
+
+.douban-search-box input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.douban-search-box input:focus {
+  outline: none;
+  border-color: #007722;
+}
+
+.douban-search-box button {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-search-box button:hover {
+  background: #005f1a;
+}
+
+.douban-loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 14px;
+}
+
+.douban-post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.douban-post-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.douban-post-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: rgba(0, 119, 34, 0.3);
+}
+
+.douban-post-item-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.douban-post-preview {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #666;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.douban-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #999;
+}
+
+.douban-author {
+  color: #666;
+  font-weight: 500;
+}
+
+.douban-meta-divider {
+  color: #ddd;
+}
+
+.douban-meta-text {
+  color: #999;
+}
+
+.douban-meta-stat {
+  color: #999;
+}
+
+.douban-like-btn {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.douban-like-btn:hover {
+  color: #007722;
+}
+
+.douban-like-btn.liked {
+  color: #ff6b6b;
+}
+
+.douban-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 0;
+}
+
+.douban-pagination button {
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #666;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-pagination button:hover:not(:disabled) {
+  border-color: #007722;
+  color: #007722;
+}
+
+.douban-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.douban-pagination span {
+  color: #666;
+  font-size: 14px;
+}
+
+/* ==================== 工作流列表页 ==================== */
+.community-workflows-page-douban {
+  min-height: 100vh;
+  background: #faf7ff;
+  padding: 2rem 0;
+}
+
+.douban-filter-cats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.douban-cat-btn {
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #666;
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-cat-btn:hover {
+  border-color: #007722;
+  color: #007722;
+}
+
+.douban-cat-btn.active {
+  background: #007722;
+  color: white;
+  border-color: #007722;
+}
+
+.douban-workflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.douban-workflow-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.douban-workflow-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: rgba(0, 119, 34, 0.3);
+}
+
+.douban-workflow-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.douban-item-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.douban-item-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #666;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.douban-category {
+  display: inline-block;
+  background: rgba(102, 126, 234, 0.08);
+  color: #667eea;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  margin-right: 8px;
+}
+
+.douban-copy-btn {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.douban-copy-btn:hover {
+  background: #005f1a;
+}
+
+/* ==================== 新建帖子页面 ==================== */
+.new-post-page-douban {
+  min-height: 100vh;
+  background: #faf7ff;
+  padding: 2rem 0;
+}
+
+.douban-new-post-form {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.douban-form-group {
+  margin-bottom: 24px;
+}
+
+.douban-form-group:last-of-type {
+  margin-bottom: 0;
+}
+
+.douban-form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.douban-form-group input[type="text"],
+.douban-form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.douban-form-group input[type="text"]:focus,
+.douban-form-group textarea:focus {
+  outline: none;
+  border-color: #007722;
+}
+
+.douban-char-count {
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.douban-tag-input {
+  display: flex;
+  gap: 8px;
+}
+
+.douban-tag-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.douban-tag-input input:focus {
+  outline: none;
+  border-color: #007722;
+}
+
+.douban-tag-input button {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-tag-input button:hover {
+  background: #005f1a;
+}
+
+.douban-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.douban-tags .douban-tag {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 6px 12px;
+  border-radius: 100px;
+  font-size: 13px;
+  border: 1px solid #e5e7eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.douban-tags .douban-tag button {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+}
+
+.douban-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.douban-cancel-btn {
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #666;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-cancel-btn:hover {
+  border-color: #999;
+  color: #333;
+}
+
+.douban-submit-btn {
+  background: #007722;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.douban-submit-btn:hover:not(:disabled) {
+  background: #005f1a;
+}
+
+.douban-submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.douban-post-tips {
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.douban-post-tips h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+}
+
+.douban-post-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.douban-post-tips li {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.8;
+  margin-bottom: 6px;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 768px) {
+  .community-page {
+    width: calc(100% - 32px);
+    padding: 24px 0 48px;
+  }
+
+  .workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-section {
+    padding: 12px;
+  }
+
+  .filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    flex-direction: column;
+  }
+
+  .search-box button {
+    width: 100%;
+  }
+
+  .pagination {
+    gap: 8px;
+  }
+
+  .pagination-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .post-item {
+    padding: 12px;
+  }
+
+  .douban-post-card {
+    padding: 20px;
+  }
+
+  .douban-comments-section {
+    padding: 16px;
+  }
+
+  .douban-comment-item {
+    flex-direction: column;
+  }
+
+  .douban-page-header {
+    flex-direction: column;
+  }
+
+  .douban-filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  .douban-post-item {
+    padding: 16px;
+  }
+
+  .douban-workflow-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .douban-copy-btn {
+    width: 100%;
+  }
+
+  .douban-filter-cats {
+    gap: 6px;
+  }
+
+  .douban-cat-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  .douban-new-post-form {
+    padding: 16px;
+  }
+
+  .douban-form-actions {
+    flex-direction: column;
+  }
+
+  .douban-cancel-btn,
+  .douban-submit-btn {
+    width: 100%;
+  }
+}

@@ -1,8 +1,9 @@
-import { type CSSProperties, useMemo, useState } from 'react'
+import { type CSSProperties, useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { exploreThemes } from '../data/exploreThemes'
 import { popularWorkPackages } from '../data/popularWorkPackages'
 import PopularWorkPackageCard from '../components/PopularWorkPackageCard'
+import { ExploreChatRecommendationPanel } from '../components/ExploreChatRecommendationPanel'
 import '../styles/explore.css'
 
 type RankTrend = 'up' | 'down' | 'same'
@@ -95,14 +96,75 @@ const trendIcons: Record<RankTrend, string> = {
   same: '▬'
 }
 
+interface WorkflowRecommendation {
+  workflow: {
+    id: string
+    title: string
+    description: string | null
+    thumbnail: string | null
+    rating: number | null
+    usageCount: number
+    difficultyLevel: string
+  }
+  relevanceScore: number
+  matchReasons: Array<{
+    label: string
+    icon: string
+    color: 'green' | 'blue' | 'gold' | 'orange'
+  }>
+  displayType: 'highlight' | 'normal' | 'suggested'
+  position: number
+  logId?: string
+}
+
+interface IntentTag {
+  label: string
+  type: 'keyword' | 'platform' | 'content' | 'goal'
+}
+
 export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [showAllThemes, setShowAllThemes] = useState(false)
+  const [aiRecommendations, setAiRecommendations] = useState<WorkflowRecommendation[]>([])
+  const [intentTags, setIntentTags] = useState<IntentTag[]>([])
 
   const compactFormatter = useMemo(
     () => new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }),
     []
   )
+
+  // 监听来自AI对话iframe的推荐数据
+  useEffect(() => {
+    console.log('✅ ExplorePage: 消息监听器已设置')
+
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📨 ExplorePage收到消息:', {
+        origin: event.origin,
+        type: event.data?.type,
+        data: event.data
+      })
+
+      // 安全检查：确保消息来源可信
+      if (event.data?.type === 'AI_RECOMMENDATIONS') {
+        console.log('📥 ExplorePage: 识别到AI推荐消息')
+        console.log('推荐数据:', event.data.recommendations)
+        console.log('意图标签:', event.data.intentTags)
+
+        setAiRecommendations(event.data.recommendations || [])
+        setIntentTags(event.data.intentTags || [])
+
+        console.log('✅ 状态已更新')
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    console.log('🎧 事件监听器已添加')
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      console.log('🔇 事件监听器已移除')
+    }
+  }, [])
 
   const rankingColumns = useMemo<RankingColumnConfig[]>(
     () => [
@@ -190,14 +252,22 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         <div className="explore-main-columns__right">
-          <section className="section-block" aria-labelledby="packages-title">
-            <header className="section-header">
-              <div>
-                <h2 id="packages-title" className="section-title">
-                  爆款工作包
-                </h2>
-                <p className="section-subtitle">精选热门组合，主打全链路解决方案，一套方案彻底解决一块工作。</p>
-              </div>
+          {/* AI对话推荐面板 - 置顶显示 */}
+          {aiRecommendations.length > 0 && (
+            <section className="section-block" style={{ marginBottom: '24px' }}>
+              <ExploreChatRecommendationPanel
+                recommendations={aiRecommendations}
+                intentTags={intentTags}
+              />
+            </section>
+          )}
+
+          <section className="section-block ai-recommendation-panel" aria-labelledby="packages-title">
+            <header className="panel-header">
+              <h2 id="packages-title">
+                爆款工作包
+              </h2>
+              <span className="subtitle">精选热门组合，主打全链路解决方案，一套方案彻底解决一块工作。</span>
             </header>
 
             <div className="package-grid">
@@ -210,14 +280,12 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
             </div>
           </section>
 
-          <section className="section-block" aria-labelledby="themes-title">
-            <header className="section-header">
-              <div>
-                <h2 id="themes-title" className="section-title">
-                  热门主题
-                </h2>
-                <p className="section-subtitle">精选常用场景，全平台解决方案让你打破信息差，总能找到最好的方法。</p>
-              </div>
+          <section className="section-block ai-recommendation-panel" aria-labelledby="themes-title">
+            <header className="panel-header">
+              <h2 id="themes-title">
+                热门主题
+              </h2>
+              <span className="subtitle">精选常用场景，全平台解决方案让你打破信息差，总能找到最好的方法。</span>
             </header>
 
             <div className="theme-grid">

@@ -1,0 +1,276 @@
+.recommendation-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+
+  /* 依次出现动画 */
+  opacity: 0;
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+/* 依次延迟出现 */
+.recommendation-card:nth-child(1) { animation-delay: 0.1s; }
+.recommendation-card:nth-child(2) { animation-delay: 0.2s; }
+.recommendation-card:nth-child(3) { animation-delay: 0.3s; }
+.recommendation-card:nth-child(4) { animation-delay: 0.4s; }
+.recommendation-card:nth-child(5) { animation-delay: 0.5s; }
+.recommendation-card:nth-child(6) { animation-delay: 0.6s; }
+.recommendation-card:nth-child(7) { animation-delay: 0.7s; }
+.recommendation-card:nth-child(8) { animation-delay: 0.8s; }
+
+/* 淡入上升动画 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.recommendation-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 12px 40px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px);
+}
+
+/* 不同显示类型的边框样式 */
+.card-highlight {
+  border: 2px solid #ffd700;
+  background: linear-gradient(135deg, #fffef7 0%, #ffffff 100%);
+}
+
+.card-normal {
+  border: 2px solid #a855f7;
+}
+
+.card-suggested {
+  border: 1px solid #e5e7eb;
+}
+
+/* 右上角删除按钮 */
+.btn-dismiss-top {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  color: #9ca3af;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  z-index: 20;
+  line-height: 1;
+}
+
+.btn-dismiss-top:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* 推荐标识 - 简化版 */
+.highlight-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: #667eea;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 10;
+}
+
+/* 相关度评分 - 顶部显示 */
+.relevance-score-top {
+  position: absolute;
+  top: 8px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* 有推荐标识时，匹配度靠右 */
+.card-highlight .relevance-score-top {
+  right: 40px;
+  left: auto;
+}
+
+/* 无推荐标识时，匹配度居中 */
+.card-normal .relevance-score-top,
+.card-suggested .relevance-score-top {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 卡片内容 - 调整padding给顶部徽章留空间 */
+.card-content {
+  padding: 32px 12px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-description {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 匹配理由标签 - 更紧凑 */
+.match-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.reason-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.reason-icon {
+  font-size: 12px;
+}
+
+.reason-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.reason-blue {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.reason-gold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reason-orange {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+/* 元信息已移除 */
+
+/* 操作按钮 - 简化为两个按钮 */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card-actions button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex: 1.2;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-text {
+  background: white;
+  color: #667eea;
+  border: 1px solid #e5e7eb !important;
+  flex: 1;
+}
+
+.btn-text:hover {
+  background: #f5f3ff;
+  border-color: #667eea !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .recommendation-card {
+    min-height: auto;
+  }
+
+  .card-content {
+    padding: 28px 10px 8px 10px;
+    gap: 5px;
+  }
+
+  .card-title {
+    font-size: 13px;
+  }
+
+  .card-description {
+    font-size: 11px;
+  }
+
+  .card-actions button {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .relevance-score-top {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .highlight-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .btn-dismiss-top {
+    font-size: 16px;
+    padding: 2px 6px;
+  }
+}

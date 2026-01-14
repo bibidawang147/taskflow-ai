@@ -94,6 +94,21 @@ export default function Layout() {
               >
                 我的工作台
               </Link>
+              <Link
+                to="/community"
+                style={{
+                  color: isActive('/community') ? '#8b5cf6' : '#6b7280',
+                  textDecoration: 'none',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: isActive('/community') ? '15px' : '14px',
+                  fontWeight: isActive('/community') ? '600' : '500',
+                  backgroundColor: isActive('/community') ? '#f3f0ff' : 'transparent',
+                  transition: 'all 0.2s',
+                }}
+              >
+                社群
+              </Link>
             </div>
           </div>
 

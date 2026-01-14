@@ -1,0 +1,204 @@
+/**
+ * 按钮系统
+ * Button System
+ */
+
+/* ========== 基础按钮样式 ========== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: 10px 24px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ========== 主按钮 ========== */
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px var(--primary-shadow);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* 主按钮 - 渐变版本 */
+.btn-primary-gradient {
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+}
+
+.btn-primary-gradient:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5568D3 0%, #6439 8D 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-primary-gradient:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ========== 次要按钮 ========== */
+.btn-secondary {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid #E0E7FF;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover-primary);
+  border-color: #C7D2FE;
+}
+
+.btn-secondary:active:not(:disabled) {
+  background: var(--primary-light);
+}
+
+/* ========== 文本按钮 ========== */
+.btn-text {
+  background: transparent;
+  color: var(--primary);
+  padding: 8px 12px;
+}
+
+.btn-text:hover:not(:disabled) {
+  color: var(--primary-hover);
+  background: var(--bg-hover-primary);
+}
+
+.btn-text:active:not(:disabled) {
+  background: var(--primary-light);
+}
+
+/* ========== 按钮尺寸变体 ========== */
+.btn-sm {
+  padding: 6px 16px;
+  font-size: var(--font-caption);
+}
+
+.btn-md {
+  padding: 10px 24px;
+  font-size: var(--font-body);
+}
+
+.btn-lg {
+  padding: 12px 32px;
+  font-size: var(--font-body);
+}
+
+/* ========== 全宽按钮 ========== */
+.btn-block {
+  width: 100%;
+}
+
+/* ========== 创建按钮（特殊样式） ========== */
+.btn-create {
+  background: var(--primary);
+  color: white;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px var(--primary-shadow);
+  transition: all var(--transition-base);
+}
+
+.btn-create:hover:not(:disabled) {
+  background: var(--primary-hover);
+  box-shadow: 0 3px 10px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-create:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ========== 功能色按钮 ========== */
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #D97706;
+  transform: translateY(-1px);
+}
+
+.btn-error {
+  background: var(--error);
+  color: white;
+}
+
+.btn-error:hover:not(:disabled) {
+  background: #DC2626;
+  transform: translateY(-1px);
+}
+
+/* ========== 按钮图标 ========== */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-md);
+}
+
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+}
+
+.btn-icon-lg {
+  width: 44px;
+  height: 44px;
+}
+
+/* ========== 按钮组 ========== */
+.btn-group {
+  display: inline-flex;
+  gap: var(--spacing-sm);
+}
+
+.btn-group .btn {
+  flex: 1;
+}

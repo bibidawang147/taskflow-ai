@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平台搜索工具 - 个人版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .search-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .platform-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+
+        .platform-btn {
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .platform-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .platform-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .search-btn:hover:not(:disabled) {
+            transform: scale(1.02);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .results-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .export-btn {
+            padding: 10px 20px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .result-item {
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+
+        .result-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+
+        .result-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .result-content {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .result-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 平台搜索工具</h1>
+            <p>搜索小红书、抖音、B站等平台内容（个人使用版）</p>
+        </div>
+
+        <div class="search-card">
+            <form id="searchForm">
+                <div class="form-group">
+                    <label class="form-label">选择平台</label>
+                    <div class="platform-buttons">
+                        <button type="button" class="platform-btn active" data-platform="xhs">
+                            📒 小红书
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="dy">
+                            🎵 抖音
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="bili">
+                            📺 B站
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="ks">
+                            ⚡ 快手
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="wb">
+                            🐦 微博
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="tieba">
+                            💬 贴吧
+                        </button>
+                        <button type="button" class="platform-btn" data-platform="zhihu">
+                            🎓 知乎
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">搜索关键词</label>
+                    <input
+                        type="text"
+                        id="keyword"
+                        class="input-field"
+                        placeholder="输入要搜索的关键词..."
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">搜索数量</label>
+                    <input
+                        type="number"
+                        id="maxCount"
+                        class="input-field"
+                        value="20"
+                        min="1"
+                        max="100"
+                    >
+                </div>
+
+                <button type="submit" class="search-btn" id="searchBtn">
+                    开始搜索
+                </button>
+            </form>
+
+            <div class="info-box">
+                <strong>💡 使用说明：</strong>
+                <ul style="margin-top: 8px; padding-left: 20px;">
+                    <li>首次使用需要扫码登录对应平台</li>
+                    <li>建议搜索数量不超过50，避免被限流</li>
+                    <li>搜索结果会自动缓存1小时</li>
+                    <li>仅供个人学习研究使用</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="loadingContainer" style="display: none;">
+            <div class="search-card">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在搜索中，请稍候...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="errorContainer" style="display: none;">
+            <div class="search-card">
+                <div class="error" id="errorMessage"></div>
+            </div>
+        </div>
+
+        <div id="resultsContainer" style="display: none;">
+            <div class="results">
+                <div class="results-header">
+                    <div class="results-title" id="resultsTitle">搜索结果</div>
+                    <button class="export-btn" onclick="exportResults()">
+                        📥 导出Excel
+                    </button>
+                </div>
+                <div id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedPlatform = 'xhs';
+        let currentResults = [];
+
+        // 平台按钮切换
+        document.querySelectorAll('.platform-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                selectedPlatform = this.dataset.platform;
+            });
+        });
+
+        // 搜索表单提交
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const keyword = document.getElementById('keyword').value.trim();
+            const maxCount = parseInt(document.getElementById('maxCount').value);
+
+            if (!keyword) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            // 显示加载状态
+            document.getElementById('loadingContainer').style.display = 'block';
+            document.getElementById('errorContainer').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('searchBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        platform: selectedPlatform,
+                        keyword: keyword,
+                        max_count: maxCount
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    showError(data.message || '搜索失败，请查看命令行提示');
+                }
+            } catch (error) {
+                showError('网络错误: ' + error.message);
+            } finally {
+                document.getElementById('loadingContainer').style.display = 'none';
+                document.getElementById('searchBtn').disabled = false;
+            }
+        });
+
+        function displayResults(data) {
+            currentResults = data.results || [];
+
+            const title = `${data.platform} - "${data.keyword}" (共 ${data.count} 条${data.cached ? '，来自缓存' : ''})`;
+            document.getElementById('resultsTitle').textContent = title;
+
+            const resultsList = document.getElementById('resultsList');
+
+            if (currentResults.length === 0) {
+                resultsList.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">暂无搜索结果</p>';
+            } else {
+                resultsList.innerHTML = currentResults.map((item, index) => `
+                    <div class="result-item">
+                        <div class="result-title">${index + 1}. ${item.title || '无标题'}</div>
+                        <div class="result-meta">
+                            <span>👤 ${item.author || '未知作者'}</span>
+                            <span>❤️ ${item.like_count || 0}</span>
+                            <span>💬 ${item.comment_count || 0}</span>
+                            <span>📅 ${item.publish_time || '未知时间'}</span>
+                        </div>
+                        <div class="result-content">${(item.content || '').substring(0, 200)}${item.content && item.content.length > 200 ? '...' : ''}</div>
+                        ${item.url ? `<a href="${item.url}" target="_blank" class="result-link">查看原文 →</a>` : ''}
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorContainer').style.display = 'block';
+        }
+
+        function exportResults() {
+            if (currentResults.length === 0) {
+                alert('暂无数据可导出');
+                return;
+            }
+
+            // 简单的CSV导出
+            const csv = [
+                ['标题', '作者', '内容', '点赞数', '评论数', '发布时间', '链接'],
+                ...currentResults.map(item => [
+                    item.title || '',
+                    item.author || '',
+                    (item.content || '').replace(/"/g, '""'),
+                    item.like_count || 0,
+                    item.comment_count || 0,
+                    item.publish_time || '',
+                    item.url || ''
+                ])
+            ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `搜索结果_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>

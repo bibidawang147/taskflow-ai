@@ -18,6 +18,12 @@ import { UsageStatsPage } from './pages/UsageStatsPage'
 import { MembershipPage } from './pages/MembershipPage'
 import { AIChatPage } from './pages/AIChatPage'
 import TestPage from './pages/TestPage'
+import CommunityPage from './pages/CommunityPage'
+import CommunityWorkflowsPage from './pages/CommunityWorkflowsPage'
+import CommunityPostsPage from './pages/CommunityPostsPage'
+import PostDetailPage from './pages/PostDetailPage'
+import NewPostPage from './pages/NewPostPage'
+import AIRecommendationTestPage from './pages/AIRecommendationTestPage'
 import GridDragDemoPage from './pages/GridDragDemoPage'
 import ArticleWorkflowMVPPage from './pages/ArticleWorkflowMVPPage'
 import ReverseEngineerPage from './pages/ReverseEngineerPage'
@@ -29,6 +35,7 @@ function App() {
   return (
     <Routes>
       <Route path="/test" element={<TestPage />} />
+      <Route path="/ai-recommendation-test" element={<AIRecommendationTestPage />} />
       <Route path="/grid-drag-demo" element={<GridDragDemoPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -55,6 +62,11 @@ function App() {
         <Route path="membership" element={<MembershipPage />} />
         <Route path="article-to-workflow" element={<ArticleWorkflowMVPPage />} />
         <Route path="reverse-engineer" element={<ReverseEngineerPage />} />
+        <Route path="community" element={<CommunityPage />} />
+        <Route path="community/workflows" element={<CommunityWorkflowsPage />} />
+        <Route path="community/posts" element={<CommunityPostsPage />} />
+        <Route path="community/posts/new" element={<NewPostPage />} />
+        <Route path="community/posts/:id" element={<PostDetailPage />} />
       </Route>
     </Routes>
   )

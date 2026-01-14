@@ -1,0 +1,16 @@
+# RSS 抓取
+feedparser==6.0.10
+
+# 网页抓取
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==5.1.0
+
+# AI 摘要 (可选择其中一个)
+openai==1.12.0          # OpenAI GPT
+# anthropic==0.18.0      # Claude
+# dashscope==1.14.1      # 通义千问
+
+# 工具库
+python-dotenv==1.0.0
+schedule==1.2.1         # 定时任务

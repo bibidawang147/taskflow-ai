@@ -1,0 +1,148 @@
+/**
+ * 全局设计系统变量
+ * Design System Variables
+ */
+
+:root {
+  /* ========== 主题色 ========== */
+  /* Primary Colors */
+  --primary: #6366F1;
+  --primary-hover: #5B21B6;
+  --primary-light: #EDE9FE;
+  --primary-lighter: #F5F3FF;
+  --primary-shadow: rgba(99, 102, 241, 0.25);
+
+  /* ========== 文字颜色 ========== */
+  /* Text Colors */
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-tertiary: #6B7280;
+  --text-disabled: #9CA3AF;
+  --text-placeholder: #D1D5DB;
+
+  /* ========== 背景色 ========== */
+  /* Background Colors */
+  --bg-base: #FAFAFA;
+  --bg-elevated: #FFFFFF;
+  --bg-sidebar: #F8F9FA;
+  --bg-hover: #F3F4F6;
+  --bg-hover-primary: #F5F3FF;
+  --bg-panel: #F9FAFB;
+
+  /* ========== 边框色 ========== */
+  /* Border Colors */
+  --border-light: #F3F4F6;
+  --border-default: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --border-focus: #6366F1;
+
+  /* ========== 功能色 ========== */
+  /* Functional Colors */
+  --success: #10B981;
+  --success-light: #D1FAE5;
+  --success-bg: #ECFDF5;
+
+  --warning: #F59E0B;
+  --warning-light: #FEF3C7;
+  --warning-bg: #FFFBEB;
+
+  --error: #EF4444;
+  --error-light: #FEE2E2;
+  --error-bg: #FEF2F2;
+
+  --info: #3B82F6;
+  --info-light: #DBEAFE;
+  --info-bg: #EFF6FF;
+
+  /* ========== 标签颜色 ========== */
+  /* Tag Colors */
+  --tag-text-bg: #EDE9FE;
+  --tag-text-color: #7C3AED;
+
+  --tag-product-bg: #DBEAFE;
+  --tag-product-color: #2563EB;
+
+  --tag-analysis-bg: #FEF3C7;
+  --tag-analysis-color: #D97706;
+
+  --tag-marketing-bg: #FFEDD5;
+  --tag-marketing-color: #EA580C;
+
+  --tag-image-bg: #FCE7F3;
+  --tag-image-color: #DB2777;
+
+  --tag-video-bg: #E0E7FF;
+  --tag-video-color: #4F46E5;
+
+  --tag-growth-bg: #D1FAE5;
+  --tag-growth-color: #059669;
+
+  --tag-ai-bg: #E0E7FF;
+  --tag-ai-color: #6366F1;
+
+  /* ========== 字体大小 ========== */
+  /* Font Sizes */
+  --font-page-title: 24px;
+  --font-section-title: 20px;
+  --font-card-title: 16px;
+  --font-body: 14px;
+  --font-caption: 13px;
+  --font-small: 12px;
+
+  /* ========== 字重 ========== */
+  /* Font Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ========== 行高 ========== */
+  /* Line Heights */
+  --line-tight: 1.25;
+  --line-normal: 1.5;
+  --line-relaxed: 1.75;
+
+  /* ========== 圆角 ========== */
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ========== 阴影 ========== */
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+
+  /* ========== 间距 ========== */
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
+
+  /* ========== 过渡动画 ========== */
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ========== Z-index 层级 ========== */
+  /* Z-index Layers */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}

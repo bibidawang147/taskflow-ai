@@ -225,6 +225,91 @@
   margin-bottom: 16px;
 }
 
+/* 应用"为你推荐"风格的面板样式 */
+.section-block.section-panel {
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+
+  /* 整体淡入动画 */
+  animation: fadeIn 0.4s ease;
+}
+
+/* 爆款工作包和热门主题面板 - 无背景 */
+.section-block.ai-recommendation-panel {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 面板内的标题样式 */
+.section-panel .panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  /* 标题滑入动画 */
+  animation: slideInFromLeft 0.5s ease;
+}
+
+/* AI推荐面板的标题样式 */
+.ai-recommendation-panel .panel-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+/* 从左侧滑入 */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.section-panel .panel-header .section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+/* 爆款工作包和热门主题的h2标题使用渐变色 */
+.section-panel .panel-header h2,
+.ai-recommendation-panel .panel-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.section-panel .panel-header .subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
 .section-header {
   display: flex;
   align-items: baseline;
@@ -503,31 +588,81 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  margin-bottom: 12px;
 }
 
 .package-card {
-  background: var(--color-bg-primary);
-  border-radius: var(--radius-lg);
-  padding: 12px;
+  background: white;
+  border-radius: 10px;
+  padding: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  display: grid;
-  gap: 2px;
-  transition: var(--transition-base);
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.3s ease;
   position: relative;
+
+  /* 依次出现动画 */
+  opacity: 0;
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+/* 依次延迟出现 */
+.package-card:nth-child(1) { animation-delay: 0.1s; }
+.package-card:nth-child(2) { animation-delay: 0.2s; }
+.package-card:nth-child(3) { animation-delay: 0.3s; }
+.package-card:nth-child(4) { animation-delay: 0.4s; }
+.package-card:nth-child(5) { animation-delay: 0.5s; }
+.package-card:nth-child(6) { animation-delay: 0.6s; }
+.package-card:nth-child(7) { animation-delay: 0.7s; }
+.package-card:nth-child(8) { animation-delay: 0.8s; }
+
+/* 淡入上升动画 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .package-card:hover {
-  transform: translateY(-4px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 12px 40px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px) !important;
+  opacity: 1;
 }
 
 .package-card__header {
   display: flex;
   flex-direction: row;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.package-card__header .card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  flex: 1;
+  line-height: 1.2;
+}
+
+/* 类型标签 - 右上角胶囊样式 */
+.package-card__header .tag--light {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 500;
+  border: 1px solid rgba(102, 126, 234, 0.2);
 }
 
 .package-card__meta {
@@ -535,8 +670,8 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  font-size: var(--text-caption);
-  color: var(--color-text-secondary);
+  font-size: 11px;
+  color: #6b7280;
 }
 
 .package-card__author-name {
@@ -544,44 +679,119 @@
 }
 
 .package-card__description {
-  font-size: var(--text-body);
-  font-weight: var(--weight-regular);
-  color: var(--color-text-secondary);
-  line-height: 1;
+  font-size: 11px;
+  font-weight: 400;
+  color: #6b7280;
+  line-height: 1.3;
   margin: 0;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 统计信息区域 */
+.package-card .stats-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  padding: 5px 0;
+  border-top: 1px solid #F3F4F6;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.package-card .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.package-card .stat-number {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.package-card .rating-star {
+  color: #facc15;
+}
+
+.package-card .rating-number {
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .package-card__tags {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 4px;
+  margin: 4px 0;
   overflow: hidden;
-  align-items: center;
+  min-height: 18px;
+  max-height: 18px;
 }
 
 .package-card__tags .tag {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  border: none;
   white-space: nowrap;
 }
 
 .package-card__actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
-.primary-button--solid,
-.secondary-button--soft {
-  width: 100%;
+/* 次要按钮 - 查看详情 */
+.package-card__actions .secondary-button--soft {
+  flex: 1;
+  background: white;
+  color: #667eea;
+  border: 1px solid #e5e7eb;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
-.primary-button--solid span[aria-hidden],
-.secondary-button--soft span[aria-hidden] {
-  font-size: var(--icon-size);
-  line-height: 1;
+.package-card__actions .secondary-button--soft:hover {
+  background: #f5f3ff;
+  border-color: #667eea;
+}
+
+/* 主按钮 - 一键导入 */
+.package-card__actions .primary-button--solid {
+  flex: 1.2;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.package-card__actions .primary-button--solid:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 /* ---------------- Theme Cards ---------------- */
@@ -589,6 +799,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  margin-bottom: 12px;
 }
 
 .theme-card {
@@ -601,11 +812,26 @@
   display: grid;
   gap: 8px;
   transition: var(--transition-base);
+
+  /* 依次出现动画 */
+  opacity: 0;
+  animation: fadeInUp 0.5s ease forwards;
 }
 
+/* 依次延迟出现 */
+.theme-card:nth-child(1) { animation-delay: 0.1s; }
+.theme-card:nth-child(2) { animation-delay: 0.2s; }
+.theme-card:nth-child(3) { animation-delay: 0.3s; }
+.theme-card:nth-child(4) { animation-delay: 0.4s; }
+.theme-card:nth-child(5) { animation-delay: 0.5s; }
+.theme-card:nth-child(6) { animation-delay: 0.6s; }
+.theme-card:nth-child(7) { animation-delay: 0.7s; }
+.theme-card:nth-child(8) { animation-delay: 0.8s; }
+
 .theme-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px rgba(0, 0, 0, 0.12);
+  opacity: 1;
 }
 
 .theme-card__head {
@@ -861,6 +1087,45 @@
 
   .theme-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* 响应式卡片样式 */
+  .package-card {
+    padding: 16px;
+    min-height: auto;
+  }
+
+  .package-card__header .card-title {
+    font-size: 15px;
+  }
+
+  .package-card__description {
+    font-size: 13px;
+  }
+
+  .package-card .stats-row {
+    gap: 16px;
+  }
+
+  .package-card__actions .secondary-button--soft,
+  .package-card__actions .primary-button--solid {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  /* 响应式面板样式 */
+  .section-block.section-panel {
+    padding: 14px;
+  }
+
+  .section-panel .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .section-panel .panel-header .section-title {
+    font-size: 18px;
   }
 
   .hero-section {
