@@ -1,4 +1,13 @@
 import { api } from './api'
+import type {
+  WorkflowPreparation,
+  WorkflowStepDetail,
+  StepTool,
+  DemonstrationMedia,
+  RelatedResource,
+  NextStepConfig,
+  DifficultyLevel
+} from '../types/workflow'
 
 // 工作流类型
 export interface Workflow {
@@ -501,4 +510,161 @@ export const getUserDataStats = async (): Promise<UserDataStats> => {
     console.error('获取用户数据统计失败:', error)
     throw error
   }
+}
+
+// ==================== 前置准备 API ====================
+
+// 获取工作流的前置准备列表
+export const getPreparations = async (workflowId: string): Promise<WorkflowPreparation[]> => {
+  try {
+    const response = await api.get(`/api/workflows/${workflowId}/preparations`)
+    return response.data.preparations
+  } catch (error) {
+    console.error('获取前置准备列表失败:', error)
+    throw error
+  }
+}
+
+// 添加前置准备项
+export const addPreparation = async (
+  workflowId: string,
+  data: { name: string; description?: string; link?: string }
+): Promise<WorkflowPreparation> => {
+  try {
+    const response = await api.post(`/api/workflows/${workflowId}/preparations`, data)
+    return response.data.preparation
+  } catch (error) {
+    console.error('添加前置准备失败:', error)
+    throw error
+  }
+}
+
+// 批量设置前置准备项（替换所有）
+export const setPreparations = async (
+  workflowId: string,
+  preparations: Array<{ name: string; description?: string; link?: string }>
+): Promise<WorkflowPreparation[]> => {
+  try {
+    const response = await api.put(`/api/workflows/${workflowId}/preparations`, { preparations })
+    return response.data.preparations
+  } catch (error) {
+    console.error('批量设置前置准备失败:', error)
+    throw error
+  }
+}
+
+// 更新单个前置准备项
+export const updatePreparation = async (
+  workflowId: string,
+  prepId: string,
+  data: { name?: string; description?: string; link?: string; order?: number }
+): Promise<WorkflowPreparation> => {
+  try {
+    const response = await api.put(`/api/workflows/${workflowId}/preparations/${prepId}`, data)
+    return response.data.preparation
+  } catch (error) {
+    console.error('更新前置准备失败:', error)
+    throw error
+  }
+}
+
+// 删除前置准备项
+export const deletePreparation = async (workflowId: string, prepId: string): Promise<void> => {
+  try {
+    await api.delete(`/api/workflows/${workflowId}/preparations/${prepId}`)
+  } catch (error) {
+    console.error('删除前置准备失败:', error)
+    throw error
+  }
+}
+
+// ==================== 步骤详情 API ====================
+
+// 获取节点的步骤详情
+export const getStepDetail = async (
+  workflowId: string,
+  nodeId: string
+): Promise<WorkflowStepDetail | null> => {
+  try {
+    const response = await api.get(`/api/workflows/${workflowId}/nodes/${nodeId}/step-detail`)
+    return response.data.stepDetail
+  } catch (error) {
+    console.error('获取步骤详情失败:', error)
+    throw error
+  }
+}
+
+// 创建或更新步骤详情
+export interface SaveStepDetailData {
+  stepDescription?: string
+  expectedResult?: string
+  tools?: StepTool[]
+  promptTemplate?: string
+  demonstrationMedia?: DemonstrationMedia[]
+  relatedResources?: RelatedResource[]
+  referencedWorkflowId?: string
+  nextStepConfig?: NextStepConfig
+}
+
+export const saveStepDetail = async (
+  workflowId: string,
+  nodeId: string,
+  data: SaveStepDetailData
+): Promise<WorkflowStepDetail> => {
+  try {
+    const response = await api.post(`/api/workflows/${workflowId}/nodes/${nodeId}/step-detail`, data)
+    return response.data.stepDetail
+  } catch (error) {
+    console.error('保存步骤详情失败:', error)
+    throw error
+  }
+}
+
+// 删除步骤详情
+export const deleteStepDetail = async (workflowId: string, nodeId: string): Promise<void> => {
+  try {
+    await api.delete(`/api/workflows/${workflowId}/nodes/${nodeId}/step-detail`)
+  } catch (error) {
+    console.error('删除步骤详情失败:', error)
+    throw error
+  }
+}
+
+// ==================== 完整工作流 API ====================
+
+// 完整工作流类型（含前置准备和步骤详情）
+export interface FullWorkflow extends Workflow {
+  preparations?: WorkflowPreparation[]
+  difficultyLevel?: DifficultyLevel
+  useScenarios?: string[]
+  nodes?: Array<{
+    id: string
+    type: string
+    label: string
+    position: { x: number; y: number }
+    config: any
+    stepDetail?: WorkflowStepDetail
+  }>
+}
+
+// 获取工作流完整详情（含前置准备和步骤详情）
+export const getFullWorkflow = async (workflowId: string): Promise<FullWorkflow> => {
+  try {
+    const response = await api.get(`/api/workflows/${workflowId}/full`)
+    return response.data.workflow
+  } catch (error) {
+    console.error('获取工作流完整详情失败:', error)
+    throw error
+  }
+}
+
+// 导出类型供外部使用
+export type {
+  WorkflowPreparation,
+  WorkflowStepDetail,
+  StepTool,
+  DemonstrationMedia,
+  RelatedResource,
+  NextStepConfig,
+  DifficultyLevel
 }

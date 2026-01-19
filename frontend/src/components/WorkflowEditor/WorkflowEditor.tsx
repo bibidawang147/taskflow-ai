@@ -80,7 +80,8 @@ const baseNodeConfig: Record<CustomNodeType, CustomNodeConfig> = {
   llm: { model: 'gpt-4o-mini', prompt: '请描述这一步的意图或提示词...' },
   tool: { toolName: '', parameters: {} },
   condition: { condition: '', trueOutput: '', falseOutput: '' },
-  output: { format: 'text' }
+  output: { format: 'text' },
+  step: { prompt: '' }  // 教程步骤节点
 }
 
 const cloneConfig = (config: CustomNodeConfig | undefined): CustomNodeConfig =>

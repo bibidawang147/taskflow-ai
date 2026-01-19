@@ -30,6 +30,7 @@ import ReverseEngineerPage from './pages/ReverseEngineerPage'
 import WorkflowCreatePage from './pages/WorkflowCreatePage'
 import ImportFromArticlePage from './pages/ImportFromArticlePage'
 import SolutionPage from './pages/SolutionPage'
+import WorkflowViewPage from './pages/WorkflowViewPage'
 
 function App() {
   return (
@@ -54,6 +55,7 @@ function App() {
         <Route path="workflow/create" element={<WorkflowCreatePage />} />
         <Route path="workflow/edit/:id" element={<WorkflowCreatePage />} />
         <Route path="workflow/import-from-article" element={<ImportFromArticlePage />} />
+        <Route path="workflow/view/:id" element={<WorkflowViewPage />} />
         <Route path="tool/:id" element={<AIToolIntroPage />} />
         <Route path="category/:category" element={<CategoryPage />} />
         <Route path="workflow-type/:type" element={<WorkflowTypePage />} />

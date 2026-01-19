@@ -2533,4 +2533,468 @@ router.get('/search', optionalAuthenticateToken, async (req: AuthenticatedReques
   }
 })
 
+// ==================== 前置准备 (Preparations) API ====================
+
+/**
+ * 获取工作流的前置准备列表
+ * GET /api/workflows/:id/preparations
+ */
+router.get('/:id/preparations', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id: workflowId } = req.params
+
+    // 检查工作流是否存在
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: workflowId },
+      select: { id: true, isPublic: true, authorId: true }
+    })
+
+    if (!workflow) {
+      return res.status(404).json({ error: '工作流不存在' })
+    }
+
+    // 检查访问权限
+    if (!workflow.isPublic && workflow.authorId !== req.user?.id) {
+      return res.status(403).json({ error: '无权访问此工作流' })
+    }
+
+    const preparations = await prisma.workflowPreparation.findMany({
+      where: { workflowId },
+      orderBy: { order: 'asc' }
+    })
+
+    res.status(200).json({ preparations })
+  } catch (error) {
+    console.error('获取前置准备列表错误:', error)
+    res.status(500).json({ error: '获取前置准备列表失败' })
+  }
+})
+
+/**
+ * 添加前置准备项
+ * POST /api/workflows/:id/preparations
+ */
+router.post('/:id/preparations', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { id: workflowId } = req.params
+    const { name, description, link } = req.body
+
+    if (!name) {
+      return res.status(400).json({ error: '准备项名称不能为空' })
+    }
+
+    // 检查工作流是否存在且属于当前用户
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: workflowId }
+    })
+
+    if (!workflow) {
+      return res.status(404).json({ error: '工作流不存在' })
+    }
+
+    if (workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    // 获取当前最大的 order
+    const maxOrder = await prisma.workflowPreparation.aggregate({
+      where: { workflowId },
+      _max: { order: true }
+    })
+
+    const preparation = await prisma.workflowPreparation.create({
+      data: {
+        workflowId,
+        name,
+        description: description || null,
+        link: link || null,
+        order: (maxOrder._max.order ?? -1) + 1
+      }
+    })
+
+    res.status(201).json({ message: '前置准备添加成功', preparation })
+  } catch (error) {
+    console.error('添加前置准备错误:', error)
+    res.status(500).json({ error: '添加前置准备失败' })
+  }
+})
+
+/**
+ * 批量设置前置准备项（替换所有）
+ * PUT /api/workflows/:id/preparations
+ */
+router.put('/:id/preparations', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { id: workflowId } = req.params
+    const { preparations } = req.body
+
+    if (!Array.isArray(preparations)) {
+      return res.status(400).json({ error: 'preparations 必须是数组' })
+    }
+
+    // 检查工作流权限
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: workflowId }
+    })
+
+    if (!workflow) {
+      return res.status(404).json({ error: '工作流不存在' })
+    }
+
+    if (workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    // 使用事务：删除旧的，创建新的
+    const result = await prisma.$transaction(async (tx) => {
+      // 删除现有的前置准备
+      await tx.workflowPreparation.deleteMany({
+        where: { workflowId }
+      })
+
+      // 创建新的前置准备
+      const created = await Promise.all(
+        preparations.map((prep: any, index: number) =>
+          tx.workflowPreparation.create({
+            data: {
+              workflowId,
+              name: prep.name,
+              description: prep.description || null,
+              link: prep.link || null,
+              order: index
+            }
+          })
+        )
+      )
+
+      return created
+    })
+
+    res.status(200).json({ message: '前置准备更新成功', preparations: result })
+  } catch (error) {
+    console.error('批量更新前置准备错误:', error)
+    res.status(500).json({ error: '批量更新前置准备失败' })
+  }
+})
+
+/**
+ * 更新单个前置准备项
+ * PUT /api/workflows/:id/preparations/:prepId
+ */
+router.put('/:id/preparations/:prepId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { id: workflowId, prepId } = req.params
+    const { name, description, link, order } = req.body
+
+    // 检查前置准备是否存在
+    const preparation = await prisma.workflowPreparation.findUnique({
+      where: { id: prepId },
+      include: { workflow: true }
+    })
+
+    if (!preparation) {
+      return res.status(404).json({ error: '前置准备项不存在' })
+    }
+
+    if (preparation.workflowId !== workflowId) {
+      return res.status(400).json({ error: '前置准备项不属于该工作流' })
+    }
+
+    if (preparation.workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    const updated = await prisma.workflowPreparation.update({
+      where: { id: prepId },
+      data: {
+        name: name !== undefined ? name : preparation.name,
+        description: description !== undefined ? description : preparation.description,
+        link: link !== undefined ? link : preparation.link,
+        order: order !== undefined ? order : preparation.order
+      }
+    })
+
+    res.status(200).json({ message: '前置准备更新成功', preparation: updated })
+  } catch (error) {
+    console.error('更新前置准备错误:', error)
+    res.status(500).json({ error: '更新前置准备失败' })
+  }
+})
+
+/**
+ * 删除前置准备项
+ * DELETE /api/workflows/:id/preparations/:prepId
+ */
+router.delete('/:id/preparations/:prepId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { id: workflowId, prepId } = req.params
+
+    // 检查前置准备是否存在
+    const preparation = await prisma.workflowPreparation.findUnique({
+      where: { id: prepId },
+      include: { workflow: true }
+    })
+
+    if (!preparation) {
+      return res.status(404).json({ error: '前置准备项不存在' })
+    }
+
+    if (preparation.workflowId !== workflowId) {
+      return res.status(400).json({ error: '前置准备项不属于该工作流' })
+    }
+
+    if (preparation.workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    await prisma.workflowPreparation.delete({
+      where: { id: prepId }
+    })
+
+    res.status(200).json({ message: '前置准备删除成功' })
+  } catch (error) {
+    console.error('删除前置准备错误:', error)
+    res.status(500).json({ error: '删除前置准备失败' })
+  }
+})
+
+// ==================== 步骤详情 (StepDetails) API ====================
+
+/**
+ * 获取节点的步骤详情
+ * GET /api/workflows/:workflowId/nodes/:nodeId/step-detail
+ */
+router.get('/:workflowId/nodes/:nodeId/step-detail', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { workflowId, nodeId } = req.params
+
+    // 检查工作流和节点
+    const node = await prisma.workflowNode.findFirst({
+      where: { id: nodeId, workflowId },
+      include: {
+        workflow: {
+          select: { isPublic: true, authorId: true }
+        },
+        stepDetail: true
+      }
+    })
+
+    if (!node) {
+      return res.status(404).json({ error: '节点不存在' })
+    }
+
+    // 检查访问权限
+    if (!node.workflow.isPublic && node.workflow.authorId !== req.user?.id) {
+      return res.status(403).json({ error: '无权访问此工作流' })
+    }
+
+    // 解析 JSON 字段
+    const stepDetail = node.stepDetail ? {
+      ...node.stepDetail,
+      tools: node.stepDetail.tools ? JSON.parse(node.stepDetail.tools) : [],
+      demonstrationMedia: node.stepDetail.demonstrationMedia ? JSON.parse(node.stepDetail.demonstrationMedia) : [],
+      relatedResources: node.stepDetail.relatedResources ? JSON.parse(node.stepDetail.relatedResources) : [],
+      nextStepConfig: node.stepDetail.nextStepConfig ? JSON.parse(node.stepDetail.nextStepConfig) : null
+    } : null
+
+    res.status(200).json({ stepDetail })
+  } catch (error) {
+    console.error('获取步骤详情错误:', error)
+    res.status(500).json({ error: '获取步骤详情失败' })
+  }
+})
+
+/**
+ * 创建或更新节点的步骤详情
+ * POST /api/workflows/:workflowId/nodes/:nodeId/step-detail
+ */
+router.post('/:workflowId/nodes/:nodeId/step-detail', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { workflowId, nodeId } = req.params
+    const {
+      stepDescription,
+      expectedResult,
+      tools,
+      promptTemplate,
+      demonstrationMedia,
+      relatedResources,
+      referencedWorkflowId,
+      nextStepConfig
+    } = req.body
+
+    // 检查节点是否存在且用户有权限
+    const node = await prisma.workflowNode.findFirst({
+      where: { id: nodeId, workflowId },
+      include: {
+        workflow: { select: { authorId: true } },
+        stepDetail: true
+      }
+    })
+
+    if (!node) {
+      return res.status(404).json({ error: '节点不存在' })
+    }
+
+    if (node.workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    // 准备数据
+    const data = {
+      stepDescription: stepDescription || null,
+      expectedResult: expectedResult || null,
+      tools: tools ? JSON.stringify(tools) : null,
+      promptTemplate: promptTemplate || null,
+      demonstrationMedia: demonstrationMedia ? JSON.stringify(demonstrationMedia) : null,
+      relatedResources: relatedResources ? JSON.stringify(relatedResources) : null,
+      referencedWorkflowId: referencedWorkflowId || null,
+      nextStepConfig: nextStepConfig ? JSON.stringify(nextStepConfig) : null
+    }
+
+    let stepDetail
+    if (node.stepDetail) {
+      // 更新现有记录
+      stepDetail = await prisma.workflowStepDetail.update({
+        where: { id: node.stepDetail.id },
+        data
+      })
+    } else {
+      // 创建新记录
+      stepDetail = await prisma.workflowStepDetail.create({
+        data: {
+          nodeId,
+          ...data
+        }
+      })
+    }
+
+    // 返回解析后的数据
+    res.status(200).json({
+      message: '步骤详情保存成功',
+      stepDetail: {
+        ...stepDetail,
+        tools: stepDetail.tools ? JSON.parse(stepDetail.tools) : [],
+        demonstrationMedia: stepDetail.demonstrationMedia ? JSON.parse(stepDetail.demonstrationMedia) : [],
+        relatedResources: stepDetail.relatedResources ? JSON.parse(stepDetail.relatedResources) : [],
+        nextStepConfig: stepDetail.nextStepConfig ? JSON.parse(stepDetail.nextStepConfig) : null
+      }
+    })
+  } catch (error) {
+    console.error('保存步骤详情错误:', error)
+    res.status(500).json({ error: '保存步骤详情失败' })
+  }
+})
+
+/**
+ * 删除节点的步骤详情
+ * DELETE /api/workflows/:workflowId/nodes/:nodeId/step-detail
+ */
+router.delete('/:workflowId/nodes/:nodeId/step-detail', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { workflowId, nodeId } = req.params
+
+    // 检查节点是否存在且用户有权限
+    const node = await prisma.workflowNode.findFirst({
+      where: { id: nodeId, workflowId },
+      include: {
+        workflow: { select: { authorId: true } },
+        stepDetail: true
+      }
+    })
+
+    if (!node) {
+      return res.status(404).json({ error: '节点不存在' })
+    }
+
+    if (node.workflow.authorId !== userId) {
+      return res.status(403).json({ error: '无权修改此工作流' })
+    }
+
+    if (!node.stepDetail) {
+      return res.status(404).json({ error: '步骤详情不存在' })
+    }
+
+    await prisma.workflowStepDetail.delete({
+      where: { id: node.stepDetail.id }
+    })
+
+    res.status(200).json({ message: '步骤详情删除成功' })
+  } catch (error) {
+    console.error('删除步骤详情错误:', error)
+    res.status(500).json({ error: '删除步骤详情失败' })
+  }
+})
+
+/**
+ * 获取工作流完整详情（含前置准备和步骤详情）
+ * GET /api/workflows/:id/full
+ */
+router.get('/:id/full', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params
+
+    const workflow = await prisma.workflow.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: { id: true, name: true, avatar: true }
+        },
+        nodes: {
+          include: {
+            stepDetail: true
+          }
+        },
+        preparations: {
+          orderBy: { order: 'asc' }
+        },
+        ratings: {
+          include: {
+            user: { select: { id: true, name: true, avatar: true } }
+          }
+        },
+        _count: {
+          select: { executions: true, favorites: true }
+        }
+      }
+    })
+
+    if (!workflow) {
+      return res.status(404).json({ error: '工作流不存在' })
+    }
+
+    // 检查访问权限
+    if (!workflow.isPublic && workflow.authorId !== req.user?.id) {
+      return res.status(403).json({ error: '无权访问此工作流' })
+    }
+
+    // 解析节点中的 stepDetail JSON 字段
+    const nodesWithParsedDetails = workflow.nodes.map(node => ({
+      ...node,
+      stepDetail: node.stepDetail ? {
+        ...node.stepDetail,
+        tools: node.stepDetail.tools ? JSON.parse(node.stepDetail.tools) : [],
+        demonstrationMedia: node.stepDetail.demonstrationMedia ? JSON.parse(node.stepDetail.demonstrationMedia) : [],
+        relatedResources: node.stepDetail.relatedResources ? JSON.parse(node.stepDetail.relatedResources) : [],
+        nextStepConfig: node.stepDetail.nextStepConfig ? JSON.parse(node.stepDetail.nextStepConfig) : null
+      } : null
+    }))
+
+    res.status(200).json({
+      workflow: {
+        ...workflow,
+        nodes: nodesWithParsedDetails
+      }
+    })
+  } catch (error) {
+    console.error('获取工作流完整详情错误:', error)
+    res.status(500).json({ error: '获取工作流完整详情失败' })
+  }
+})
+
 export default router

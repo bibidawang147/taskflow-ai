@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText } from 'lucide-react'
+import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
+import '../styles/workspace-tabs.css'
 import {
   getFavoriteWorkflows,
   getUserWorkflows,
@@ -21,9 +24,20 @@ import ExecutionHistoryModal from '../components/ExecutionHistoryModal'
 import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
 import { NavigationSidebar } from '../components/NavigationSidebar'
+import WorkflowCreatePage from './WorkflowCreatePage'
 
 type WorkflowStatus = 'active' | 'draft' | 'paused'
 type LibrarySection = 'created' | 'favorites' | 'recent'
+
+// Tab 系统类型
+interface WorkspaceTab {
+  id: string
+  type: 'canvas' | 'workflow' | 'create'
+  title: string
+  workflowId?: string
+}
+
+const CANVAS_TAB_ID = 'canvas-main'
 
 type Position = {
   x: number
@@ -690,6 +704,7 @@ function findDropTargetContainer(
 }
 
 export default function StoragePage() {
+  const navigate = useNavigate()
   const [librarySearch, setLibrarySearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
@@ -767,6 +782,12 @@ export default function StoragePage() {
   const [isPanning, setIsPanning] = useState(false)
   const [spacePressed, setSpacePressed] = useState(false)
   const [currentScale, setCurrentScale] = useState(1)
+
+  // Tab 系统状态
+  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([
+    { id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }
+  ])
+  const [activeTabId, setActiveTabId] = useState(CANVAS_TAB_ID)
 
   const dragStateRef = useRef<DragState>(null)
   const resizeStateRef = useRef<ResizeState>(null)
@@ -2177,8 +2198,14 @@ export default function StoragePage() {
       // 允许在标记为可滚动的数据面板内滚动（如渐进式执行面板）
       const isInCustomScrollArea = target.closest('[data-scroll-container="true"]')
 
-      // 如果不在列表或画布区域，则阻止滚动
-      if (!isInLibraryList && !isInCanvas && !isInCustomScrollArea) {
+      // 允许在执行 Tab 内滚动
+      const isInExecutionTab = target.closest('.execution-tab')
+
+      // 允许在创建工作流 Tab 内滚动
+      const isInCreateTab = target.closest('.create-workflow-tab')
+
+      // 如果不在列表、画布或执行Tab区域，则阻止滚动
+      if (!isInLibraryList && !isInCanvas && !isInCustomScrollArea && !isInExecutionTab && !isInCreateTab) {
         event.preventDefault()
         event.stopPropagation()
       }
@@ -2196,13 +2223,15 @@ export default function StoragePage() {
     let touchStartX = 0
     let touchStartY = 0
 
-    // 阻止整个页面的横向导航手势（但允许画布区域）
+    // 阻止整个页面的横向导航手势（但允许画布区域、执行Tab和创建工作流Tab）
     const preventBackNavigation = (event: WheelEvent) => {
       const target = event.target as HTMLElement
-      // 如果在画布区域内，不阻止横向滚动
+      // 如果在画布区域、执行Tab或创建工作流Tab内，不阻止横向滚动
       if (
         target.closest('.workflow-canvas-container') ||
-        target.closest('[data-scroll-container="true"]')
+        target.closest('[data-scroll-container="true"]') ||
+        target.closest('.execution-tab') ||
+        target.closest('.create-workflow-tab')
       ) {
         return
       }
@@ -2228,10 +2257,12 @@ export default function StoragePage() {
       }
 
       const target = event.target as HTMLElement
-      // 如果在画布区域内，不阻止任何触摸手势
+      // 如果在画布区域、执行Tab或创建工作流Tab内，不阻止任何触摸手势
       if (
         target.closest('.workflow-canvas-container') ||
-        target.closest('[data-scroll-container="true"]')
+        target.closest('[data-scroll-container="true"]') ||
+        target.closest('.execution-tab') ||
+        target.closest('.create-workflow-tab')
       ) {
         return
       }
@@ -2479,6 +2510,67 @@ export default function StoragePage() {
       recalcContainerSizes(draft, [oldParentId, ROOT_CONTAINER_ID])
     })
   }
+
+  // Tab 系统函数
+  const activeTab = useMemo(() =>
+    workspaceTabs.find(tab => tab.id === activeTabId) || workspaceTabs[0],
+    [workspaceTabs, activeTabId]
+  )
+
+  const openWorkflowTab = useCallback((workflowId: string, title: string) => {
+    // 检查是否已有该工作流的 tab
+    const existingTab = workspaceTabs.find(tab => tab.workflowId === workflowId)
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+      return
+    }
+
+    // 创建新 tab
+    const newTab: WorkspaceTab = {
+      id: `workflow-${workflowId}-${Date.now()}`,
+      type: 'workflow',
+      title: title || '工作流执行',
+      workflowId
+    }
+    setWorkspaceTabs(prev => [...prev, newTab])
+    setActiveTabId(newTab.id)
+  }, [workspaceTabs])
+
+  // 打开创建工作流 tab
+  const openCreateTab = useCallback(() => {
+    // 检查是否已有创建工作流的 tab
+    const existingTab = workspaceTabs.find(tab => tab.type === 'create')
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+      return
+    }
+
+    // 创建新 tab
+    const newTab: WorkspaceTab = {
+      id: `create-${Date.now()}`,
+      type: 'create',
+      title: '未命名工作流'
+    }
+    setWorkspaceTabs(prev => [...prev, newTab])
+    setActiveTabId(newTab.id)
+  }, [workspaceTabs])
+
+  const closeWorkspaceTab = useCallback((tabId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation()
+    }
+    // 不能关闭画布 tab
+    if (tabId === CANVAS_TAB_ID) return
+
+    setWorkspaceTabs(prev => {
+      const newTabs = prev.filter(tab => tab.id !== tabId)
+      // 如果关闭的是当前 tab，切换到画布
+      if (activeTabId === tabId) {
+        setActiveTabId(CANVAS_TAB_ID)
+      }
+      return newTabs
+    })
+  }, [activeTabId])
 
   const handleCreateContainer = () => {
     const containerId = generateId('container')
@@ -3187,26 +3279,13 @@ export default function StoragePage() {
             ))}
           </div>
 
-          {/* 渐进式执行按钮 */}
+          {/* 执行按钮 - 打开新 Tab */}
           <button
             onClick={(e) => {
               e.stopPropagation()
               if (workflow) {
-                console.log('🎯 [StoragePage] 点击执行按钮，工作流数据:', {
-                  id: workflow.id,
-                  name: workflow.name,
-                  hasConfig: !!workflow.config,
-                  hasNodes: !!workflow.nodes,
-                  configNodesCount: workflow.config?.nodes?.length || 0,
-                  nodesCount: workflow.nodes?.length || 0,
-                  configNodesJSON: JSON.stringify(workflow.config?.nodes, null, 2),
-                  nodesJSON: JSON.stringify(workflow.nodes, null, 2)
-                })
-
-                const executionPayload = buildExecutionWorkflowPayload(workflow)
-                setSelectedWorkflowForExecution(executionPayload)
-                setLeftPanelWidth(65) // 立即设置为65%，右侧面板35%
-                setShowStepByStepExecution(true)
+                console.log('🎯 [StoragePage] 点击执行按钮，打开工作流 Tab:', workflow.id)
+                openWorkflowTab(workflow.id, workflow.name || '工作流执行')
               }
             }}
             style={{
@@ -4123,194 +4202,133 @@ export default function StoragePage() {
           </div>
         )}
 
+        {/* Tab 栏 + 画布工具栏 */}
         <div
+          className="workspace-tabs-bar"
           style={{
-            padding: '18px 16px',
-            borderBottom: '1px solid #e5e7eb',
-            backgroundColor: '#ffffff',
+            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            flexShrink: 0
-          }}
-          onWheel={(e) => {
-            // 冻结工作画布标题区域，阻止滚动事件冒泡
-            e.stopPropagation()
-            e.preventDefault()
+            padding: '0 1rem',
+            borderBottom: '1px solid #e9e3f5',
+            backgroundColor: '#ffffff',
+            minHeight: '48px'
           }}
         >
-          <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#1f2937' }}>工作画布</h1>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>
-              拖拽工作流卡片，在画布中按业务团队或模块进行可视化分组。
-            </p>
+          {/* Tab 列表 */}
+          <div className="workspace-tabs-list" style={{ display: 'flex', gap: '2px', padding: '0.5rem 0' }}>
+            {workspaceTabs.map(tab => (
+              <div
+                key={tab.id}
+                className={`workspace-tab ${activeTabId === tab.id ? 'workspace-tab--active' : ''}`}
+                onClick={() => setActiveTabId(tab.id)}
+              >
+                <span className="workspace-tab-icon">
+                  {tab.type === 'canvas' ? (
+                    <LayoutGrid className="w-4 h-4" />
+                  ) : tab.type === 'create' ? (
+                    <Plus className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                </span>
+                <span className="workspace-tab-title">{tab.title}</span>
+                {tab.type !== 'canvas' && (
+                  <button
+                    className="workspace-tab-close"
+                    onClick={(e) => closeWorkspaceTab(tab.id, e)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* 缩放控制区域 */}
-            <div
+
+          {/* 工作流操作按钮 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {/* 创建工作流按钮 */}
+            <button
+              onClick={() => openCreateTab()}
               style={{
+                padding: '6px 14px',
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 1px 3px rgba(139, 92, 246, 0.12), 0 1px 2px rgba(139, 92, 246, 0.24)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                backgroundColor: '#ffffff',
-                borderRadius: '10px',
-                border: '1px solid #e5e7eb',
-                padding: '6px 12px'
+                gap: '5px',
+                whiteSpace: 'nowrap'
               }}
-              onWheel={(e) => {
-                // 冻结缩放控制区域，阻止滚动事件冒泡
-                e.stopPropagation()
-                e.preventDefault()
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.25), 0 2px 4px rgba(139, 92, 246, 0.15)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(139, 92, 246, 0.12), 0 1px 2px rgba(139, 92, 246, 0.24)'
               }}
             >
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: '#4b5563',
-                  minWidth: '45px'
-                }}
-              >
-                {Math.round(currentScale * 100)}%
-              </span>
-              <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
-              <button
-                type="button"
-                onClick={zoomOut}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  color: '#4338ca',
-                  transition: 'background-color 0.2s',
-                  lineHeight: 1
-                }}
-                title="缩小 (Ctrl + 滚轮向下)"
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = '#f5f3ff'
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={zoomIn}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  color: '#4338ca',
-                  transition: 'background-color 0.2s',
-                  lineHeight: 1
-                }}
-                title="放大 (Ctrl + 滚轮向上)"
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = '#f5f3ff'
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                +
-              </button>
-              <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
-              <button
-                type="button"
-                onClick={zoomToFit}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#4338ca',
-                  transition: 'background-color 0.2s'
-                }}
-                title="适配所有内容"
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = '#f5f3ff'
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                适应
-              </button>
-              <button
-                type="button"
-                onClick={resetView}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#4338ca',
-                  transition: 'background-color 0.2s'
-                }}
-                title="重置视图"
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = '#f5f3ff'
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                重置
-              </button>
-            </div>
+              <Plus className="w-4 h-4" />
+              <span>创建工作流</span>
+            </button>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={handleCreateContainer}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid #c4b5fd',
-                  backgroundColor: '#f5f3ff',
-                  color: '#5b21b6',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-              >
-                新建容器
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowToolModal(true)}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid #fed7aa',
-                  backgroundColor: '#fef3c7',
-                  color: '#92400e',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontWeight: '500'
-                }}
-                title="添加工具链接到画布"
-              >
-                添加工具
-              </button>
-            </div>
+            {/* 文章转工作流按钮 */}
+            <button
+              onClick={() => navigate('/workflow/import-from-article')}
+              style={{
+                padding: '6px 14px',
+                backgroundColor: 'rgba(139, 92, 246, 0.05)',
+                color: '#8b5cf6',
+                border: '1.5px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.1)'
+                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.35)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.05)'
+                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }}
+            >
+              <FileText className="w-4 h-4" />
+              <span>文章转工作流</span>
+            </button>
           </div>
+
         </div>
 
-        <div
-          className="workflow-canvas-container"
+        {/* Tab 内容区域 */}
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          {/* 画布内容 */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: activeTab?.type === 'canvas' ? 'flex' : 'none',
+              flexDirection: 'column'
+            }}
+          >
+            <div
+              className="workflow-canvas-container"
           style={{
             flex: 1,
             position: 'relative',
@@ -4342,6 +4360,127 @@ export default function StoragePage() {
           }}
           ref={canvasContainerRef}
         >
+          {/* 画布右上角悬浮工具栏 */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: '12px',
+              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.06)'
+            }}
+          >
+            {/* 缩放控制 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={zoomOut}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  color: '#6b7280',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="缩小"
+              >
+                −
+              </button>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#4b5563', minWidth: '40px', textAlign: 'center' }}>
+                {Math.round(currentScale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={zoomIn}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  color: '#6b7280',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="放大"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={resetView}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: '#8b5cf6',
+                  fontWeight: 500
+                }}
+                title="重置视图"
+              >
+                重置
+              </button>
+            </div>
+
+            <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
+
+            {/* 操作按钮 */}
+            <button
+              type="button"
+              onClick={handleCreateContainer}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #c4b5fd',
+                backgroundColor: '#f5f3ff',
+                color: '#5b21b6',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              新建容器
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowToolModal(true)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #fed7aa',
+                backgroundColor: '#fef3c7',
+                color: '#92400e',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+              title="添加工具链接到画布"
+            >
+              添加工具
+            </button>
+          </div>
+
           <TransformWrapper
             initialScale={1}
             initialPositionX={INITIAL_POSITION_X}
@@ -4437,7 +4576,52 @@ export default function StoragePage() {
               </div>
             </TransformComponent>
           </TransformWrapper>
+          </div>
         </div>
+
+        {/* 工作流执行 Tab 内容 */}
+        {workspaceTabs.filter(tab => tab.type === 'workflow').map(tab => (
+          <div
+            key={tab.id}
+            className="execution-tab"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: activeTabId === tab.id ? 'flex' : 'none',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {tab.workflowId && (
+              <WorkflowExecutionTab
+                workflowId={tab.workflowId}
+                onClose={() => closeWorkspaceTab(tab.id)}
+              />
+            )}
+          </div>
+        ))}
+
+        {/* 创建工作流 Tab 内容 */}
+        {workspaceTabs.filter(tab => tab.type === 'create').map(tab => (
+          <div
+            key={tab.id}
+            className="create-workflow-tab"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: activeTabId === tab.id ? 'flex' : 'none',
+              flexDirection: 'column',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              backgroundColor: '#faf7ff',
+              touchAction: 'pan-y',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            <WorkflowCreatePage />
+          </div>
+        ))}
+      </div>
       </main>
 
       {/* 右侧执行面板触发器 - 继续 */}

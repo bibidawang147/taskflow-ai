@@ -157,12 +157,15 @@ model Workflow {
   // 点赞
   likes WorkflowLike[]
 
+  // 前置准备项
+  preparations WorkflowPreparation[]
+
   @@map("workflows")
 }
 
 model WorkflowNode {
   id       String @id @default(cuid())
-  type     String // input, llm, tool, condition, output
+  type     String // input, llm, tool, condition, output, step (新增步骤类型)
   label    String
   position Json // 节点在编辑器中的位置
   config   Json // 节点配置
@@ -170,10 +173,70 @@ model WorkflowNode {
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
+  // 步骤详情（一对一关联）
+  stepDetail WorkflowStepDetail?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("workflow_nodes")
+}
+
+// 前置准备项
+model WorkflowPreparation {
+  id          String  @id @default(cuid())
+  workflowId  String
+  name        String  // 准备项名称，如 "VPN环境"、"Claude账号"
+  description String? // 说明
+  link        String? // 相关链接
+  order       Int     @default(0) // 排序
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, order])
+  @@map("workflow_preparations")
+}
+
+// 步骤详情（扩展 WorkflowNode）
+model WorkflowStepDetail {
+  id     String @id @default(cuid())
+  nodeId String @unique
+
+  // 基本信息
+  stepDescription String? // 步骤说明：具体怎么做、为什么做
+  expectedResult  String? // 预期结果：完成后应该得到什么
+
+  // 工具和链接（JSON数组）
+  // 格式: [{ name: string, url?: string, description?: string }]
+  tools String? // JSON数组
+
+  // 提示词（给AI的prompt）
+  promptTemplate String? // 提示词模板
+
+  // 演示媒体（JSON数组）
+  // 格式: [{ type: 'image' | 'video', url: string, caption?: string }]
+  demonstrationMedia String? // JSON数组
+
+  // 相关资源（JSON数组）
+  // 格式: [{ title: string, type: 'file' | 'link', url: string, description?: string }]
+  relatedResources String? // JSON数组
+
+  // 引用工作流
+  referencedWorkflowId String? // 引用的其他工作流ID
+
+  // 下一步指向配置（JSON）
+  // 格式: { type: 'default' | 'conditional', conditions?: [{ label: string, targetNodeId: string }] }
+  nextStepConfig String? // JSON对象
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  node WorkflowNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_step_details")
 }
 
 model WorkflowExecution {

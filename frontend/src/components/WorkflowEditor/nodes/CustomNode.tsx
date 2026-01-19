@@ -1,8 +1,8 @@
 import type { Node, NodeProps } from '@xyflow/react'
 import { Handle, Position } from '@xyflow/react'
-import { Brain, FileOutput, FileText, GitBranch, Wrench } from 'lucide-react'
+import { Brain, FileOutput, FileText, GitBranch, Wrench, ListChecks } from 'lucide-react'
 
-export type CustomNodeType = 'input' | 'llm' | 'tool' | 'condition' | 'output'
+export type CustomNodeType = 'input' | 'llm' | 'tool' | 'condition' | 'output' | 'step'
 
 export interface CustomNodeConfig {
   placeholder?: string
@@ -51,6 +51,8 @@ export default function CustomNode({ data, selected }: NodeProps<CustomFlowNode>
         return <GitBranch className="w-4 h-4" />
       case 'output':
         return <FileOutput className="w-4 h-4" />
+      case 'step':
+        return <ListChecks className="w-4 h-4" />
       default:
         return <FileText className="w-4 h-4" />
     }
@@ -68,6 +70,8 @@ export default function CustomNode({ data, selected }: NodeProps<CustomFlowNode>
         return 'bg-yellow-100 border-yellow-300 text-yellow-800'
       case 'output':
         return 'bg-red-100 border-red-300 text-red-800'
+      case 'step':
+        return 'bg-blue-100 border-blue-300 text-blue-800'
       default:
         return 'bg-gray-100 border-gray-300 text-gray-800'
     }
