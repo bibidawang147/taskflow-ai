@@ -4,55 +4,68 @@
  */
 
 :root {
-  /* ========== 主题色 ========== */
-  /* Primary Colors */
-  --primary: #6366F1;
-  --primary-hover: #5B21B6;
-  --primary-light: #EDE9FE;
-  --primary-lighter: #F5F3FF;
-  --primary-shadow: rgba(99, 102, 241, 0.25);
+  /* ========== 主色系统（灰绿色系）========== */
+  /* Primary Colors - Sage Green System */
+  --color-primary: #7C9187;        /* 主灰绿色：侧栏 / 工作台 */
+  --color-primary-light: #E7F0EC;  /* 浅灰绿：卡片 / 分区背景 */
+  --color-primary-dark: #4E6A61;   /* 深灰绿：选中态 / 强调结构 */
+  --color-primary-hover: #6A7C75;  /* Hover 态 */
 
-  /* ========== 文字颜色 ========== */
+  /* 兼容旧变量名 */
+  --primary: #7C9187;
+  --primary-hover: #6A7C75;
+  --primary-light: #E7F0EC;
+  --primary-lighter: #F4F7F6;
+  --primary-shadow: rgba(124, 145, 135, 0.15);
+
+  /* ========== 点缀色（紫色，仅限行为触发）========== */
+  /* Accent Colors - Purple (Action & Current State Only) */
+  --color-accent: #6E5CFF;        /* 主 CTA / 当前步骤 */
+  --color-accent-hover: #5B4AE6; /* Hover */
+  --color-accent-light: #E9E6FF; /* 轻提示背景 */
+
+  /* ========== 文字颜色系统 ========== */
   /* Text Colors */
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-tertiary: #6B7280;
-  --text-disabled: #9CA3AF;
-  --text-placeholder: #D1D5DB;
+  --text-primary: #24312D;   /* 主文字 */
+  --text-secondary: #6A7C75; /* 次级说明文字 */
+  --text-tertiary: #6A7C75;  /* 保持一致性 */
+  --text-muted: #9FB3AB;    /* 辅助 / 弱提示 */
+  --text-disabled: #9FB3AB;
+  --text-placeholder: #9FB3AB;
 
   /* ========== 背景色 ========== */
   /* Background Colors */
-  --bg-base: #FAFAFA;
-  --bg-elevated: #FFFFFF;
-  --bg-sidebar: #F8F9FA;
-  --bg-hover: #F3F4F6;
-  --bg-hover-primary: #F5F3FF;
-  --bg-panel: #F9FAFB;
+  --bg-base: #F4F7F6;          /* 接近白但不纯白 */
+  --bg-elevated: #FFFFFF;      /* 卡片背景 */
+  --bg-sidebar: #7C9187;       /* 侧栏背景：主灰绿色 */
+  --bg-hover: #E7F0EC;         /* Hover 背景 */
+  --bg-hover-primary: #E9E6FF; /* 紫色 Hover（仅用于选中态）*/
+  --bg-panel: #E7F0EC;         /* 面板背景：浅灰绿 */
 
   /* ========== 边框色 ========== */
   /* Border Colors */
-  --border-light: #F3F4F6;
-  --border-default: #E5E7EB;
-  --border-strong: #D1D5DB;
-  --border-focus: #6366F1;
+  --border-light: #E7F0EC;
+  --border-default: #D4DFDA;
+  --border-strong: #6A7C75;
+  --border-focus: #6E5CFF;  /* 紫色聚焦 */
 
   /* ========== 功能色 ========== */
   /* Functional Colors */
-  --success: #10B981;
-  --success-light: #D1FAE5;
-  --success-bg: #ECFDF5;
+  --success: #5FB3A2;       /* 灰绿系成功色 */
+  --success-light: #D1F0EA;
+  --success-bg: #E7F7F4;
 
-  --warning: #F59E0B;
+  --warning: #E6A055;
   --warning-light: #FEF3C7;
   --warning-bg: #FFFBEB;
 
-  --error: #EF4444;
+  --error: #D8665F;
   --error-light: #FEE2E2;
   --error-bg: #FEF2F2;
 
-  --info: #3B82F6;
-  --info-light: #DBEAFE;
-  --info-bg: #EFF6FF;
+  --info: #6E5CFF;         /* 使用紫色作为信息色 */
+  --info-light: #E9E6FF;
+  --info-bg: #F5F3FF;
 
   /* ========== 标签颜色 ========== */
   /* Tag Colors */
@@ -110,14 +123,14 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  /* ========== 阴影 ========== */
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+  /* ========== 阴影（极弱，低视觉噪音）========== */
+  /* Shadows - Minimal for reduced visual noise */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.06);
 
   /* ========== 间距 ========== */
   /* Spacing */

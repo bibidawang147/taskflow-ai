@@ -3,12 +3,12 @@
  * Sidebar System
  */
 
-/* ========== 侧边栏容器 ========== */
+/* ========== 侧边栏容器（灰绿色主色）========== */
 .sidebar {
-  background: var(--bg-sidebar);
+  background: var(--bg-sidebar); /* #7C9187 灰绿色 */
   padding: var(--spacing-xl) var(--spacing-lg);
   min-height: 100vh;
-  border-right: 1px solid var(--border-light);
+  border-right: 1px solid var(--color-primary-dark);
 }
 
 /* ========== 侧边栏头部 ========== */
@@ -21,7 +21,7 @@
 .sidebar-logo {
   font-size: var(--font-card-title);
   font-weight: var(--weight-bold);
-  color: var(--text-primary);
+  color: #FFFFFF;  /* 侧栏内文字使用白色 */
   margin: 0;
 }
 
@@ -29,7 +29,7 @@
 .sidebar-section-title {
   font-size: var(--font-body);
   font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  color: var(--color-primary-light); /* 浅灰绿色文字 */
   padding: var(--spacing-md);
   margin-top: var(--spacing-2xl);
   margin-bottom: var(--spacing-sm);
@@ -56,20 +56,20 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-base);
-  color: var(--text-secondary);
+  color: var(--color-primary-light); /* 浅灰绿色文字 */
   font-size: var(--font-body);
   font-weight: var(--weight-regular);
   position: relative;
 }
 
 .sidebar-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1); /* 半透明白色 Hover */
+  color: #FFFFFF;
 }
 
 .sidebar-item.active {
-  background: var(--bg-hover-primary);
-  color: var(--primary);
+  background: var(--color-primary-dark); /* 深灰绿色选中态 */
+  color: #FFFFFF;
   font-weight: var(--weight-medium);
 }
 
@@ -81,7 +81,7 @@
   transform: translateY(-50%);
   width: 3px;
   height: 20px;
-  background: var(--primary);
+  background: var(--color-accent); /* 紫色小标识 */
   border-radius: 0 2px 2px 0;
 }
 
