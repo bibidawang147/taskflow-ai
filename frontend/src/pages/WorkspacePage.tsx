@@ -7191,7 +7191,7 @@ export default function WorkspacePage() {
       </svg>
 
       {/* 文字 */}
-      <span style={{ position: 'relative', zIndex: 1 }}>探索工作流</span>
+      <span style={{ position: 'relative', zIndex: 1 }}>更多AI工作方法</span>
 
       {/* 未读消息提示点（可选） */}
       {chatHistory.length > 0 && (
@@ -7312,7 +7312,7 @@ export default function WorkspacePage() {
         </button>
       </div>
 
-      {/* 对话输入区 + 新建工作流按钮 */}
+      {/* 对话输入区 + 新建AI工作方法按钮 */}
       <div style={{
         padding: '1.5rem',
         borderBottom: '1px solid #e5e7eb',
@@ -7402,7 +7402,7 @@ export default function WorkspacePage() {
           </button>
         </div>
 
-        {/* 新建工作流按钮 */}
+        {/* 新建AI工作方法按钮 */}
         <button
           onClick={() => {
             setIsSidebarOpen(false)
@@ -7438,7 +7438,7 @@ export default function WorkspacePage() {
           }}
         >
           <span style={{ fontSize: '18px' }}>+</span>
-          新建工作流
+          新建AI工作方法
         </button>
       </div>
 

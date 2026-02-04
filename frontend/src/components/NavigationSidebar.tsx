@@ -177,7 +177,7 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
-            title="添加到收藏"
+            title="添加到AI工作方法收藏"
           >
             收藏
           </button>
@@ -385,7 +385,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   const handleBatchDelete = () => {
     if (selectedWorkflows.size === 0) return
-    if (confirm(`确定要删除选中的 ${selectedWorkflows.size} 个工作流吗？`)) {
+    if (confirm(`确定要删除选中的 ${selectedWorkflows.size} 个AI工作方法吗？`)) {
       console.log('Batch delete:', Array.from(selectedWorkflows))
       // TODO: Implement batch delete
       setSelectedWorkflows(new Set())
@@ -514,7 +514,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 color: '#9ca3af',
                 textAlign: 'center'
               }}>
-                {searchQuery ? '未找到匹配的工作流' : `暂无${title}`}
+                {searchQuery ? '未找到匹配的AI工作方法' : `暂无${title}`}
               </div>
             )}
           </div>
@@ -933,7 +933,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             color: '#9ca3af',
             textAlign: 'center'
           }}>
-            未找到匹配的工作流
+            未找到匹配的AI工作方法
           </div>
         )}
       </div>
@@ -1076,8 +1076,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           {!collapsedSections.has('quick-start') && (
             <>
-              {renderSection('模板工作流', 'templates', sidebarData.quickStart.templates)}
-              {renderSection('推荐工作流', 'recommended', sidebarData.quickStart.recommended)}
+              {renderSection('模板AI工作方法', 'templates', sidebarData.quickStart.templates)}
+              {renderSection('推荐AI工作方法', 'recommended', sidebarData.quickStart.recommended)}
             </>
           )}
         </div>
@@ -1116,7 +1116,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
               fontWeight: 700
-            }}>我的工作流</span>
+            }}>我的AI工作法</span>
             <span style={{
               fontSize: '18px',
               color: '#8E8E93',
@@ -1174,7 +1174,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
               fontWeight: 700
-            }}>收藏夹</span>
+            }}>AI工作方法收藏夹</span>
             <button
               onClick={handleCreateTag}
               style={{

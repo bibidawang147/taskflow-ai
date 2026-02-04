@@ -825,21 +825,21 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
               type="button"
               onClick={() => navigate('/workflow/import-from-article')}
               style={{
-                padding: '10px 18px',
+                padding: '6px 14px',
                 backgroundColor: 'rgba(139, 92, 246, 0.08)',
                 color: '#8b5cf6',
                 border: '1.5px solid rgba(139, 92, 246, 0.25)',
-                borderRadius: '10px',
-                fontSize: '14px',
-                fontWeight: '600',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '300',
                 cursor: 'pointer',
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 whiteSpace: 'nowrap',
-                height: '44px',
-                flexShrink: 0
+                flexShrink: 0,
+                marginTop: '15px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.12)'

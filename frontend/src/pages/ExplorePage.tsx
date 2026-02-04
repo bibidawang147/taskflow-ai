@@ -60,16 +60,16 @@ interface RankingColumnConfig {
 }
 
 const workflowsRanking: WorkflowRankingItem[] = [
-  { rank: 1, name: '公众号爆款文章生成器', uses: 25600, likes: 8900, author: 'AI工作流大师', category: '自媒体', trend: 'up' },
+  { rank: 1, name: '公众号爆款文章生成器', uses: 25600, likes: 8900, author: '瓴积AI官方', category: '自媒体', trend: 'up' },
   { rank: 2, name: '智能客服机器人', uses: 22100, likes: 7800, author: '电商运营达人', category: '电商', trend: 'up' },
   { rank: 3, name: '视频脚本一键生成', uses: 19800, likes: 7200, author: '自媒体老司机', category: '自媒体', trend: 'same' },
-  { rank: 4, name: 'AI去痕迹内容优化', uses: 18500, likes: 6700, author: 'AI工作流大师', category: '内容创作', trend: 'up' },
+  { rank: 4, name: 'AI去痕迹内容优化', uses: 18500, likes: 6700, author: '瓴积AI官方', category: '内容创作', trend: 'up' },
   { rank: 5, name: '数据可视化报表', uses: 16200, likes: 6100, author: '数据分析师张三', category: '数据分析', trend: 'down' },
   { rank: 6, name: '会议纪要自动生成', uses: 14900, likes: 5600, author: '效率提升专家', category: '效率工具', trend: 'up' }
 ]
 
 const creatorsRanking: CreatorRankingItem[] = [
-  { rank: 1, name: 'AI工作流大师', avatar: '', workflows: 156, followers: 12500, trend: 'up' },
+  { rank: 1, name: '瓴积AI官方', avatar: '', workflows: 156, followers: 12500, trend: 'up' },
   { rank: 2, name: '效率提升专家', avatar: '', workflows: 142, followers: 10200, trend: 'up' },
   { rank: 3, name: '自媒体老司机', avatar: '', workflows: 128, followers: 9800, trend: 'same' },
   { rank: 4, name: '数据分析师张三', avatar: '', workflows: 115, followers: 8600, trend: 'down' },
@@ -170,8 +170,8 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
     () => [
       {
         id: 'workflow',
-        title: '工作流排行',
-        description: '快速复用热门工作流模板，保持创作高产。',
+        title: 'AI工作方法排行',
+        description: '快速复用热门AI工作方法，保持创作高产。',
         viewAllHref: '/search?type=workflow',
         entries: workflowsRanking.slice(0, 6).map((item) => ({
           rank: item.rank,
@@ -205,7 +205,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
       {
         id: 'tool',
         title: 'AI 工具排行',
-        description: '挑选高口碑工具，为工作流注入可靠能力。',
+        description: '挑选高口碑工具，为AI工作方法注入可靠能力。',
         viewAllHref: '/search?type=tool',
         entries: toolsRanking.slice(0, 7).map((item) => ({
           rank: item.rank,

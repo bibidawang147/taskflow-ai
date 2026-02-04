@@ -42,43 +42,26 @@ export default function Layout() {
       >
         <div
           style={{
-            maxWidth: '1400px',
-            margin: '0 auto',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             height: '64px',
-            padding: '0 1.5rem',
+            padding: '0 1.5rem 0 28px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <Link
-              to="/"
+              to="/workspace"
+              className="brand-title"
               style={{
-                fontSize: '1.25rem',
-                fontWeight: 'bold',
-                color: '#1f2937',
+                fontSize: '1.4rem',
+                color: '#374151',
                 textDecoration: 'none',
               }}
             >
-              工作流平台
+              瓴积AI
             </Link>
             <div style={{ display: 'flex', marginLeft: '2.5rem', gap: '1.5rem' }}>
-              <Link
-                to="/explore"
-                style={{
-                  color: isActive('/explore') ? '#8b5cf6' : '#6b7280',
-                  textDecoration: 'none',
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: isActive('/explore') ? '15px' : '14px',
-                  fontWeight: isActive('/explore') ? '600' : '500',
-                  backgroundColor: isActive('/explore') ? '#f3f0ff' : 'transparent',
-                  transition: 'all 0.2s',
-                }}
-              >
-                探索工作流
-              </Link>
               <Link
                 to="/workspace"
                 style={{
@@ -92,22 +75,22 @@ export default function Layout() {
                   transition: 'all 0.2s',
                 }}
               >
-                我的工作台
+                工作台
               </Link>
               <Link
-                to="/community"
+                to="/explore"
                 style={{
-                  color: isActive('/community') ? '#8b5cf6' : '#6b7280',
+                  color: isActive('/explore') ? '#8b5cf6' : '#6b7280',
                   textDecoration: 'none',
                   padding: '0.5rem 0.75rem',
                   borderRadius: '6px',
-                  fontSize: isActive('/community') ? '15px' : '14px',
-                  fontWeight: isActive('/community') ? '600' : '500',
-                  backgroundColor: isActive('/community') ? '#f3f0ff' : 'transparent',
+                  fontSize: isActive('/explore') ? '15px' : '14px',
+                  fontWeight: isActive('/explore') ? '600' : '500',
+                  backgroundColor: isActive('/explore') ? '#f3f0ff' : 'transparent',
                   transition: 'all 0.2s',
                 }}
               >
-                社群
+                AI工作方法广场
               </Link>
             </div>
           </div>
@@ -187,7 +170,7 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', background: '#ede9fe' }}>
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', background: '#ede9fe', scrollBehavior: 'smooth' }}>
         <Outlet />
       </main>
     </div>
