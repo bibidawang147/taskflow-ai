@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { FileText } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
 import { popularWorkPackages } from '../data/popularWorkPackages'
@@ -810,13 +811,53 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
 
         {/* 标题输入 */}
         <div className="title-section">
-          <input
-            type="text"
-            className={`title-input ${errors.title ? 'error' : ''}`}
-            placeholder="输入工作流标题，例如：AI辅助创作小红书爆款种草文案"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          />
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <input
+              type="text"
+              className={`title-input ${errors.title ? 'error' : ''}`}
+              placeholder="输入工作流标题，例如：AI辅助创作小红书爆款种草文案"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              style={{ flex: 1 }}
+            />
+            {/* 文章快速转按钮 */}
+            <button
+              type="button"
+              onClick={() => navigate('/workflow/import-from-article')}
+              style={{
+                padding: '10px 18px',
+                backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                color: '#8b5cf6',
+                border: '1.5px solid rgba(139, 92, 246, 0.25)',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+                height: '44px',
+                flexShrink: 0
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.12)'
+                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.4)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.15)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)'
+                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.25)'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
+              <FileText size={16} />
+              <span>文章快速转</span>
+            </button>
+          </div>
           {errors.title && <div className="error-message">{errors.title}</div>}
         </div>
 

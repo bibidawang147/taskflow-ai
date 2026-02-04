@@ -4,56 +4,56 @@
  */
 
 :root {
-  /* ========== 主色系统（灰绿色系）========== */
-  /* Primary Colors - Sage Green System */
-  --color-primary: #7C9187;        /* 主灰绿色：侧栏 / 工作台 */
-  --color-primary-light: #E7F0EC;  /* 浅灰绿：卡片 / 分区背景 */
-  --color-primary-dark: #4E6A61;   /* 深灰绿：选中态 / 强调结构 */
-  --color-primary-hover: #6A7C75;  /* Hover 态 */
+  /* ========== 主色系统（紫色系）========== */
+  /* Primary Colors - Purple System */
+  --color-primary: #8b5cf6;        /* 主紫色：侧栏 / 工作台 */
+  --color-primary-light: #f3f0ff;  /* 浅紫色：卡片 / 分区背景 */
+  --color-primary-dark: #7c3aed;   /* 深紫色：选中态 / 强调结构 */
+  --color-primary-hover: #a78bfa;  /* Hover 态 */
 
   /* 兼容旧变量名 */
-  --primary: #7C9187;
-  --primary-hover: #6A7C75;
-  --primary-light: #E7F0EC;
-  --primary-lighter: #F4F7F6;
-  --primary-shadow: rgba(124, 145, 135, 0.15);
+  --primary: #8b5cf6;
+  --primary-hover: #a78bfa;
+  --primary-light: #f3f0ff;
+  --primary-lighter: #faf7ff;
+  --primary-shadow: rgba(139, 92, 246, 0.15);
 
-  /* ========== 点缀色（紫色，仅限行为触发）========== */
-  /* Accent Colors - Purple (Action & Current State Only) */
-  --color-accent: #6E5CFF;        /* 主 CTA / 当前步骤 */
-  --color-accent-hover: #5B4AE6; /* Hover */
-  --color-accent-light: #E9E6FF; /* 轻提示背景 */
+  /* ========== 点缀色（深紫色，用于强调）========== */
+  /* Accent Colors - Deep Purple (Action & Current State) */
+  --color-accent: #7c3aed;        /* 主 CTA / 当前步骤 */
+  --color-accent-hover: #6d28d9; /* Hover */
+  --color-accent-light: #e9e3f5; /* 轻提示背景 */
 
   /* ========== 文字颜色系统 ========== */
   /* Text Colors */
-  --text-primary: #24312D;   /* 主文字 */
-  --text-secondary: #6A7C75; /* 次级说明文字 */
-  --text-tertiary: #6A7C75;  /* 保持一致性 */
-  --text-muted: #9FB3AB;    /* 辅助 / 弱提示 */
-  --text-disabled: #9FB3AB;
-  --text-placeholder: #9FB3AB;
+  --text-primary: #1f2937;   /* 主文字 */
+  --text-secondary: #6b7280; /* 次级说明文字 */
+  --text-tertiary: #9ca3af;  /* 三级文字 */
+  --text-muted: #d1d5db;    /* 辅助 / 弱提示 */
+  --text-disabled: #d1d5db;
+  --text-placeholder: #9ca3af;
 
   /* ========== 背景色 ========== */
   /* Background Colors */
-  --bg-base: #F4F7F6;          /* 接近白但不纯白 */
+  --bg-base: #faf7ff;          /* 浅紫背景 */
   --bg-elevated: #FFFFFF;      /* 卡片背景 */
-  --bg-sidebar: #7C9187;       /* 侧栏背景：主灰绿色 */
-  --bg-hover: #E7F0EC;         /* Hover 背景 */
-  --bg-hover-primary: #E9E6FF; /* 紫色 Hover（仅用于选中态）*/
-  --bg-panel: #E7F0EC;         /* 面板背景：浅灰绿 */
+  --bg-sidebar: #8b5cf6;       /* 侧栏背景：主紫色 */
+  --bg-hover: #f3f0ff;         /* Hover 背景 */
+  --bg-hover-primary: #e9e3f5; /* 紫色 Hover（用于选中态）*/
+  --bg-panel: #f3f0ff;         /* 面板背景：浅紫色 */
 
   /* ========== 边框色 ========== */
   /* Border Colors */
-  --border-light: #E7F0EC;
-  --border-default: #D4DFDA;
-  --border-strong: #6A7C75;
-  --border-focus: #6E5CFF;  /* 紫色聚焦 */
+  --border-light: #e9e3f5;
+  --border-default: #d8d0eb;
+  --border-strong: #a78bfa;
+  --border-focus: #8b5cf6;  /* 紫色聚焦 */
 
   /* ========== 功能色 ========== */
   /* Functional Colors */
-  --success: #5FB3A2;       /* 灰绿系成功色 */
-  --success-light: #D1F0EA;
-  --success-bg: #E7F7F4;
+  --success: #10b981;       /* 绿色成功色 */
+  --success-light: #d1fae5;
+  --success-bg: #ecfdf5;
 
   --warning: #E6A055;
   --warning-light: #FEF3C7;
@@ -63,9 +63,9 @@
   --error-light: #FEE2E2;
   --error-bg: #FEF2F2;
 
-  --info: #6E5CFF;         /* 使用紫色作为信息色 */
-  --info-light: #E9E6FF;
-  --info-bg: #F5F3FF;
+  --info: #8b5cf6;         /* 使用紫色作为信息色 */
+  --info-light: #e9e3f5;
+  --info-bg: #f3f0ff;
 
   /* ========== 标签颜色 ========== */
   /* Tag Colors */

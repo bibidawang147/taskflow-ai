@@ -1,3 +1,84 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 阿里巴巴普惠体 Thin 字重 - 副标题/小字使用 */
+@font-face {
+  font-family: "Alibaba PuHuiTi";
+  src: url("/fonts/AlibabaPuHuiTi-3-35-Thin/AlibabaPuHuiTi-3-35-Thin.woff2") format("woff2"),
+       url("/fonts/AlibabaPuHuiTi-3-35-Thin/AlibabaPuHuiTi-3-35-Thin.woff") format("woff"),
+       url("/fonts/AlibabaPuHuiTi-3-35-Thin/AlibabaPuHuiTi-3-35-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 阿里巴巴普惠体 Light 字重 - 正文使用 */
+@font-face {
+  font-family: "Alibaba PuHuiTi";
+  src: url("/fonts/AlibabaPuHuiTi-3-45-Light/AlibabaPuHuiTi-3-45-Light.woff2") format("woff2"),
+       url("/fonts/AlibabaPuHuiTi-3-45-Light/AlibabaPuHuiTi-3-45-Light.woff") format("woff"),
+       url("/fonts/AlibabaPuHuiTi-3-45-Light/AlibabaPuHuiTi-3-45-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 阿里巴巴普惠体 Black 字重 - 标题使用 */
+@font-face {
+  font-family: "Alibaba PuHuiTi";
+  src: url("/fonts/AlibabaPuHuiTi-3-115-Black/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2"),
+       url("/fonts/AlibabaPuHuiTi-3-115-Black/AlibabaPuHuiTi-3-115-Black.woff") format("woff"),
+       url("/fonts/AlibabaPuHuiTi-3-115-Black/AlibabaPuHuiTi-3-115-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Logo/品牌标题专用样式 - 使用阿里巴巴普惠体 Black */
+.brand-title {
+  font-family: "Alibaba PuHuiTi", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+/* 副标题/小字样式 - 使用阿里巴巴普惠体 Thin */
+.text-thin,
+.subtitle,
+.caption,
+.text-xs,
+.text-sm {
+  font-weight: 100;
+}
+
+/* ========== 全局字体应用 ========== */
+body,
+html {
+  font-family: "Alibaba PuHuiTi", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 所有标题默认使用 Black 字重 */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Alibaba PuHuiTi", sans-serif;
+  font-weight: 900;
+}
+
+/* 强调文本使用 Black 字重 */
+strong, b {
+  font-weight: 900;
+}
+
+/* 按钮默认使用 Black 字重 */
+button {
+  font-family: "Alibaba PuHuiTi", sans-serif;
+  font-weight: 900;
+}
+
+/* 输入框使用 Light 字重 */
+input, textarea, select {
+  font-family: "Alibaba PuHuiTi", sans-serif;
+  font-weight: 300;
+}

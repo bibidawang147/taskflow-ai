@@ -218,6 +218,27 @@ const defaultModel: { provider: AIProvider; model: AIModel } = {
 // 工作角色和具体工作定义已移至 src/data/workspaceContainers.ts
 // 现在使用统一的数据源，与工作流画布共享
 
+// 统一的紫色霓虹主题配色
+const THEME_COLORS = {
+  primary: '#8b5cf6',          // rgb(139, 92, 246)
+  primaryDark: '#7c3aed',      // rgb(124, 58, 237)
+  primaryLight: '#a78bfa',     // rgb(167, 139, 250)
+  primaryNeon: 'rgb(168, 85, 247)',  // 霓虹紫
+  bg: {
+    light: '#f3f0ff',          // 浅紫背景
+    lighter: '#faf7ff',        // 更浅的紫背景
+    surface: '#ffffff'         // 白色表面
+  },
+  border: {
+    light: '#e9e3f5',          // 浅紫边框
+    normal: '#8b5cf6'          // 正常边框
+  },
+  gradient: {
+    primary: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+    neon: 'linear-gradient(135deg, rgb(26, 26, 46) 0%, rgb(15, 15, 26) 100%)'
+  }
+}
+
 export function AIChatPage({ initialView = 'chat', mode = 'full' }: AIChatPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -258,9 +279,9 @@ export function AIChatPage({ initialView = 'chat', mode = 'full' }: AIChatPagePr
   // 收藏状态管理
   const [favoritedWorkflows, setFavoritedWorkflows] = useState<Set<string>>(new Set())
 
-  // 用户工作流库
+  // 用户AI工作方法库
   const [userWorkflows, setUserWorkflows] = useState<Workflow[]>([])
-  // 公开工作流库（用于推荐）
+  // 公开AI工作方法库（用于推荐）
   const [publicWorkflows, setPublicWorkflows] = useState<Workflow[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -567,7 +588,7 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
       const systemMessage = {
         role: 'system' as const,
         content: `【角色定位】
-你是"小智"，AI工作流工具推荐助手。
+你是"小智"，AI工作方法工具推荐助手。
 核心使命：推荐工具、平台和方法论，而不是直接给出内容。
 
 【核心原则】
@@ -900,7 +921,7 @@ Q：AI生成的内容质量不好
     }
   }
 
-  // 辅助函数：根据 AI 回复和用户输入，智能推荐工作流
+  // 辅助函数：根据 AI 回复和用户输入，智能推荐AI工作方法
   const analyzeAndRecommendWorkflows = (aiResponse: string, userInput: string): RecommendationCard[] => {
     const recommendedItems: RecommendationCard[] = []
 
@@ -1357,7 +1378,7 @@ Q：AI生成的内容质量不好
         <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-4 py-3 flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
-            <p className="text-[11px] text-slate-600 font-medium mt-0.5">智能推荐工作流</p>
+            <p className="text-[11px] text-slate-600 font-medium mt-0.5">智能推荐AI工作方法</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1397,9 +1418,9 @@ Q：AI生成的内容质量不好
               <div className="rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 p-4 shadow-xl mb-6">
                 <Bot className="h-10 w-10 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-3">AI 工作流助手</h3>
+              <h3 className="text-xl font-bold text-slate-800 mb-3">AI 工作方法助手</h3>
               <p className="text-sm leading-relaxed text-slate-600 mb-6">
-                描述你想完成的任务，我会为你推荐并生成合适的工作流
+                描述你想完成的任务，我会为你推荐并生成合适的AI工作方法
               </p>
               <div className="flex items-center gap-2 text-xs text-violet-600 font-semibold bg-violet-50 px-4 py-2 rounded-full border border-violet-100">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -1527,13 +1548,33 @@ Q：AI生成的内容质量不好
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="flex-1 resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:border-violet-300 focus:ring-2 focus:ring-violet-100 focus:outline-none"
+              className="flex-1 resize-none rounded-xl border bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:ring-2 focus:outline-none"
+              style={{ borderColor: '#e2e8f0' }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = THEME_COLORS.primary
+                e.currentTarget.style.boxShadow = `0 0 0 3px ${THEME_COLORS.bg.light}`
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0'
+                e.currentTarget.style.boxShadow = ''
+              }}
             />
             <button
               type="button"
               onClick={handleSend}
               disabled={loading || !inputValue.trim()}
-              className="inline-flex h-[52px] w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md transition-all hover:from-violet-700 hover:to-indigo-700 hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              className="inline-flex h-[52px] w-12 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-md transition-all hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              style={{ background: THEME_COLORS.gradient.primary }}
+              onMouseEnter={(e) => {
+                if (!loading && inputValue.trim()) {
+                  e.currentTarget.style.background = `linear-gradient(135deg, ${THEME_COLORS.primaryDark} 0%, #6d28d9 100%)`
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading && inputValue.trim()) {
+                  e.currentTarget.style.background = THEME_COLORS.gradient.primary
+                }
+              }}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
@@ -1543,7 +1584,10 @@ Q：AI生成的内容质量不好
     )
   }
 
-  const containerClass = 'flex h-[calc(100vh-64px)] flex-col bg-gradient-to-br from-slate-50 via-violet-50/20 to-slate-50'
+  const containerClass = 'flex h-[calc(100vh-64px)] flex-col'
+  const containerStyle = {
+    background: `linear-gradient(to bottom right, #f8fafc, ${THEME_COLORS.bg.lighter}, #f8fafc)`
+  }
   // 响应式布局：占满整个屏幕宽度
   // - 小屏(<md): 单列，AI助手全屏
   // - 中屏(md-lg): 左40% 右60%
@@ -1552,7 +1596,7 @@ Q：AI生成的内容质量不好
   const mainClassName = 'flex flex-1 gap-4 overflow-hidden px-2 pb-2 pt-2 md:gap-6 md:px-3 lg:gap-8 lg:px-4 w-full'
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} style={containerStyle}>
       <main className={mainClassName}>
         {/* 左侧：AI对话助手 */}
         <section className={`${panelBaseClass} flex-shrink-0 w-full md:w-[40%] lg:w-[42%] xl:w-[700px] min-w-0 md:min-w-[400px] relative`}>
@@ -1580,7 +1624,15 @@ Q：AI生成的内容质量不好
             document.body
           )}
 
-          <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-3 py-2" style={{ position: 'relative', zIndex: 10 }}>
+          <header
+            className="flex items-center justify-between border-b px-3 py-2"
+            style={{
+              position: 'relative',
+              zIndex: 10,
+              borderColor: THEME_COLORS.border.light,
+              background: `linear-gradient(to right, ${THEME_COLORS.bg.light}, ${THEME_COLORS.bg.lighter})`
+            }}
+          >
             <div>
               <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
               <p className="text-[11px] text-slate-600 font-medium mt-0.5">输入需求获取建议</p>
@@ -1592,7 +1644,14 @@ Q：AI生成的内容质量不好
                   console.log('🔘 历史记录按钮被点击')
                   setShowSessionList((prev) => !prev)
                 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent hover:scale-110 transition-all duration-200"
+                style={{ color: THEME_COLORS.primary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = THEME_COLORS.bg.light
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
                 title="对话历史"
               >
                 <History className="h-5 w-5 stroke-2" />
@@ -1603,7 +1662,14 @@ Q：AI生成的内容质量不好
                   console.log('🔘 新建对话按钮被点击')
                   handleCreateNewChat()
                 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent hover:scale-110 transition-all duration-200"
+                style={{ color: THEME_COLORS.primary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = THEME_COLORS.bg.light
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
                 title="创建新对话"
               >
                 <Plus className="h-5 w-5 stroke-2" />
@@ -1613,15 +1679,30 @@ Q：AI生成的内容质量不好
 
           <div className={cn("flex-1 overflow-y-auto px-2.5 py-2.5", messages.length === 0 ? "flex items-center justify-center" : "space-y-2")}>
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-200 bg-gradient-to-br from-violet-100 to-indigo-100 px-5 py-8 text-center max-w-lg">
-                <div className="rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 p-3 shadow-2xl mb-4 ring-4 ring-violet-200">
+              <div
+                className="flex flex-col items-center justify-center rounded-3xl border border-dashed px-5 py-8 text-center max-w-lg"
+                style={{
+                  borderColor: THEME_COLORS.border.light,
+                  background: `linear-gradient(to bottom right, ${THEME_COLORS.bg.light}, ${THEME_COLORS.bg.lighter})`
+                }}
+              >
+                <div
+                  className="rounded-full p-3 shadow-2xl mb-4 ring-4"
+                  style={{
+                    background: THEME_COLORS.gradient.primary,
+                    ringColor: THEME_COLORS.border.light
+                  }}
+                >
                   <Bot className="h-8 w-8 text-white" />
                 </div>
                 <p className="text-2xl font-bold text-slate-900 mb-2">开始与 AI 对话</p>
                 <p className="text-base leading-relaxed text-slate-700 max-w-md">
                   描述你想完成的任务，我会为你推荐合适的工作流并协助执行
                 </p>
-                <div className="mt-5 flex items-center gap-3 text-sm text-violet-700 font-bold bg-white px-5 py-2.5 rounded-full">
+                <div
+                  className="mt-5 flex items-center gap-3 text-sm font-bold bg-white px-5 py-2.5 rounded-full"
+                  style={{ color: THEME_COLORS.primary }}
+                >
                   <Sparkles className="h-4 w-4" />
                   <span>智能推荐 · 快速执行</span>
                 </div>
@@ -1632,10 +1713,11 @@ Q：AI生成的内容质量不好
               <div key={idx} className="space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-600">
                   <div
-                    className={cn(
-                      'rounded-lg p-1.5',
-                      message.role === 'user' ? 'bg-violet-100 text-violet-600' : 'bg-indigo-100 text-indigo-600'
-                    )}
+                    className="rounded-lg p-1.5"
+                    style={{
+                      background: message.role === 'user' ? THEME_COLORS.bg.light : THEME_COLORS.bg.lighter,
+                      color: THEME_COLORS.primary
+                    }}
                   >
                     {message.role === 'user' ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                   </div>
@@ -1747,7 +1829,8 @@ Q：AI生成的内容质量不好
                         // 在新标签页打开工作流创建页面
                         window.open('/workflow/create', '_blank')
                       }}
-                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+                      style={{ background: THEME_COLORS.gradient.primary }}
                     >
                       <PlusCircle className="h-4 w-4" />
                       存下来
@@ -1762,7 +1845,17 @@ Q：AI生成的内容质量不好
                       {message.recommendedWorkflows.slice(0, expandedRecommendations.get(idx) || 4).map((workflow) => (
                         <div
                           key={workflow.id}
-                          className="group relative rounded-lg border-2 border-violet-200 bg-gradient-to-br from-white to-violet-50 p-3 shadow-lg hover:shadow-2xl hover:border-violet-400 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                          className="group relative rounded-lg border-2 p-3 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                          style={{
+                            borderColor: THEME_COLORS.border.light,
+                            background: `linear-gradient(to bottom right, ${THEME_COLORS.bg.surface}, ${THEME_COLORS.bg.lighter})`
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = THEME_COLORS.primary
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = THEME_COLORS.border.light
+                          }}
                           draggable
                           onClick={() => setSelectedWorkflowDetail(workflow)}
                           onDragStart={(e) => {
@@ -1776,7 +1869,8 @@ Q：AI生成的内容质量不好
                                 e.stopPropagation()
                                 handleOpenCategorySelector(workflow, e)
                               }}
-                              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md hover:shadow-lg hover:scale-110 transition-all"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-white shadow-md hover:shadow-lg hover:scale-110 transition-all"
+                              style={{ background: THEME_COLORS.gradient.primary }}
                               title="选择分类并保存"
                             >
                               <Plus className="h-3.5 w-3.5" />
@@ -1785,9 +1879,12 @@ Q：AI生成的内容质量不好
 
                           {/* 标题行：图标 + 标题 + 标签 */}
                           <div className="flex items-center gap-1.5 mb-1.5 pr-8">
-                            <Sparkles className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+                            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" style={{ color: THEME_COLORS.primary }} />
                             <h4 className="text-sm font-bold text-slate-900">{workflow.title}</h4>
-                            <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ color: THEME_COLORS.primary, background: THEME_COLORS.bg.light }}
+                            >
                               {workflow.category}
                             </span>
                           </div>
@@ -1810,7 +1907,16 @@ Q：AI生成的内容质量不好
                                       e.stopPropagation()
                                       handleWorkflowToolExecution(workflow, tool)
                                     }}
-                                    className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-violet-600 hover:border-violet-300 hover:bg-violet-100 hover:shadow transition-all"
+                                    className="inline-flex items-center gap-1 rounded-full border bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold hover:shadow transition-all"
+                                    style={{ borderColor: THEME_COLORS.border.light, color: THEME_COLORS.primary }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.borderColor = THEME_COLORS.primary
+                                      e.currentTarget.style.background = THEME_COLORS.bg.light
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.borderColor = THEME_COLORS.border.light
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)'
+                                    }}
                                     title={`运行 ${tool.name}`}
                                   >
                                     {tool.logo && <span className="text-xs">{tool.logo}</span>}
@@ -1828,7 +1934,8 @@ Q：AI生成的内容质量不好
                                 e.stopPropagation()
                                 await handleAddWorkflow(workflow)
                               }}
-                              className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                              className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                              style={{ background: THEME_COLORS.gradient.primary }}
                             >
                               <Plus className="h-3 w-3" />
                               添加到工具箱
@@ -1838,7 +1945,14 @@ Q：AI生成的内容质量不好
                                 e.stopPropagation()
                                 setSelectedWorkflowDetail(workflow)
                               }}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-violet-200 bg-white text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border bg-white hover:scale-110 transition-all"
+                              style={{ borderColor: THEME_COLORS.border.light, color: THEME_COLORS.primary }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = THEME_COLORS.bg.light
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'white'
+                              }}
                               title="查看详情"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -2461,7 +2575,7 @@ Q：AI生成的内容质量不好
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">用户工作流库</h3>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">用户AI工作方法库</h3>
                   <p className="text-xs text-slate-600 font-medium mt-0.5">选择工作流添加到实现工具</p>
                 </div>
               </div>

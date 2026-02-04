@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
 import '../styles/workspace-tabs.css'
 import {
@@ -782,6 +782,9 @@ export default function StoragePage() {
   const [isPanning, setIsPanning] = useState(false)
   const [spacePressed, setSpacePressed] = useState(false)
   const [currentScale, setCurrentScale] = useState(1)
+  const [aiInputMessage, setAiInputMessage] = useState('')
+  const [showAiDialog, setShowAiDialog] = useState(false)
+  const [showChatPanel, setShowChatPanel] = useState(false)
 
   // Tab 系统状态
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([
@@ -4248,7 +4251,7 @@ export default function StoragePage() {
 
           {/* 工作流操作按钮 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {/* 创建工作流按钮 */}
+            {/* 创建AI工作方法按钮 */}
             <button
               onClick={() => openCreateTab()}
               style={{
@@ -4277,41 +4280,77 @@ export default function StoragePage() {
               }}
             >
               <Plus className="w-4 h-4" />
-              <span>创建工作流</span>
+              <span>创建AI工作方法</span>
             </button>
 
-            {/* 文章转工作流按钮 */}
-            <button
-              onClick={() => navigate('/workflow/import-from-article')}
+            {/* AI助手输入框 - 深色紫色霓虹风格 */}
+            <div
               style={{
-                padding: '6px 14px',
-                backgroundColor: 'rgba(139, 92, 246, 0.05)',
-                color: '#8b5cf6',
-                border: '1.5px solid rgba(139, 92, 246, 0.2)',
-                borderRadius: '8px',
+                padding: '6px 6px 6px 16px',
+                background: 'linear-gradient(135deg, rgb(26, 26, 46) 0%, rgb(15, 15, 26) 100%)',
+                border: '1.5px solid rgb(168, 85, 247)',
+                borderRadius: '12px',
                 fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                whiteSpace: 'nowrap'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.1)'
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.35)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.05)'
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'
-                e.currentTarget.style.transform = 'translateY(0)'
+                justifyContent: 'space-between',
+                gap: '12px',
+                width: '408px',
+                boxShadow: 'rgba(168, 85, 247, 0.4) 0px 0px 10px, rgba(168, 85, 247, 0.2) 0px 0px 20px'
               }}
             >
-              <FileText className="w-4 h-4" />
-              <span>文章转工作流</span>
-            </button>
+              <input
+                placeholder="不知道怎么开始？跟AI聊聊你想完成的任务吧..."
+                className="ai-chat-neon-input"
+                type="text"
+                value={aiInputMessage}
+                onChange={(e) => setAiInputMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setShowChatPanel(true)
+                  }
+                }}
+                onFocus={() => setShowChatPanel(true)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'rgb(233, 213, 255)',
+                  fontSize: '13px',
+                  fontWeight: 400,
+                  cursor: 'pointer'
+                }}
+              />
+              <div
+                onClick={() => setShowChatPanel(true)}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(124, 58, 237) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: 'rgba(168, 85, 247, 0.5) 0px 0px 10px',
+                  cursor: 'pointer',
+                  transition: '0.2s',
+                  transform: 'scale(1)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)'
+                  e.currentTarget.style.boxShadow = 'rgba(168, 85, 247, 0.7) 0px 0px 15px'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = 'rgba(168, 85, 247, 0.5) 0px 0px 10px'
+                }}
+              >
+                <Send className="w-3.5 h-3.5" style={{ color: 'rgb(255, 255, 255)', transform: 'rotate(-135deg)' }} />
+              </div>
+            </div>
           </div>
 
         </div>
@@ -5216,6 +5255,135 @@ export default function StoragePage() {
           </div>
         </div>
       )}
+
+      {/* AI Chat 对话框面板 */}
+      <div
+        style={{
+          position: 'fixed',
+          right: '1rem',
+          top: 'calc(68px)',
+          width: '408px',
+          height: 'calc(100% - 80px)',
+          transform: showChatPanel ? 'translateX(0)' : 'translateX(calc(100% + 1rem))',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          background: 'rgb(255, 255, 255)',
+          border: '1px solid rgb(229, 231, 235)',
+          borderRadius: '16px',
+          zIndex: 1002,
+          boxShadow: showChatPanel ? '0 10px 40px rgba(0, 0, 0, 0.15)' : 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Chat 头部 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            background: 'linear-gradient(135deg, rgb(26, 26, 46) 0%, rgb(15, 15, 26) 100%)',
+            borderBottom: '1px solid rgba(168, 85, 247, 0.3)'
+          }}
+        >
+          <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgb(233, 213, 255)' }}>
+            CHAT
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              title="对话历史"
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: '0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.3)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.2)'
+              }}
+            >
+              <Clock className="w-3.5 h-3.5" style={{ color: 'rgb(196, 181, 253)' }} />
+            </button>
+            <button
+              title="新建对话"
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: '0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.3)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.2)'
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" style={{ color: 'rgb(196, 181, 253)' }} />
+            </button>
+            <button
+              title="关闭"
+              onClick={() => setShowChatPanel(false)}
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: '0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.3)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.2)'
+              }}
+            >
+              <X className="w-3.5 h-3.5" style={{ color: 'rgb(196, 181, 253)' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Chat 内容 - iframe */}
+        <div
+          style={{
+            flex: 1,
+            overflow: 'hidden',
+            background: 'rgb(255, 255, 255)',
+            borderRadius: '0px 0px 14px 14px'
+          }}
+        >
+          <iframe
+            src="/ai-chat?embedded=1"
+            title="AI 对话"
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none'
+            }}
+          />
+        </div>
+      </div>
     </div>
     </>
   )
