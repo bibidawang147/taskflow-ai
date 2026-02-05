@@ -1,454 +1,317 @@
-import { type CSSProperties, useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { exploreThemes } from '../data/exploreThemes'
-import { popularWorkPackages } from '../data/popularWorkPackages'
-import PopularWorkPackageCard from '../components/PopularWorkPackageCard'
-import { ExploreChatRecommendationPanel } from '../components/ExploreChatRecommendationPanel'
+import { SAMPLE_WORKFLOW_IDS } from '../data/sampleWorkflows'
+import '../styles/community.css'
 import '../styles/explore.css'
 
-type RankTrend = 'up' | 'down' | 'same'
-
-interface WorkflowRankingItem {
-  rank: number
-  name: string
-  uses: number
-  likes: number
-  author: string
-  category: string
-  trend: RankTrend
-}
-
-interface CreatorRankingItem {
-  rank: number
-  name: string
-  avatar: string
-  workflows: number
-  followers: number
-  trend: RankTrend
-}
-
-interface ToolRankingItem {
-  rank: number
-  name: string
-  uses: number
-  rating: number
-  category: string
-  provider: string
-  trend: RankTrend
-}
-
-interface RankingMetric {
-  label: string
-  value: string
-}
-
-interface RankingEntry {
-  rank: number
-  title: string
-  meta: string
-  metrics: RankingMetric[]
-  trend: RankTrend
-  href: string
-}
-
-interface RankingColumnConfig {
+interface Workflow {
   id: string
   title: string
   description: string
-  viewAllHref: string
-  entries: RankingEntry[]
-}
-
-const workflowsRanking: WorkflowRankingItem[] = [
-  { rank: 1, name: '公众号爆款文章生成器', uses: 25600, likes: 8900, author: '瓴积AI官方', category: '自媒体', trend: 'up' },
-  { rank: 2, name: '智能客服机器人', uses: 22100, likes: 7800, author: '电商运营达人', category: '电商', trend: 'up' },
-  { rank: 3, name: '视频脚本一键生成', uses: 19800, likes: 7200, author: '自媒体老司机', category: '自媒体', trend: 'same' },
-  { rank: 4, name: 'AI去痕迹内容优化', uses: 18500, likes: 6700, author: '瓴积AI官方', category: '内容创作', trend: 'up' },
-  { rank: 5, name: '数据可视化报表', uses: 16200, likes: 6100, author: '数据分析师张三', category: '数据分析', trend: 'down' },
-  { rank: 6, name: '会议纪要自动生成', uses: 14900, likes: 5600, author: '效率提升专家', category: '效率工具', trend: 'up' }
-]
-
-const creatorsRanking: CreatorRankingItem[] = [
-  { rank: 1, name: '瓴积AI官方', avatar: '', workflows: 156, followers: 12500, trend: 'up' },
-  { rank: 2, name: '效率提升专家', avatar: '', workflows: 142, followers: 10200, trend: 'up' },
-  { rank: 3, name: '自媒体老司机', avatar: '', workflows: 128, followers: 9800, trend: 'same' },
-  { rank: 4, name: '数据分析师张三', avatar: '', workflows: 115, followers: 8600, trend: 'down' },
-  { rank: 5, name: '电商运营达人', avatar: '', workflows: 98, followers: 7500, trend: 'up' },
-  { rank: 6, name: 'AI应用开发者', avatar: '', workflows: 69, followers: 5200, trend: 'up' },
-  { rank: 7, name: '品牌内容策划师', avatar: '', workflows: 61, followers: 4600, trend: 'same' },
-  { rank: 8, name: '跨境运营顾问', avatar: '', workflows: 54, followers: 4100, trend: 'up' },
-  { rank: 9, name: '短视频剪辑师', avatar: '', workflows: 49, followers: 3800, trend: 'down' }
-]
-
-const toolsRanking: ToolRankingItem[] = [
-  { rank: 1, name: 'ChatGPT-4', uses: 156000, rating: 4.9, category: 'AI对话', provider: 'OpenAI', trend: 'up' },
-  { rank: 2, name: 'Midjourney', uses: 142000, rating: 4.8, category: '图像生成', provider: 'Midjourney', trend: 'up' },
-  { rank: 3, name: 'Claude 3', uses: 128000, rating: 4.9, category: 'AI助手', provider: 'Anthropic', trend: 'up' },
-  { rank: 4, name: 'Stable Diffusion', uses: 115000, rating: 4.7, category: '图像生成', provider: 'Stability AI', trend: 'same' },
-  { rank: 5, name: 'GitHub Copilot', uses: 98000, rating: 4.8, category: '代码助手', provider: 'GitHub', trend: 'up' },
-  { rank: 6, name: 'Notion AI', uses: 87000, rating: 4.6, category: '写作助手', provider: 'Notion', trend: 'down' },
-  { rank: 7, name: 'Canva Magic Write', uses: 72000, rating: 4.5, category: '设计辅助', provider: 'Canva', trend: 'up' }
-]
-
-const trendIcons: Record<RankTrend, string> = {
-  up: '▲',
-  down: '▼',
-  same: '▬'
-}
-
-interface WorkflowRecommendation {
-  workflow: {
+  thumbnail?: string
+  category: string
+  author: {
     id: string
-    title: string
-    description: string | null
-    thumbnail: string | null
-    rating: number | null
-    usageCount: number
-    difficultyLevel: string
+    name: string
+    avatar?: string
   }
-  relevanceScore: number
-  matchReasons: Array<{
-    label: string
-    icon: string
-    color: 'green' | 'blue' | 'gold' | 'orange'
-  }>
-  displayType: 'highlight' | 'normal' | 'suggested'
-  position: number
-  logId?: string
+  stats: {
+    likes: number
+    comments: number
+    views: number
+    copies: number
+  }
+  isLiked: boolean
+  isOfficial?: boolean
+  highlight?: string
+  sellingPoints?: string[]
 }
 
-interface IntentTag {
-  label: string
-  type: 'keyword' | 'platform' | 'content' | 'goal'
-}
+// 示例工作流数据 - 使用统一的 ID
+const sampleWorkflows: Workflow[] = [
+  {
+    id: SAMPLE_WORKFLOW_IDS.XIAOHONGSHU,
+    title: '小红书爆款笔记创作全流程',
+    description: '从市场调研、选题策划、文案撰写到SEO优化，一站式AI辅助创作小红书种草笔记，提升内容曝光和转化率',
+    category: '内容创作',
+    author: {
+      id: 'official',
+      name: '瓴积AI官方',
+      avatar: undefined
+    },
+    stats: {
+      likes: 486,
+      comments: 128,
+      views: 12580,
+      copies: 3240
+    },
+    isLiked: false,
+    isOfficial: true,
+    highlight: '已帮助10000+创作者产出爆款内容',
+    sellingPoints: ['新手友好', '省时80%', '爆款公式']
+  },
+  {
+    id: SAMPLE_WORKFLOW_IDS.DOUYIN,
+    title: '抖音短视频脚本生成器',
+    description: '智能分析热门视频结构，自动生成吸睛开头、内容主体和引导互动的完整短视频脚本',
+    category: '短视频',
+    author: {
+      id: 'official',
+      name: '瓴积AI官方',
+      avatar: undefined
+    },
+    stats: {
+      likes: 352,
+      comments: 89,
+      views: 8960,
+      copies: 2180
+    },
+    isLiked: false,
+    isOfficial: true,
+    highlight: '3分钟生成专业级脚本',
+    sellingPoints: ['零门槛', '高转化', '热门模板']
+  },
+  {
+    id: SAMPLE_WORKFLOW_IDS.ARTICLE,
+    title: '公众号长文写作助手',
+    description: '从选题构思到成稿润色，AI全程辅助撰写高质量公众号文章，支持多种写作风格',
+    category: '文章写作',
+    author: {
+      id: 'author-article-001',
+      name: '内容创作者',
+      avatar: undefined
+    },
+    stats: {
+      likes: 298,
+      comments: 67,
+      views: 6540,
+      copies: 1520
+    },
+    isLiked: false,
+    isOfficial: false,
+    highlight: '支持10+写作风格一键切换',
+    sellingPoints: ['多风格', '智能润色']
+  },
+  {
+    id: 'workflow-ecommerce-001',
+    title: '电商产品描述生成器',
+    description: '一键生成吸引眼球的产品标题、卖点提炼和详情页文案，提升商品转化率',
+    category: '电商',
+    author: {
+      id: 'author-ecom-001',
+      name: '电商运营达人',
+      avatar: undefined
+    },
+    stats: {
+      likes: 245,
+      comments: 56,
+      views: 5680,
+      copies: 1280
+    },
+    isLiked: false,
+    isOfficial: false,
+    highlight: '平均提升转化率35%',
+    sellingPoints: ['高转化', '多平台适配']
+  },
+  {
+    id: 'workflow-data-001',
+    title: '数据分析报告生成器',
+    description: '自动分析数据趋势，生成专业的可视化报告，支持多种图表类型',
+    category: '数据分析',
+    author: {
+      id: 'author-data-001',
+      name: '数据分析师张三',
+      avatar: undefined
+    },
+    stats: {
+      likes: 189,
+      comments: 42,
+      views: 4320,
+      copies: 980
+    },
+    isLiked: false,
+    isOfficial: false,
+    highlight: '节省90%报告制作时间',
+    sellingPoints: ['自动化', '专业图表']
+  },
+  {
+    id: 'workflow-meeting-001',
+    title: '会议纪要智能整理',
+    description: '自动提取会议要点，生成结构化纪要，支持待办事项追踪',
+    category: '效率工具',
+    author: {
+      id: 'author-eff-001',
+      name: '效率提升专家',
+      avatar: undefined
+    },
+    stats: {
+      likes: 167,
+      comments: 38,
+      views: 3890,
+      copies: 856
+    },
+    isLiked: false,
+    isOfficial: false,
+    highlight: '会议效率提升200%',
+    sellingPoints: ['智能提取', '待办追踪']
+  }
+]
+
+// 分类标签
+const categoryTags = ['全部', '内容创作', '短视频', '文章写作', '电商', '数据分析', '效率工具', '自媒体']
 
 export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
-  const [showAllThemes, setShowAllThemes] = useState(false)
-  const [aiRecommendations, setAiRecommendations] = useState<WorkflowRecommendation[]>([])
-  const [intentTags, setIntentTags] = useState<IntentTag[]>([])
+  const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [workflowsLoading, setWorkflowsLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState('全部')
+  const [displayCount, setDisplayCount] = useState(9)
 
-  const compactFormatter = useMemo(
-    () => new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }),
-    []
-  )
-
-  // 监听来自AI对话iframe的推荐数据
+  // 获取工作流数据
   useEffect(() => {
-    console.log('✅ ExplorePage: 消息监听器已设置')
-
-    const handleMessage = (event: MessageEvent) => {
-      console.log('📨 ExplorePage收到消息:', {
-        origin: event.origin,
-        type: event.data?.type,
-        data: event.data
-      })
-
-      // 安全检查：确保消息来源可信
-      if (event.data?.type === 'AI_RECOMMENDATIONS') {
-        console.log('📥 ExplorePage: 识别到AI推荐消息')
-        console.log('推荐数据:', event.data.recommendations)
-        console.log('意图标签:', event.data.intentTags)
-
-        setAiRecommendations(event.data.recommendations || [])
-        setIntentTags(event.data.intentTags || [])
-
-        console.log('✅ 状态已更新')
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
-    console.log('🎧 事件监听器已添加')
-
-    return () => {
-      window.removeEventListener('message', handleMessage)
-      console.log('🔇 事件监听器已移除')
-    }
+    fetchWorkflows()
   }, [])
 
-  const rankingColumns = useMemo<RankingColumnConfig[]>(
-    () => [
-      {
-        id: 'workflow',
-        title: 'AI工作方法排行',
-        description: '快速复用热门AI工作方法，保持创作高产。',
-        viewAllHref: '/search?type=workflow',
-        entries: workflowsRanking.slice(0, 6).map((item) => ({
-          rank: item.rank,
-          title: item.name,
-          meta: `${item.category} · ${item.author}`,
-          metrics: [
-            { label: '使用', value: compactFormatter.format(item.uses) },
-            { label: '点赞', value: compactFormatter.format(item.likes) }
-          ],
-          trend: item.trend,
-          href: `/workflow-intro/${item.rank}`
-        }))
-      },
-      {
-        id: 'creator',
-        title: '创作者排行',
-        description: '关注优质创作者，获取他们的实战经验。',
-        viewAllHref: '/search?type=creator',
-        entries: creatorsRanking.slice(0, 9).map((item) => ({
-          rank: item.rank,
-          title: item.name,
-          meta: `${item.workflows} 个工作流`,
-          metrics: [
-            { label: '粉丝', value: compactFormatter.format(item.followers) },
-            { label: '作品', value: item.workflows.toString() }
-          ],
-          trend: item.trend,
-          href: `/creator-profile/index.html?creator=${encodeURIComponent(item.name)}`
-        }))
-      },
-      {
-        id: 'tool',
-        title: 'AI 工具排行',
-        description: '挑选高口碑工具，为AI工作方法注入可靠能力。',
-        viewAllHref: '/search?type=tool',
-        entries: toolsRanking.slice(0, 7).map((item) => ({
-          rank: item.rank,
-          title: item.name,
-          meta: `${item.category} · ${item.provider}`,
-          metrics: [
-            { label: '评分', value: item.rating.toFixed(1) },
-            { label: '使用', value: compactFormatter.format(item.uses) }
-          ],
-          trend: item.trend,
-          href: `/tool/${item.rank}`
-        }))
+  const fetchWorkflows = async () => {
+    try {
+      setWorkflowsLoading(true)
+      const token = localStorage.getItem('token')
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
       }
-    ],
-    [compactFormatter]
-  )
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
 
-
-  const getSurfaceColor = (hex?: string) => {
-    if (hex && hex.startsWith('#') && (hex.length === 7 || hex.length === 4)) {
-      const normalized = hex.length === 4
-        ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
-        : hex
-      return `${normalized}20`
+      const response = await fetch('http://localhost:3000/api/community/workflows?limit=12', {
+        headers
+      })
+      const data = await response.json()
+      // 合并示例数据和API数据，示例数据放在前面
+      const apiWorkflows = data.workflows || []
+      setWorkflows([...sampleWorkflows, ...apiWorkflows])
+    } catch (error) {
+      console.error('获取工作流失败:', error)
+      // API 失败时仍然显示示例数据
+      setWorkflows(sampleWorkflows)
+    } finally {
+      setWorkflowsLoading(false)
     }
-    return 'rgba(124, 58, 237, 0.12)'
   }
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k'
+    }
+    return num.toString()
+  }
+
+  // 根据分类筛选工作流
+  const filteredWorkflows = useMemo(() => {
+    if (selectedCategory === '全部') {
+      return workflows
+    }
+    return workflows.filter(w => w.category === selectedCategory)
+  }, [workflows, selectedCategory])
+
+  // 切换分类时重置显示数量
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat)
+    setDisplayCount(9)
+  }
+
+  // 加载更多
+  const loadMore = () => {
+    setDisplayCount(prev => prev + 9)
+  }
+
+  // 是否还有更多
+  const hasMore = displayCount < filteredWorkflows.length
 
   return (
     <div className={embedded ? 'explore-page explore-embedded' : 'explore-page'}>
-
-      <div className="explore-main-columns">
-        <div className="explore-main-columns__left">
-          <section className="section-block">
-            <div className="embedded-chat-container">
-              <iframe
-                src="/ai-chat?embedded=1"
-                title="AI 对话"
-                className="embedded-chat-iframe"
-                loading="lazy"
-              />
-            </div>
-          </section>
-        </div>
-
-        <div className="explore-main-columns__right">
-          {/* AI对话推荐面板 - 置顶显示 */}
-          {aiRecommendations.length > 0 && (
-            <section className="section-block" style={{ marginBottom: '24px' }}>
-              <ExploreChatRecommendationPanel
-                recommendations={aiRecommendations}
-                intentTags={intentTags}
-              />
-            </section>
-          )}
-
-          <section className="section-block ai-recommendation-panel" aria-labelledby="packages-title">
+      <div className="explore-content">
+        {/* AI工作方法广场 */}
+        <section className="section-block">
             <header className="panel-header">
-              <h2 id="packages-title">
-                爆款工作包
-              </h2>
-              <span className="subtitle">精选热门组合，主打全链路解决方案，一套方案彻底解决一块工作。</span>
+              <div className="panel-header__main">
+                <h2>AI工作方法广场</h2>
+                <span className="subtitle">发现和使用社区分享的优质AI工作方法</span>
+              </div>
+              <button
+                className="refresh-button"
+                onClick={fetchWorkflows}
+                disabled={workflowsLoading}
+              >
+                ↻ 刷新
+              </button>
             </header>
 
-            <div className="package-grid">
-              {popularWorkPackages.slice(0, 8).map((pkg) => (
-                <PopularWorkPackageCard
-                  key={pkg.id}
-                  workPackage={pkg}
-                />
-              ))}
+            {/* 分类标签筛选 */}
+            <div className="filter-section">
+              <div className="filter-categories">
+                {categoryTags.map(cat => (
+                  <button
+                    key={cat}
+                    className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => handleCategoryChange(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
-          </section>
 
-          <section className="section-block ai-recommendation-panel" aria-labelledby="themes-title">
-            <header className="panel-header">
-              <h2 id="themes-title">
-                热门主题
-              </h2>
-              <span className="subtitle">精选常用场景，全平台解决方案让你打破信息差，总能找到最好的方法。</span>
-            </header>
-
-            <div className="theme-grid">
-              {(showAllThemes ? exploreThemes : exploreThemes.slice(0, 8)).map((theme) => (
-                <article
-                  key={theme.id}
-                  className="theme-card"
-                  style={{ ['--theme-color' as const]: theme.color, cursor: 'pointer' } as CSSProperties}
-                  onClick={() => navigate(`/explore/theme/${theme.id}`)}
-                >
-                  <div className="theme-card__head">
-                    <div className="flex items-start gap-3">
-                      {theme.icon && (
-                        <div
-                          className="theme-card__icon"
-                          aria-hidden="true"
-                          style={{ backgroundColor: getSurfaceColor(theme.color), color: theme.color || '#8b5cf6' }}
-                        >
-                          {theme.icon}
-                        </div>
-                      )}
-                      <div className="theme-card__info">
-                        <div>
-                          <h3 className="theme-card__title">{theme.name.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim()}</h3>
-                          <p className="theme-card__desc">{theme.summary || theme.description}</p>
-                        </div>
-
-                        <div className="stats-row" style={{ marginTop: '12px' }}>
-                          <div className="stat-item">
-                            <span className="stat-number">{theme.downloads >= 1000 ? `${(theme.downloads / 1000).toFixed(1)}k` : theme.downloads}</span>
-                            下载量
-                          </div>
-                          <div className="stat-item rating">
-                            <span className="rating-star" aria-hidden>★</span>
-                            <span className="rating-number">{theme.rating.toFixed(1)}</span>
-                          </div>
-                          <div className="stat-item">
-                            <span className="stat-number">{theme.workflows.length}</span>
-                            工作项
-                          </div>
-                        </div>
-                      </div>
+            {workflowsLoading ? (
+              <div className="loading-state">加载中...</div>
+            ) : (
+              <div className="workflow-grid">
+                {filteredWorkflows.slice(0, displayCount).map((workflow) => (
+                  <article
+                    key={workflow.id}
+                    className="workflow-card"
+                    onClick={() => navigate(`/workflow-intro/${workflow.id}`)}
+                  >
+                    <div className="workflow-card__header">
+                      <h3 className="workflow-card__title">{workflow.title}</h3>
+                      <span className="workflow-card__category">{workflow.category}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="theme-link-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        navigate(`/explore/theme/${theme.id}`)
-                      }}
-                    >
-                      进入主题 →
-                    </button>
-                  </div>
 
-                  <div className="theme-card__subgrid">
-                    {theme.subcategories.slice(0, 4).map((sub) => (
-                      <button
-                        type="button"
-                        key={sub.id}
-                        className="theme-chip"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/explore/theme/${theme.id}`)
-                        }}
-                      >
-                        <span className="theme-chip__name">{sub.name}</span>
-                        <span className="theme-chip__count">{sub.count} 个</span>
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
+                    <div className="workflow-card__meta">
+                      <div className="workflow-card__author">
+                        <span className="workflow-card__avatar">{workflow.author.name[0]}</span>
+                        <span className="workflow-card__author-name">{workflow.author.name}</span>
+                      </div>
+                      {workflow.stats.likes > 0 && (
+                        <>
+                          <span className="workflow-card__divider">·</span>
+                          <span className="workflow-card__rating">
+                            ★ {(workflow.stats.likes / 100).toFixed(1)}
+                          </span>
+                        </>
+                      )}
+                      <span className="workflow-card__divider">·</span>
+                      <span className="workflow-card__stat">{formatNumber(workflow.stats.copies)} 次使用</span>
+                    </div>
 
-            {!showAllThemes && exploreThemes.length > 8 && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
-                <button
-                  type="button"
-                  className="secondary-button secondary-button--soft"
-                  onClick={() => setShowAllThemes(true)}
-                  style={{ minWidth: '160px' }}
-                >
-                  查看更多主题 ({exploreThemes.length - 8})
-                </button>
+                    <p className="workflow-card__description">{workflow.description}</p>
+                  </article>
+                ))}
               </div>
             )}
 
-            {showAllThemes && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+            {hasMore && (
+              <div className="section-footer">
                 <button
-                  type="button"
-                  className="secondary-button secondary-button--ghost"
-                  onClick={() => setShowAllThemes(false)}
-                  style={{ minWidth: '160px' }}
+                  className="secondary-button secondary-button--soft"
+                  onClick={loadMore}
                 >
-                  收起
+                  加载更多 ({filteredWorkflows.length - displayCount} 个)
                 </button>
               </div>
             )}
           </section>
-        </div>
       </div>
-
-      {false && (
-        <section className="section-block" aria-labelledby="ranking-hidden-title">
-          <header className="section-header">
-            <h2 id="ranking-hidden-title" className="section-title">
-              热门排行榜
-            </h2>
-            <p className="section-subtitle">实时追踪平台热度，寻找灵感与高转化打法。</p>
-          </header>
-
-          <div className="ranking-columns">
-            {rankingColumns.map((column) => (
-              <article key={column.id} className="ranking-column">
-                <div className="ranking-column__header">
-                  <h3 className="ranking-column__title">{column.title}</h3>
-                  <p className="ranking-column__meta">{column.description}</p>
-                </div>
-
-                <div className="ranking-items">
-                  {column.entries.map((entry) => (
-                    <button
-                      key={entry.rank}
-                      type="button"
-                      className="ranking-item"
-                      onClick={() => {
-                        if (entry.href.includes('creator-profile')) {
-                          window.open(entry.href, '_blank')
-                        } else {
-                          navigate(entry.href)
-                        }
-                      }}
-                    >
-                      <span className={`ranking-number ${entry.rank <= 3 ? 'ranking-number--top' : ''}`}>
-                        {entry.rank}
-                      </span>
-                      <div className="ranking-item__content">
-                        <div className="ranking-item__info">
-                          <span className="ranking-item__title">{entry.title}</span>
-                          <span className="ranking-item__meta">{entry.meta}</span>
-                        </div>
-                        <div className="ranking-item__stats">
-                          {entry.metrics.map((metric) => (
-                            <span key={metric.label} className="stat-item">
-                              <span className="stat-number">{metric.value}</span>
-                              {metric.label}
-                            </span>
-                          ))}
-                        </div>
-                        <span className={`ranking-item__trend trend-indicator trend-${entry.trend}`}>
-                          {trendIcons[entry.trend]}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   )
 }
