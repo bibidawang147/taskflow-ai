@@ -60,7 +60,9 @@ export default function WorkflowExecutionTab({
       const transformedNodes = nodes.map((node: any) => ({
         id: node.id,
         type: node.type,
+        label: node.label || node.data?.label || '未命名节点',
         position: node.position || { x: 0, y: 0 },
+        config: node.config || node.data?.config || {},
         data: {
           type: node.type,
           label: node.label || node.data?.label || '未命名节点',
@@ -93,7 +95,9 @@ export default function WorkflowExecutionTab({
         const transformedNodes = nodes.map((node: any) => ({
           id: node.id,
           type: node.type,
+          label: node.label || node.data?.label || '未命名节点',
           position: node.position || { x: 0, y: 0 },
+          config: node.config || node.data?.config || {},
           data: {
             type: node.type,
             label: node.label || node.data?.label || '未命名节点',

@@ -216,6 +216,10 @@ model WorkflowStepDetail {
   // 提示词（给AI的prompt）
   promptTemplate String? // 提示词模板
 
+  // 步骤指引块（JSON数组）- 混合内容流，包含文本、工具、资源、提示词、媒体等
+  // 格式: [{ id: string, type: 'text' | 'tool' | 'resource' | 'prompt' | 'media', ... }]
+  guideBlocks String? // JSON数组
+
   // 演示媒体（JSON数组）
   // 格式: [{ type: 'image' | 'video', url: string, caption?: string }]
   demonstrationMedia String? // JSON数组

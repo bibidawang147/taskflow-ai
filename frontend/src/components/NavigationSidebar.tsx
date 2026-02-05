@@ -3,6 +3,7 @@ import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag
 import { authService } from '../services/auth'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
+import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
 
 // 画布数据类型定义
 interface Position {
@@ -53,6 +54,7 @@ interface NavigationSidebarProps {
   onWorkflowDragEnd?: () => void
   canvasItems?: CanvasItemsMap
   libraryData?: any[]
+  embedded?: boolean // 是否嵌入到其他容器中使用（不显示外层容器样式）
 }
 
 // 独立的WorkflowItem组件，避免Hooks规则违反
@@ -90,16 +92,16 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
       onClick={onClick}
       onContextMenu={onContextMenu}
       style={{
-        padding: '0.625rem 1rem',
-        fontSize: '14px',
+        padding: '4px 16px',
+        fontSize: '13px',
         color: '#374151',
         cursor: batchMode ? 'pointer' : 'grab',
-        borderRadius: '6px',
+        borderRadius: '4px',
         transition: 'all 0.15s ease',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: '6px',
+        marginBottom: '0',
         position: 'relative',
         backgroundColor: isSelected ? '#eff6ff' : 'transparent',
         border: isSelected ? '1px solid #3b82f6' : '1px solid transparent'
@@ -230,14 +232,20 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   onWorkflowDragStart,
   onWorkflowDragEnd,
   canvasItems = {},
-  libraryData = []
+  libraryData = [],
+  embedded = false
 }) => {
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // 默认所有section都是折叠的（页面刷新时）
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    new Set(['quick-start', 'my-workflows', 'canvas-structure', 'templates', 'recommended', 'recent', 'drafts', 'published', 'uncategorized'])
+    new Set([
+      'quick-start', 'my-workflows', 'canvas-structure',
+      'templates', 'recommended', 'uncategorized',
+      // 6个标签大类默认折叠
+      ...WORKFLOW_CATEGORIES.map(c => `category-${c.id}`)
+    ])
   )
   const [isInitialLoad, setIsInitialLoad] = useState(true) // 标记是否首次加载
   const [searchQuery, setSearchQuery] = useState('')
@@ -271,7 +279,11 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
       // 只在首次加载时设置默认折叠状态
       if (isInitialLoad) {
-        const defaultCollapsed = new Set(['templates', 'recommended', 'recent', 'drafts', 'published', 'uncategorized'])
+        const defaultCollapsed = new Set([
+          'templates', 'recommended', 'recent', 'drafts', 'published', 'uncategorized',
+          // 6个标签大类默认折叠
+          ...WORKFLOW_CATEGORIES.map(c => `category-${c.id}`)
+        ])
         // 同时将所有收藏标签也设置为折叠
         data.favorites.tags.forEach(tag => {
           defaultCollapsed.add(`favorite-tag-${tag.id}`)
@@ -515,6 +527,148 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 textAlign: 'center'
               }}>
                 {searchQuery ? '未找到匹配的AI工作方法' : `暂无${title}`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 获取所有工作流（合并recent, drafts, published）
+  const getAllMyWorkflows = (): Workflow[] => {
+    if (!sidebarData) return []
+    const allWorkflows = [
+      ...sidebarData.myWorkflows.recent,
+      ...sidebarData.myWorkflows.drafts,
+      ...sidebarData.myWorkflows.published
+    ]
+    // 去重（基于id）
+    const uniqueMap = new Map<string, Workflow>()
+    allWorkflows.forEach(w => {
+      if (!uniqueMap.has(w.id)) {
+        uniqueMap.set(w.id, w)
+      }
+    })
+    return Array.from(uniqueMap.values())
+  }
+
+  // 按标签大类分组工作流
+  const getWorkflowsByCategory = (categoryName: string): Workflow[] => {
+    const allWorkflows = getAllMyWorkflows()
+    return allWorkflows.filter(w => w.category === categoryName)
+  }
+
+  // 渲染标签大类
+  const renderCategorySection = (category: WorkflowCategory) => {
+    const isCollapsed = collapsedSections.has(`category-${category.id}`)
+    const workflows = getWorkflowsByCategory(category.name)
+    const filteredWorkflows = filterWorkflows(workflows)
+
+    return (
+      <div key={category.id} style={{ marginBottom: '0.5rem' }}>
+        <div
+          onClick={() => toggleSection(`category-${category.id}`)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#1A1A1A',
+            cursor: 'pointer',
+            userSelect: 'none',
+            borderRadius: '6px',
+            transition: 'background-color 0.2s ease',
+            marginBottom: '4px'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (icon) icon.style.color = '#5B5B5F'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (icon) icon.style.color = '#8E8E93'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{category.name}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{
+              fontSize: '14px',
+              color: '#8E8E93',
+              fontWeight: 400
+            }}>
+              ({searchQuery ? filteredWorkflows.length : workflows.length})
+            </span>
+            <span
+              className="expand-icon"
+              style={{
+                fontSize: '18px',
+                color: '#8E8E93',
+                transition: 'color 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '18px',
+                height: '18px',
+                flexShrink: 0,
+                fontWeight: 300
+              }}
+            >
+              {isCollapsed ? '›' : '⌄'}
+            </span>
+          </div>
+        </div>
+        {!isCollapsed && (
+          <div style={{
+            marginTop: '0.25rem',
+            animation: 'fadeIn 0.2s ease-in'
+          }}>
+            {filteredWorkflows.length > 0 ? (
+              filteredWorkflows.map((workflow) => (
+                <WorkflowItem
+                  key={workflow.id}
+                  workflow={workflow}
+                  batchMode={batchMode}
+                  isSelected={selectedWorkflows.has(workflow.id)}
+                  onDragStart={() => {
+                    if (!batchMode) {
+                      onWorkflowDragStart?.(workflow.id)
+                    }
+                  }}
+                  onDragEnd={() => {
+                    if (!batchMode) {
+                      onWorkflowDragEnd?.()
+                    }
+                  }}
+                  onClick={() => {
+                    if (batchMode) {
+                      toggleWorkflowSelection(workflow.id)
+                    } else {
+                      onWorkflowSelect?.(workflow.id)
+                    }
+                  }}
+                  onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e)}
+                  onToggleSelection={() => toggleWorkflowSelection(workflow.id)}
+                  onAddToFavorites={() => {
+                    handleAddToFavorites()
+                    setContextMenu({ workflow, position: { x: 0, y: 0 } })
+                  }}
+                />
+              ))
+            ) : (
+              <div style={{
+                padding: '1rem',
+                fontSize: '13px',
+                color: '#9ca3af',
+                textAlign: 'center'
+              }}>
+                {searchQuery ? '未找到匹配的AI工作方法' : `暂无${category.name}`}
               </div>
             )}
           </div>
@@ -815,12 +969,11 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const renderFavoriteTag = (tag: FavoriteTag, workflows: Workflow[]) => {
     const isCollapsed = collapsedSections.has(`favorite-tag-${tag.id}`)
     const filteredWorkflows = filterWorkflows(workflows)
-    const isDragOver = dragOverTag === tag.id
 
     return (
       <div
         key={tag.id}
-        style={{ marginBottom: '0.75rem' }}
+        style={{ marginBottom: '0.5rem' }}
         draggable
         onDragStart={(e) => handleTagDragStart(tag, e)}
         onDragOver={(e) => handleTagDragOver(tag, e)}
@@ -833,65 +986,60 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0.5rem 1rem',
-            fontSize: '13px',
+            padding: '10px 16px',
+            fontSize: '14px',
             fontWeight: 500,
-            color: '#374151',
-            cursor: draggedTag ? 'move' : 'pointer',
+            color: '#1A1A1A',
+            cursor: 'pointer',
             userSelect: 'none',
             borderRadius: '6px',
-            backgroundColor: tag.color ? `${tag.color}10` : '#f9fafb',
-            position: 'relative',
-            border: isDragOver ? '2px dashed #3b82f6' : '2px solid transparent',
-            opacity: draggedTag?.id === tag.id ? 0.5 : 1,
-            transition: 'all 0.2s ease'
+            transition: 'background-color 0.2s ease',
+            marginBottom: '4px',
+            opacity: draggedTag?.id === tag.id ? 0.5 : 1
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (icon) icon.style.color = '#5B5B5F'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (icon) icon.style.color = '#8E8E93'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ cursor: 'grab' }}>≡</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>{tag.name}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
-              fontSize: '12px',
-              color: '#9ca3af',
+              fontSize: '14px',
+              color: '#8E8E93',
               fontWeight: 400
             }}>
               ({searchQuery ? filteredWorkflows.length : workflows.length})
             </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              onClick={(e) => handleEditTag(tag, e)}
+            <span
+              className="expand-icon"
               style={{
-                padding: '0.25rem',
-                fontSize: '12px',
-                color: '#6b7280',
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                borderRadius: '4px',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
+                fontSize: '18px',
+                color: '#8E8E93',
+                transition: 'color 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '18px',
+                height: '18px',
+                flexShrink: 0,
+                fontWeight: 300
               }}
             >
-              编辑
-            </button>
-            <span style={{
-              fontSize: '12px',
-              transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s ease'
-            }}>
-              ▼
+              {isCollapsed ? '›' : '⌄'}
             </span>
           </div>
         </div>
         {!isCollapsed && filteredWorkflows.length > 0 && (
-          <div style={{ marginTop: '0.25rem', paddingLeft: '0.5rem' }}>
+          <div style={{ marginTop: '0.25rem', animation: 'fadeIn 0.2s ease-in' }}>
             {filteredWorkflows.map((workflow) => (
               <WorkflowItem
                 key={workflow.id}
@@ -943,10 +1091,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   if (loading) {
     return (
       <div style={{
-        width: '280px',
+        width: embedded ? '100%' : '280px',
         height: '100%',
-        backgroundColor: 'white',
-        borderRight: '1px solid #e5e7eb',
+        backgroundColor: embedded ? 'transparent' : 'white',
+        borderRight: embedded ? 'none' : '1px solid #e5e7eb',
         padding: '1rem',
         display: 'flex',
         alignItems: 'center',
@@ -960,10 +1108,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   if (error) {
     return (
       <div style={{
-        width: '280px',
+        width: embedded ? '100%' : '280px',
         height: '100%',
-        backgroundColor: 'white',
-        borderRight: '1px solid #e5e7eb',
+        backgroundColor: embedded ? 'transparent' : 'white',
+        borderRight: embedded ? 'none' : '1px solid #e5e7eb',
         padding: '1rem'
       }}>
         <div style={{
@@ -993,7 +1141,24 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     )
   }
 
-  if (!sidebarData) return null
+  if (!sidebarData) {
+    return (
+      <div style={{
+        width: embedded ? '100%' : '280px',
+        height: '100%',
+        backgroundColor: embedded ? 'transparent' : 'white',
+        borderRight: embedded ? 'none' : '1px solid #e5e7eb',
+        padding: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ color: '#9ca3af', fontSize: '14px', textAlign: 'center' }}>
+          {authService.isAuthenticated() ? '暂无工作流数据' : '请先登录'}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -1010,10 +1175,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         }
       `}</style>
       <div style={{
-        width: '280px',
+        width: embedded ? '100%' : '280px',
         height: '100%',
-        backgroundColor: 'white',
-        borderRight: '1px solid #e5e7eb',
+        backgroundColor: embedded ? 'transparent' : 'white',
+        borderRight: embedded ? 'none' : '1px solid #e5e7eb',
         display: 'flex',
         flexDirection: 'column',
       overflow: 'hidden'
@@ -1087,11 +1252,11 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           <div
             onClick={() => toggleSection('my-workflows')}
             style={{
-              padding: '0.75rem 1rem',
+              padding: '0.5rem 1rem',
               fontSize: '15px',
               fontWeight: 700,
               color: '#1A1A1A',
-              marginBottom: '0.75rem',
+              marginBottom: '0.25rem',
               marginTop: '32px',
               borderBottom: 'none',
               letterSpacing: '0.02em',
@@ -1134,21 +1299,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           {!collapsedSections.has('my-workflows') && (
             <>
-              {renderSection(
-                '最近使用',
-                'recent',
-                sidebarData.myWorkflows.recent
-              )}
-              {renderSection(
-                '草稿箱',
-                'drafts',
-                sidebarData.myWorkflows.drafts
-              )}
-              {renderSection(
-                '已发布',
-                'published',
-                sidebarData.myWorkflows.published
-              )}
+              {/* 按6个标签大类显示工作流 */}
+              {WORKFLOW_CATEGORIES.map(category => renderCategorySection(category))}
             </>
           )}
         </div>

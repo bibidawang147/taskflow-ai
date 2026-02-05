@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
@@ -705,6 +705,7 @@ function findDropTargetContainer(
 
 export default function StoragePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [librarySearch, setLibrarySearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
@@ -2539,6 +2540,16 @@ export default function StoragePage() {
     setActiveTabId(newTab.id)
   }, [workspaceTabs])
 
+  // 处理 URL 参数中的工作流 ID（支持 ?workflow=xxx 直接打开工作流）
+  useEffect(() => {
+    const workflowId = searchParams.get('workflow')
+    const workflowTitle = searchParams.get('title') || '工作流执行'
+    if (workflowId) {
+      console.log('🎯 [StoragePage] 从 URL 参数打开工作流:', workflowId)
+      openWorkflowTab(workflowId, workflowTitle)
+    }
+  }, [searchParams, openWorkflowTab])
+
   // 打开创建工作流 tab
   const openCreateTab = useCallback(() => {
     // 检查是否已有创建工作流的 tab
@@ -3112,8 +3123,8 @@ export default function StoragePage() {
         onDoubleClick={(e) => {
           e.stopPropagation()
           if (workflow) {
-            // 在新标签页打开工作流介绍页面
-            window.open(`/workflow-intro/${workflow.id}`, '_blank')
+            // 在画布上以标签页形式打开工作流执行界面
+            openWorkflowTab(workflow.id, workflow.name || '工作流执行')
           }
         }}
         style={{
@@ -4134,6 +4145,7 @@ export default function StoragePage() {
               onWorkflowDragEnd={handleLibraryDragEnd}
               canvasItems={canvasItems}
               libraryData={libraryData}
+              embedded={true}
             />
           </div>
         </div>

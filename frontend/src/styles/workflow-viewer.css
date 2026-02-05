@@ -1484,7 +1484,7 @@
 .expandable-block-type-tag {
   flex-shrink: 0;
   padding: 0.0625rem 0.375rem;
-  background: var(--wv-primary-bg);
+  background: rgba(243, 240, 255, 0.8);
   color: var(--wv-primary);
   font-size: 0.625rem;
   font-weight: 600;
@@ -1493,12 +1493,12 @@
 }
 
 .expandable-block--resource .expandable-block-type-tag {
-  background: #ecfdf5;
+  background: rgba(236, 253, 245, 0.8);
   color: #059669;
 }
 
 .expandable-block--prompt .expandable-block-type-tag {
-  background: #fef3c7;
+  background: rgba(254, 243, 199, 0.8);
   color: #d97706;
 }
 
@@ -1572,22 +1572,22 @@
   font-weight: 600;
   padding: 0.0625rem 0.375rem;
   border-radius: 3px;
-  background: var(--wv-primary-bg);
+  background: rgba(243, 240, 255, 0.8);
   color: var(--wv-primary);
 }
 
 .expandable-block--tool .expandable-block-detail-type {
-  background: var(--wv-primary-bg);
+  background: rgba(243, 240, 255, 0.8);
   color: var(--wv-primary);
 }
 
 .expandable-block--resource .expandable-block-detail-type {
-  background: #ecfdf5;
+  background: rgba(236, 253, 245, 0.8);
   color: #059669;
 }
 
 .expandable-block--prompt .expandable-block-detail-type {
-  background: #fef3c7;
+  background: rgba(254, 243, 199, 0.8);
   color: #d97706;
 }
 

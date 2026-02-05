@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { SAMPLE_WORKFLOW_IDS } from '../data/sampleWorkflows'
 import '../styles/community.css'
 import '../styles/explore.css'
 
@@ -27,138 +26,8 @@ interface Workflow {
   sellingPoints?: string[]
 }
 
-// 示例工作流数据 - 使用统一的 ID
-const sampleWorkflows: Workflow[] = [
-  {
-    id: SAMPLE_WORKFLOW_IDS.XIAOHONGSHU,
-    title: '小红书爆款笔记创作全流程',
-    description: '从市场调研、选题策划、文案撰写到SEO优化，一站式AI辅助创作小红书种草笔记，提升内容曝光和转化率',
-    category: '内容创作',
-    author: {
-      id: 'official',
-      name: '瓴积AI官方',
-      avatar: undefined
-    },
-    stats: {
-      likes: 486,
-      comments: 128,
-      views: 12580,
-      copies: 3240
-    },
-    isLiked: false,
-    isOfficial: true,
-    highlight: '已帮助10000+创作者产出爆款内容',
-    sellingPoints: ['新手友好', '省时80%', '爆款公式']
-  },
-  {
-    id: SAMPLE_WORKFLOW_IDS.DOUYIN,
-    title: '抖音短视频脚本生成器',
-    description: '智能分析热门视频结构，自动生成吸睛开头、内容主体和引导互动的完整短视频脚本',
-    category: '短视频',
-    author: {
-      id: 'official',
-      name: '瓴积AI官方',
-      avatar: undefined
-    },
-    stats: {
-      likes: 352,
-      comments: 89,
-      views: 8960,
-      copies: 2180
-    },
-    isLiked: false,
-    isOfficial: true,
-    highlight: '3分钟生成专业级脚本',
-    sellingPoints: ['零门槛', '高转化', '热门模板']
-  },
-  {
-    id: SAMPLE_WORKFLOW_IDS.ARTICLE,
-    title: '公众号长文写作助手',
-    description: '从选题构思到成稿润色，AI全程辅助撰写高质量公众号文章，支持多种写作风格',
-    category: '文章写作',
-    author: {
-      id: 'author-article-001',
-      name: '内容创作者',
-      avatar: undefined
-    },
-    stats: {
-      likes: 298,
-      comments: 67,
-      views: 6540,
-      copies: 1520
-    },
-    isLiked: false,
-    isOfficial: false,
-    highlight: '支持10+写作风格一键切换',
-    sellingPoints: ['多风格', '智能润色']
-  },
-  {
-    id: 'workflow-ecommerce-001',
-    title: '电商产品描述生成器',
-    description: '一键生成吸引眼球的产品标题、卖点提炼和详情页文案，提升商品转化率',
-    category: '电商',
-    author: {
-      id: 'author-ecom-001',
-      name: '电商运营达人',
-      avatar: undefined
-    },
-    stats: {
-      likes: 245,
-      comments: 56,
-      views: 5680,
-      copies: 1280
-    },
-    isLiked: false,
-    isOfficial: false,
-    highlight: '平均提升转化率35%',
-    sellingPoints: ['高转化', '多平台适配']
-  },
-  {
-    id: 'workflow-data-001',
-    title: '数据分析报告生成器',
-    description: '自动分析数据趋势，生成专业的可视化报告，支持多种图表类型',
-    category: '数据分析',
-    author: {
-      id: 'author-data-001',
-      name: '数据分析师张三',
-      avatar: undefined
-    },
-    stats: {
-      likes: 189,
-      comments: 42,
-      views: 4320,
-      copies: 980
-    },
-    isLiked: false,
-    isOfficial: false,
-    highlight: '节省90%报告制作时间',
-    sellingPoints: ['自动化', '专业图表']
-  },
-  {
-    id: 'workflow-meeting-001',
-    title: '会议纪要智能整理',
-    description: '自动提取会议要点，生成结构化纪要，支持待办事项追踪',
-    category: '效率工具',
-    author: {
-      id: 'author-eff-001',
-      name: '效率提升专家',
-      avatar: undefined
-    },
-    stats: {
-      likes: 167,
-      comments: 38,
-      views: 3890,
-      copies: 856
-    },
-    isLiked: false,
-    isOfficial: false,
-    highlight: '会议效率提升200%',
-    sellingPoints: ['智能提取', '待办追踪']
-  }
-]
-
 // 分类标签
-const categoryTags = ['全部', '内容创作', '短视频', '文章写作', '电商', '数据分析', '效率工具', '自媒体']
+const categoryTags = ['全部', '副业专区', '内容创作', '视频制作', '数据分析', '图文设计', '效率工具']
 
 export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
@@ -183,17 +52,14 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch('http://localhost:3000/api/community/workflows?limit=12', {
+      const response = await fetch('http://localhost:3000/api/community/workflows?limit=50', {
         headers
       })
       const data = await response.json()
-      // 合并示例数据和API数据，示例数据放在前面
-      const apiWorkflows = data.workflows || []
-      setWorkflows([...sampleWorkflows, ...apiWorkflows])
+      setWorkflows(data.workflows || [])
     } catch (error) {
       console.error('获取工作流失败:', error)
-      // API 失败时仍然显示示例数据
-      setWorkflows(sampleWorkflows)
+      setWorkflows([])
     } finally {
       setWorkflowsLoading(false)
     }
@@ -236,7 +102,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
             <header className="panel-header">
               <div className="panel-header__main">
                 <h2>AI工作方法广场</h2>
-                <span className="subtitle">发现和使用社区分享的优质AI工作方法</span>
+                <span className="subtitle">发现和使用社区分享的成熟AI工作方法</span>
               </div>
               <button
                 className="refresh-button"

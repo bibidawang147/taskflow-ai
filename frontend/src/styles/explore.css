@@ -54,9 +54,8 @@
   padding: 32px 0 64px;
   color: var(--color-text-primary);
   line-height: var(--line-relaxed);
-  background:
-    radial-gradient(circle at top, rgba(159, 122, 234, 0.04), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.03), transparent 45%);
+  background: #ede9fe;
+  min-height: 100vh;
 }
 
 .explore-page.explore-embedded {

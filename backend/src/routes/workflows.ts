@@ -239,6 +239,9 @@ router.get('/:id', optionalAuthenticateToken, async (req: AuthenticatedRequest, 
             stepDetail: true
           }
         },
+        preparations: {
+          orderBy: { order: 'asc' }
+        },
         ratings: {
           include: {
             user: {
