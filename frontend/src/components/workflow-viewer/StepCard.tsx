@@ -1,9 +1,10 @@
 import { forwardRef } from 'react'
-import { ChevronDown, ChevronRight, CheckCircle2, Circle, Play, Clock } from 'lucide-react'
-import type { WorkflowNode, WorkflowStepDetail } from '../../types/workflow'
+import { ChevronDown, ChevronRight, CheckCircle2, Circle, Play } from 'lucide-react'
+import type { WorkflowNode, WorkflowStepDetail, GuideBlock } from '../../types/workflow'
+import ExpandableBlock from './ExpandableBlock'
+import MediaGallery from './MediaGallery'
 import PromptBlock from './PromptBlock'
 import ToolsList from './ToolsList'
-import MediaGallery from './MediaGallery'
 import ResourcesList from './ResourcesList'
 
 interface StepCardProps {
@@ -15,6 +16,62 @@ interface StepCardProps {
   onToggleExpand: () => void
   onComplete: () => void
   onClick: () => void
+}
+
+// 渲染单个 GuideBlock（新格式）
+const GuideBlockRenderer = ({ block }: { block: GuideBlock }) => {
+  switch (block.type) {
+    case 'text':
+      return (
+        <div className="guide-block guide-block--text">
+          {block.text}
+        </div>
+      )
+
+    case 'tool':
+      return block.tool ? (
+        <ExpandableBlock
+          title={block.tool.name}
+          resourceType="工具"
+          description={block.tool.description}
+          content={block.tool.description}
+          url={block.tool.url}
+          type="tool"
+        />
+      ) : null
+
+    case 'resource':
+      return block.resource ? (
+        <ExpandableBlock
+          title={block.resource.title}
+          resourceType={block.resource.type === 'file' ? '文档' : '链接'}
+          description={block.resource.description}
+          content={block.resource.content || block.resource.description}
+          url={block.resource.url}
+          type="resource"
+        />
+      ) : null
+
+    case 'prompt':
+      return block.prompt ? (
+        <ExpandableBlock
+          title="AI 提示词"
+          resourceType="提示词"
+          content={block.prompt}
+          type="prompt"
+        />
+      ) : null
+
+    case 'media':
+      return block.media ? (
+        <div className="guide-block guide-block--media">
+          <MediaGallery media={[block.media]} />
+        </div>
+      ) : null
+
+    default:
+      return null
+  }
 }
 
 const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
@@ -29,12 +86,15 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
 }, ref) => {
   const detail = step.stepDetail
 
+  // 判断是否使用新的 guideBlocks 格式
+  const hasGuideBlocks = detail?.guideBlocks && detail.guideBlocks.length > 0
+
   const getStatusIcon = () => {
     if (isCompleted) {
       return <CheckCircle2 className="w-6 h-6 text-emerald-500" />
     }
     if (isActive) {
-      return <Play className="w-6 h-6 text-blue-500" />
+      return <Play className="w-6 h-6 text-violet-500" />
     }
     return <Circle className="w-6 h-6 text-gray-300" />
   }
@@ -46,6 +106,106 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
     return `${base} step-card--pending`
   }
 
+  // 渲染旧格式内容（向后兼容）
+  const renderLegacyContent = () => (
+    <>
+      {/* 步骤概览 */}
+      <div className="step-card-overview">
+        <h4 className="step-card-overview-title">📋 步骤概览</h4>
+        <div className="step-card-overview-grid">
+          <div className="step-card-overview-item">
+            <span className="step-card-overview-label">🛠️ 使用工具</span>
+            <span className="step-card-overview-value">
+              {detail?.tools && detail.tools.length > 0
+                ? detail.tools.map(t => t.name).join('、')
+                : '无需特定工具'}
+            </span>
+          </div>
+          <div className="step-card-overview-item">
+            <span className="step-card-overview-label">💬 操作指引</span>
+            <span className="step-card-overview-value">
+              {detail?.promptTemplate
+                ? detail.promptTemplate.length > 80
+                  ? detail.promptTemplate.substring(0, 80) + '...'
+                  : detail.promptTemplate
+                : '详见下方提示词模板'}
+            </span>
+          </div>
+          <div className="step-card-overview-item">
+            <span className="step-card-overview-label">📚 参考资料</span>
+            <span className="step-card-overview-value">
+              {detail?.relatedResources && detail.relatedResources.length > 0
+                ? `${detail.relatedResources.length} 个相关资源`
+                : detail?.demonstrationMedia && detail.demonstrationMedia.length > 0
+                  ? `${detail.demonstrationMedia.length} 个演示教程`
+                  : '无额外资料'}
+            </span>
+          </div>
+          <div className="step-card-overview-item">
+            <span className="step-card-overview-label">🎯 预期产出</span>
+            <span className="step-card-overview-value">
+              {detail?.expectedResult
+                ? detail.expectedResult.length > 60
+                  ? detail.expectedResult.substring(0, 60) + '...'
+                  : detail.expectedResult
+                : '完成本步骤操作'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {detail?.promptTemplate && (
+        <div className="step-card-section">
+          <h4 className="step-card-section-title">提示词模板</h4>
+          <PromptBlock content={detail.promptTemplate} />
+        </div>
+      )}
+
+      {detail?.tools && detail.tools.length > 0 && (
+        <div className="step-card-section">
+          <h4 className="step-card-section-title">所需工具</h4>
+          <ToolsList tools={detail.tools} />
+        </div>
+      )}
+
+      {detail?.demonstrationMedia && detail.demonstrationMedia.length > 0 && (
+        <div className="step-card-section">
+          <h4 className="step-card-section-title">操作演示</h4>
+          <MediaGallery media={detail.demonstrationMedia} />
+        </div>
+      )}
+
+      {detail?.relatedResources && detail.relatedResources.length > 0 && (
+        <div className="step-card-section">
+          <h4 className="step-card-section-title">相关资源</h4>
+          <ResourcesList resources={detail.relatedResources} />
+        </div>
+      )}
+
+      {detail?.expectedResult && (
+        <div className="step-card-section">
+          <h4 className="step-card-section-title">预期结果</h4>
+          <div className="step-card-expected-result">
+            {detail.expectedResult}
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  // 渲染新格式 guideBlocks 内容
+  const renderGuideBlocksContent = () => (
+    <div className="step-card-guide">
+      {detail?.guideBlocks && detail.guideBlocks.length > 0 && (
+        <div className="step-card-guide-blocks">
+          {detail.guideBlocks.map((block, index) => (
+            <GuideBlockRenderer key={block.id || index} block={block} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div ref={ref} className={getCardClassName()} onClick={onClick}>
       {/* 卡片头部 */}
@@ -56,7 +216,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
 
         <div className="step-card-title-section">
           <div className="step-card-number">步骤 {stepIndex}</div>
-          <h3 className="step-card-title">{step.data.label}</h3>
+          <h3 className="step-card-title">{(step as any).data?.label || step.label}</h3>
           {detail?.stepDescription && (
             <p className="step-card-description">{detail.stepDescription}</p>
           )}
@@ -94,99 +254,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
       {/* 卡片内容 - 可展开 */}
       {isExpanded && (
         <div className="step-card-content">
-          {/* 步骤概览 - 快速了解这一步要做什么 */}
-          <div className="step-card-overview">
-            <h4 className="step-card-overview-title">📋 步骤概览</h4>
-            <div className="step-card-overview-grid">
-              {/* 使用工具 */}
-              <div className="step-card-overview-item">
-                <span className="step-card-overview-label">🛠️ 使用工具</span>
-                <span className="step-card-overview-value">
-                  {detail?.tools && detail.tools.length > 0
-                    ? detail.tools.map(t => t.name).join('、')
-                    : '无需特定工具'}
-                </span>
-              </div>
-
-              {/* 核心提示词摘要 */}
-              <div className="step-card-overview-item">
-                <span className="step-card-overview-label">💬 操作指引</span>
-                <span className="step-card-overview-value">
-                  {detail?.promptTemplate
-                    ? detail.promptTemplate.length > 80
-                      ? detail.promptTemplate.substring(0, 80) + '...'
-                      : detail.promptTemplate
-                    : '详见下方提示词模板'}
-                </span>
-              </div>
-
-              {/* 参考资料 */}
-              <div className="step-card-overview-item">
-                <span className="step-card-overview-label">📚 参考资料</span>
-                <span className="step-card-overview-value">
-                  {detail?.relatedResources && detail.relatedResources.length > 0
-                    ? `${detail.relatedResources.length} 个相关资源`
-                    : detail?.demonstrationMedia && detail.demonstrationMedia.length > 0
-                      ? `${detail.demonstrationMedia.length} 个演示教程`
-                      : '无额外资料'}
-                </span>
-              </div>
-
-              {/* 预期产出 */}
-              <div className="step-card-overview-item">
-                <span className="step-card-overview-label">🎯 预期产出</span>
-                <span className="step-card-overview-value">
-                  {detail?.expectedResult
-                    ? detail.expectedResult.length > 60
-                      ? detail.expectedResult.substring(0, 60) + '...'
-                      : detail.expectedResult
-                    : '完成本步骤操作'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 提示词模板 */}
-          {detail?.promptTemplate && (
-            <div className="step-card-section">
-              <h4 className="step-card-section-title">提示词模板</h4>
-              <PromptBlock content={detail.promptTemplate} />
-            </div>
-          )}
-
-          {/* 工具/链接 */}
-          {detail?.tools && detail.tools.length > 0 && (
-            <div className="step-card-section">
-              <h4 className="step-card-section-title">所需工具</h4>
-              <ToolsList tools={detail.tools} />
-            </div>
-          )}
-
-          {/* 演示媒体 */}
-          {detail?.demonstrationMedia && detail.demonstrationMedia.length > 0 && (
-            <div className="step-card-section">
-              <h4 className="step-card-section-title">操作演示</h4>
-              <MediaGallery media={detail.demonstrationMedia} />
-            </div>
-          )}
-
-          {/* 相关资源 */}
-          {detail?.relatedResources && detail.relatedResources.length > 0 && (
-            <div className="step-card-section">
-              <h4 className="step-card-section-title">相关资源</h4>
-              <ResourcesList resources={detail.relatedResources} />
-            </div>
-          )}
-
-          {/* 预期结果 */}
-          {detail?.expectedResult && (
-            <div className="step-card-section">
-              <h4 className="step-card-section-title">预期结果</h4>
-              <div className="step-card-expected-result">
-                {detail.expectedResult}
-              </div>
-            </div>
-          )}
+          {hasGuideBlocks ? renderGuideBlocksContent() : renderLegacyContent()}
 
           {/* 快捷键提示 */}
           {isActive && !isCompleted && (

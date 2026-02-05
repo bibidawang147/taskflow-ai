@@ -20,7 +20,47 @@ export interface RelatedResource {
   type: 'file' | 'link'
   url: string
   description?: string
+  content?: string  // 资源内容（内嵌展示）
 }
+
+// ========== GuideBlock 类型（新的引导块格式）==========
+
+export interface GuideBlockText {
+  id: string
+  type: 'text'
+  text: string
+}
+
+export interface GuideBlockTool {
+  id: string
+  type: 'tool'
+  tool: StepTool
+}
+
+export interface GuideBlockPrompt {
+  id: string
+  type: 'prompt'
+  prompt: string
+}
+
+export interface GuideBlockResource {
+  id: string
+  type: 'resource'
+  resource: RelatedResource
+}
+
+export interface GuideBlockMedia {
+  id: string
+  type: 'media'
+  media: DemonstrationMedia
+}
+
+export type GuideBlock =
+  | GuideBlockText
+  | GuideBlockTool
+  | GuideBlockPrompt
+  | GuideBlockResource
+  | GuideBlockMedia
 
 // 下一步指向配置
 export interface NextStepConfig {
@@ -37,10 +77,11 @@ export interface WorkflowStepDetail {
   nodeId: string
   stepDescription?: string        // 步骤说明
   expectedResult?: string         // 预期结果
-  tools?: StepTool[]              // 工具/链接
-  promptTemplate?: string         // 提示词模板
-  demonstrationMedia?: DemonstrationMedia[]  // 图示/视频演示
-  relatedResources?: RelatedResource[]       // 相关资源
+  guideBlocks?: GuideBlock[]      // 引导块（新格式，按顺序渲染）
+  tools?: StepTool[]              // 工具/链接（旧格式，向后兼容）
+  promptTemplate?: string         // 提示词模板（旧格式）
+  demonstrationMedia?: DemonstrationMedia[]  // 图示/视频演示（旧格式）
+  relatedResources?: RelatedResource[]       // 相关资源（旧格式）
   referencedWorkflowId?: string   // 引用工作流ID
   nextStepConfig?: NextStepConfig // 下一步指向配置
   createdAt?: string

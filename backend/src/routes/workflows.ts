@@ -234,7 +234,11 @@ router.get('/:id', optionalAuthenticateToken, async (req: AuthenticatedRequest, 
             avatar: true
           }
         },
-        nodes: true,
+        nodes: {
+          include: {
+            stepDetail: true
+          }
+        },
         ratings: {
           include: {
             user: {
@@ -284,8 +288,24 @@ router.get('/:id', optionalAuthenticateToken, async (req: AuthenticatedRequest, 
       }
     }
 
+    // 解析节点中的 stepDetail JSON 字段
+    const processedWorkflow = {
+      ...workflow,
+      nodes: workflow.nodes.map((node: any) => ({
+        ...node,
+        stepDetail: node.stepDetail ? {
+          ...node.stepDetail,
+          guideBlocks: node.stepDetail.guideBlocks ? JSON.parse(node.stepDetail.guideBlocks as string) : [],
+          tools: node.stepDetail.tools ? JSON.parse(node.stepDetail.tools) : [],
+          demonstrationMedia: node.stepDetail.demonstrationMedia ? JSON.parse(node.stepDetail.demonstrationMedia) : [],
+          relatedResources: node.stepDetail.relatedResources ? JSON.parse(node.stepDetail.relatedResources) : [],
+          nextStepConfig: node.stepDetail.nextStepConfig ? JSON.parse(node.stepDetail.nextStepConfig) : null
+        } : null
+      }))
+    }
+
     res.status(200).json({
-      workflow
+      workflow: processedWorkflow
     })
   } catch (error) {
     console.error('获取工作流详情错误:', error)
@@ -2795,6 +2815,7 @@ router.get('/:workflowId/nodes/:nodeId/step-detail', optionalAuthenticateToken, 
     // 解析 JSON 字段
     const stepDetail = node.stepDetail ? {
       ...node.stepDetail,
+      guideBlocks: node.stepDetail.guideBlocks ? JSON.parse(node.stepDetail.guideBlocks as string) : [],
       tools: node.stepDetail.tools ? JSON.parse(node.stepDetail.tools) : [],
       demonstrationMedia: node.stepDetail.demonstrationMedia ? JSON.parse(node.stepDetail.demonstrationMedia) : [],
       relatedResources: node.stepDetail.relatedResources ? JSON.parse(node.stepDetail.relatedResources) : [],
@@ -2878,6 +2899,7 @@ router.post('/:workflowId/nodes/:nodeId/step-detail', authenticateToken, async (
       message: '步骤详情保存成功',
       stepDetail: {
         ...stepDetail,
+        guideBlocks: stepDetail.guideBlocks ? JSON.parse(stepDetail.guideBlocks as string) : [],
         tools: stepDetail.tools ? JSON.parse(stepDetail.tools) : [],
         demonstrationMedia: stepDetail.demonstrationMedia ? JSON.parse(stepDetail.demonstrationMedia) : [],
         relatedResources: stepDetail.relatedResources ? JSON.parse(stepDetail.relatedResources) : [],
@@ -2978,6 +3000,7 @@ router.get('/:id/full', optionalAuthenticateToken, async (req: AuthenticatedRequ
       ...node,
       stepDetail: node.stepDetail ? {
         ...node.stepDetail,
+        guideBlocks: node.stepDetail.guideBlocks ? JSON.parse(node.stepDetail.guideBlocks as string) : [],
         tools: node.stepDetail.tools ? JSON.parse(node.stepDetail.tools) : [],
         demonstrationMedia: node.stepDetail.demonstrationMedia ? JSON.parse(node.stepDetail.demonstrationMedia) : [],
         relatedResources: node.stepDetail.relatedResources ? JSON.parse(node.stepDetail.relatedResources) : [],
