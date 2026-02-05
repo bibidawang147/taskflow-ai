@@ -51,7 +51,7 @@ function App() {
         <Route path="explore/theme/:themeId" element={<ExploreThemeDetailPage />} />
         <Route path="solution/:id" element={<SolutionPage />} />
         <Route path="search" element={<SearchResultPage />} />
-        <Route path="workflow-intro/:id" element={<WorkflowSharePage />} />
+        <Route path="workflow-intro/:id" element={<WorkflowViewPage />} />
         <Route path="workflow/create" element={<WorkflowCreatePage />} />
         <Route path="workflow/edit/:id" element={<WorkflowCreatePage />} />
         <Route path="workflow/import-from-article" element={<ImportFromArticlePage />} />
