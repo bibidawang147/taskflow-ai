@@ -765,7 +765,8 @@ export default function StoragePage() {
   const [favoriteWorkflows, setFavoriteWorkflows] = useState<Workflow[]>([])
   const [createdWorkflows, setCreatedWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
-  const [canvasItems, setCanvasItems] = useState<CanvasItemsMap>(() => ({
+  // 创建空白画布的初始数据
+  const createEmptyCanvasData = (): CanvasItemsMap => ({
     [ROOT_CONTAINER_ID]: {
       id: ROOT_CONTAINER_ID,
       type: 'container',
@@ -775,9 +776,29 @@ export default function StoragePage() {
       size: { width: 3200, height: 1800 },
       collapsed: false,
       childrenIds: [],
-      color: 'rgba(139, 92, 246, 0.15)' // 根容器默认颜色
+      color: 'rgba(139, 92, 246, 0.15)'
     }
-  }))
+  })
+
+  // Tab 系统状态 - 必须在 canvasDataByTabId 之前声明
+  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([
+    { id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }
+  ])
+  const [activeTabId, setActiveTabId] = useState(CANVAS_TAB_ID)
+
+  // 每个画布 Tab 的数据存储
+  const [canvasDataByTabId, setCanvasDataByTabId] = useState<Record<string, CanvasItemsMap>>({
+    [CANVAS_TAB_ID]: createEmptyCanvasData()
+  })
+
+  // 当前画布的数据（兼容旧代码）
+  const canvasItems = canvasDataByTabId[activeTabId] || createEmptyCanvasData()
+  const setCanvasItems = (updater: CanvasItemsMap | ((prev: CanvasItemsMap) => CanvasItemsMap)) => {
+    setCanvasDataByTabId(prev => ({
+      ...prev,
+      [activeTabId]: typeof updater === 'function' ? updater(prev[activeTabId] || createEmptyCanvasData()) : updater
+    }))
+  }
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null)
   const [resizingContainerId, setResizingContainerId] = useState<string | null>(null)
   const [isPanning, setIsPanning] = useState(false)
@@ -786,12 +807,7 @@ export default function StoragePage() {
   const [aiInputMessage, setAiInputMessage] = useState('')
   const [showAiDialog, setShowAiDialog] = useState(false)
   const [showChatPanel, setShowChatPanel] = useState(false)
-
-  // Tab 系统状态
-  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([
-    { id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }
-  ])
-  const [activeTabId, setActiveTabId] = useState(CANVAS_TAB_ID)
+  const [animatingCanvasId, setAnimatingCanvasId] = useState<string | null>(null)
 
   const dragStateRef = useRef<DragState>(null)
   const resizeStateRef = useRef<ResizeState>(null)
@@ -1003,8 +1019,11 @@ export default function StoragePage() {
           }
         }
 
-        // 设置最终的画布状态
-        setCanvasItems(loadedItems)
+        // 设置最终的画布状态到主画布
+        setCanvasDataByTabId(prev => ({
+          ...prev,
+          [CANVAS_TAB_ID]: loadedItems
+        }))
       } catch (error) {
         console.error('❌ [StoragePage] 加载画布布局失败:', error)
       }
@@ -1024,10 +1043,13 @@ export default function StoragePage() {
     return () => document.removeEventListener('click', handleClick)
   }, [contextMenu.visible])
 
-  // 自动保存画布布局（防抖500ms）
+  // 自动保存画布布局（防抖500ms）- 只保存主画布数据
   useEffect(() => {
+    const mainCanvasItems = canvasDataByTabId[CANVAS_TAB_ID]
+    if (!mainCanvasItems) return
+
     const timeoutId = setTimeout(async () => {
-      const itemsCount = Object.keys(canvasItems).length
+      const itemsCount = Object.keys(mainCanvasItems).length
       console.log('💾 [StoragePage] 画布内容变化，准备保存...项目数:', itemsCount)
 
       try {
@@ -1037,7 +1059,7 @@ export default function StoragePage() {
           {
             cards: [],
             zoom: 1.0,
-            canvasItems // 将 canvasItems 保存在 snapshot 中
+            canvasItems: mainCanvasItems // 只保存主画布数据
           } as any
         )
         console.log('✅ [StoragePage] 保存结果:', success ? '成功' : '失败')
@@ -1047,7 +1069,7 @@ export default function StoragePage() {
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [canvasItems])
+  }, [canvasDataByTabId])
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
@@ -2567,6 +2589,27 @@ export default function StoragePage() {
     }
     setWorkspaceTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
+  }, [workspaceTabs])
+
+  // 新增空白画布 tab
+  const openNewCanvasTab = useCallback(() => {
+    const canvasCount = workspaceTabs.filter(tab => tab.type === 'canvas').length
+    const newTabId = `canvas-${Date.now()}`
+    const newTab: WorkspaceTab = {
+      id: newTabId,
+      type: 'canvas',
+      title: `画布 ${canvasCount + 1}`
+    }
+    // 初始化新画布的空数据
+    setCanvasDataByTabId(prev => ({
+      ...prev,
+      [newTabId]: createEmptyCanvasData()
+    }))
+    setWorkspaceTabs(prev => [...prev, newTab])
+    setActiveTabId(newTabId)
+    // 触发入场动画
+    setAnimatingCanvasId(newTabId)
+    setTimeout(() => setAnimatingCanvasId(null), 300)
   }, [workspaceTabs])
 
   const closeWorkspaceTab = useCallback((tabId: string, e?: React.MouseEvent) => {
@@ -4223,16 +4266,15 @@ export default function StoragePage() {
           style={{
             flexShrink: 0,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             justifyContent: 'space-between',
             padding: '0 1rem',
-            borderBottom: '1px solid #e9e3f5',
             backgroundColor: '#ffffff',
             minHeight: '48px'
           }}
         >
           {/* Tab 列表 */}
-          <div className="workspace-tabs-list" style={{ display: 'flex', gap: '2px', padding: '0.5rem 0' }}>
+          <div className="workspace-tabs-list" style={{ display: 'flex', gap: '2px', paddingTop: '0.5rem', alignItems: 'flex-end' }}>
             {workspaceTabs.map(tab => (
               <div
                 key={tab.id}
@@ -4259,10 +4301,40 @@ export default function StoragePage() {
                 )}
               </div>
             ))}
+            {/* 新增画布按钮 */}
+            <button
+              onClick={() => openNewCanvasTab()}
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '5px',
+                border: '1.5px solid #c4b5fd',
+                background: 'transparent',
+                color: '#8b5cf6',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: '6px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#8b5cf6'
+                e.currentTarget.style.borderColor = '#8b5cf6'
+                e.currentTarget.style.color = 'white'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.borderColor = '#c4b5fd'
+                e.currentTarget.style.color = '#8b5cf6'
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </button>
           </div>
 
           {/* 工作流操作按钮 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             {/* 创建AI工作方法按钮 */}
             <button
               onClick={() => openCreateTab()}
@@ -4379,12 +4451,12 @@ export default function StoragePage() {
             }}
           >
             <div
-              className="workflow-canvas-container"
+              className={`workflow-canvas-container${animatingCanvasId === activeTabId ? ' canvas-enter-animation' : ''}`}
           style={{
             flex: 1,
             position: 'relative',
             overflow: 'hidden',
-            background: 'linear-gradient(135deg, #ede9fe 0%, #fdf4ff 100%)',
+            background: '#f3e8ff',
             touchAction: 'none',
             transform: 'translateZ(0)',
             minHeight: 0,
