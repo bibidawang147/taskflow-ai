@@ -29,7 +29,7 @@ export default function Layout() {
     <div style={{ height: '100vh', backgroundColor: '#faf7ff', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <nav
         style={{
-          background: 'linear-gradient(to bottom right, #f8fafc 0%, rgba(245, 243, 255, 0.2) 50%, #f8fafc 100%)',
+          background: 'linear-gradient(to bottom right, #f8f6ff 0%, #f3eeff 50%, #f8f6ff 100%)',
           borderBottom: 'none',
           padding: '0',
           position: 'relative',
