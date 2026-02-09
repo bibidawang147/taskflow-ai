@@ -2370,6 +2370,17 @@
   border-color: #7C3AED;
 }
 
+/* 已添加的资源项 */
+.added-resource-item {
+  padding: 10px 12px;
+  background: rgba(124, 58, 237, 0.05);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
 /* ========== 工具/演示媒体/资源区域通用样式（旧版兼容） ========== */
 .tools-section,
 .demonstration-section,

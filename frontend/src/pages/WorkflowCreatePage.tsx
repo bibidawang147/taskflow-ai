@@ -43,6 +43,21 @@ interface RelatedResource {
   description: string
 }
 
+// 提示词资源
+interface PromptResource {
+  id: string
+  title: string
+  content: string
+}
+
+// 文档资源
+interface DocumentResource {
+  id: string
+  name: string
+  url: string
+  description: string
+}
+
 interface WorkflowStep {
   id: string
   title: string
@@ -54,8 +69,10 @@ interface WorkflowStep {
   advancedSettings: AdvancedSettings
   showAdvanced: boolean
   tools: StepTool[]  // 步骤工具列表
+  promptResources: PromptResource[]  // 提示词资源
   demonstrationMedia: DemonstrationMedia[]  // 演示媒体（图片/视频）
   relatedResources: RelatedResource[]  // 相关资源
+  documentResources: DocumentResource[]  // 文档资源
   associatedSolutions: string[]  // 关联工作包
   associatedThemes: string[]     // 关联主题
 }
@@ -201,8 +218,10 @@ export default function WorkflowCreatePage() {
       },
       showAdvanced: false,
       tools: [],
+      promptResources: [],
       demonstrationMedia: [],
       relatedResources: [],
+      documentResources: [],
       associatedSolutions: [],
       associatedThemes: []
     }],
@@ -233,6 +252,122 @@ export default function WorkflowCreatePage() {
   const [convertingArticle, setConvertingArticle] = useState(false)
   const articlePopoverRef = useRef<HTMLDivElement>(null)
   const articleBtnRef = useRef<HTMLButtonElement>(null)
+
+  // 资源卡片展开状态管理 - 格式: stepId_resourceType (tool/prompt/media/document)
+  const [expandedResourceCards, setExpandedResourceCards] = useState<Set<string>>(new Set())
+
+  // 正在编辑的新建资源临时数据 - 格式: stepId_resourceType
+  const [newResourceData, setNewResourceData] = useState<Record<string, any>>({})
+
+  // 切换资源卡片展开状态
+  const toggleResourceCard = (stepId: string, resourceType: 'tool' | 'prompt' | 'media' | 'document') => {
+    const key = `${stepId}_${resourceType}`
+    setExpandedResourceCards(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+        // 关闭时清除临时数据
+        setNewResourceData(prevData => {
+          const { [key]: _, ...rest } = prevData
+          return rest
+        })
+      } else {
+        next.add(key)
+        // 展开时初始化临时数据
+        setNewResourceData(prevData => ({
+          ...prevData,
+          [key]: getInitialResourceData(resourceType)
+        }))
+      }
+      return next
+    })
+  }
+
+  // 获取初始资源数据
+  const getInitialResourceData = (resourceType: string) => {
+    switch (resourceType) {
+      case 'tool':
+        return { name: '', url: '', description: '' }
+      case 'prompt':
+        return { title: '', content: '' }
+      case 'media':
+        return { type: 'image', url: '', caption: '' }
+      case 'document':
+        return { name: '', url: '', description: '' }
+      default:
+        return {}
+    }
+  }
+
+  // 更新新建资源的临时数据
+  const updateNewResourceData = (stepId: string, resourceType: string, field: string, value: any) => {
+    const key = `${stepId}_${resourceType}`
+    setNewResourceData(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
+    }))
+  }
+
+  // 确认添加资源
+  const confirmAddResource = (stepIndex: number, stepId: string, resourceType: 'tool' | 'prompt' | 'media' | 'document') => {
+    const key = `${stepId}_${resourceType}`
+    const data = newResourceData[key]
+
+    if (!data) return
+
+    // 验证必填字段
+    if (resourceType === 'tool' && !data.name.trim()) {
+      alert('请输入工具名称')
+      return
+    }
+    if (resourceType === 'prompt' && !data.title.trim()) {
+      alert('请输入提示词标题')
+      return
+    }
+    if (resourceType === 'media' && !data.url.trim()) {
+      alert('请输入媒体链接')
+      return
+    }
+    if (resourceType === 'document' && !data.name.trim()) {
+      alert('请输入文档名称')
+      return
+    }
+
+    // 添加到对应的资源列表
+    const newSteps = [...formData.steps]
+    const newResource = {
+      id: `${resourceType}_${Date.now()}_${Math.random()}`,
+      ...data
+    }
+
+    if (resourceType === 'tool') {
+      newSteps[stepIndex].tools = [...newSteps[stepIndex].tools, newResource]
+    } else if (resourceType === 'prompt') {
+      newSteps[stepIndex].promptResources = [...newSteps[stepIndex].promptResources, newResource]
+    } else if (resourceType === 'media') {
+      newSteps[stepIndex].demonstrationMedia = [...newSteps[stepIndex].demonstrationMedia, newResource]
+    } else if (resourceType === 'document') {
+      newSteps[stepIndex].documentResources = [...newSteps[stepIndex].documentResources, newResource]
+    }
+
+    setFormData({ ...formData, steps: newSteps })
+
+    // 关闭卡片
+    setExpandedResourceCards(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+
+    // 清除临时数据
+    setNewResourceData(prevData => {
+      const { [key]: _, ...rest } = prevData
+      return rest
+    })
+  }
 
   // 点击外部关闭下拉框
   useEffect(() => {
@@ -376,27 +511,40 @@ export default function WorkflowCreatePage() {
           maxTokens: node.config?.maxTokens || 2000
         },
         showAdvanced: false,
-        // 加载工具列表（新增）
+        // 加载工具列表
         tools: (node.config?.tools || []).map((t: any, idx: number) => ({
           id: `tool_${Date.now()}_${idx}`,
           name: t.name || '',
           url: t.url || '',
           description: t.description || ''
         })),
-        // 加载演示媒体（新增）
+        // 加载提示词资源
+        promptResources: (node.config?.promptResources || []).map((p: any, idx: number) => ({
+          id: `prompt_${Date.now()}_${idx}`,
+          title: p.title || '',
+          content: p.content || ''
+        })),
+        // 加载演示媒体
         demonstrationMedia: (node.config?.demonstrationMedia || []).map((m: any, idx: number) => ({
           id: `media_${Date.now()}_${idx}`,
           type: m.type || 'image',
           url: m.url || '',
           caption: m.caption || ''
         })),
-        // 加载相关资源（新增）
+        // 加载相关资源
         relatedResources: (node.config?.relatedResources || []).map((r: any, idx: number) => ({
           id: `resource_${Date.now()}_${idx}`,
           title: r.title || '',
           type: r.type || 'link',
           url: r.url || '',
           description: r.description || ''
+        })),
+        // 加载文档资源
+        documentResources: (node.config?.documentResources || []).map((d: any, idx: number) => ({
+          id: `doc_${Date.now()}_${idx}`,
+          name: d.name || '',
+          url: d.url || '',
+          description: d.description || ''
         })),
         associatedSolutions: node.config?.associatedSolutions || [],
         associatedThemes: node.config?.associatedThemes || []
@@ -663,8 +811,10 @@ ${articleInput.trim()}
       },
       showAdvanced: false,
       tools: [],
+      promptResources: [],
       demonstrationMedia: [],
       relatedResources: [],
+      documentResources: [],
       associatedSolutions: [],
       associatedThemes: []
     }
@@ -824,24 +974,35 @@ ${articleInput.trim()}
               prompt: step.prompt,
               stepDescription: step.description,
               expectedResult: step.expectedResult,
-              // 工具列表（新增）
+              // 工具列表
               tools: step.tools.filter(t => t.name.trim()).map(t => ({
                 name: t.name,
                 url: t.url,
                 description: t.description
               })),
-              // 演示媒体（新增）
+              // 提示词资源
+              promptResources: step.promptResources.filter(p => p.title.trim()).map(p => ({
+                title: p.title,
+                content: p.content
+              })),
+              // 演示媒体
               demonstrationMedia: step.demonstrationMedia.filter(m => m.url.trim()).map(m => ({
                 type: m.type,
                 url: m.url,
                 caption: m.caption
               })),
-              // 相关资源（新增）
+              // 相关资源
               relatedResources: step.relatedResources.filter(r => r.title.trim() || r.url.trim()).map(r => ({
                 title: r.title,
                 type: r.type,
                 url: r.url,
                 description: r.description
+              })),
+              // 文档资源
+              documentResources: step.documentResources.filter(d => d.name.trim()).map(d => ({
+                name: d.name,
+                url: d.url,
+                description: d.description
               })),
               // 保留旧字段以兼容
               provider: step.tools.length > 0 ? '' : 'OpenAI',
@@ -1258,23 +1419,243 @@ ${articleInput.trim()}
                   <div className="resource-area-header">
                     <span className="resource-area-label">资源区</span>
                     <div className="resource-add-buttons">
-                      <button type="button" className="resource-add-btn">
+                      <button
+                        type="button"
+                        className="resource-add-btn"
+                        onClick={() => toggleResourceCard(step.id, 'tool')}
+                      >
                         + 添加工具
                       </button>
-                      <button type="button" className="resource-add-btn">
+                      <button
+                        type="button"
+                        className="resource-add-btn"
+                        onClick={() => toggleResourceCard(step.id, 'prompt')}
+                      >
                         + 添加提示词
                       </button>
-                      <button type="button" className="resource-add-btn">
+                      <button
+                        type="button"
+                        className="resource-add-btn"
+                        onClick={() => toggleResourceCard(step.id, 'media')}
+                      >
                         + 添加媒体
                       </button>
-                      <button type="button" className="resource-add-btn">
+                      <button
+                        type="button"
+                        className="resource-add-btn"
+                        onClick={() => toggleResourceCard(step.id, 'document')}
+                      >
                         + 添加文档
                       </button>
                     </div>
                   </div>
-                  {/* 资源卡片容器 - 待实现 */}
+
+                  {/* 资源卡片容器 */}
                   <div className="resource-cards">
-                    {/* 新建资源卡片将在这里展示 */}
+                    {/* 新建工具卡片 */}
+                    {expandedResourceCards.has(`${step.id}_tool`) && (
+                      <div className="new-resource-card">
+                        <div className="new-resource-card-header">
+                          <div className="new-resource-card-title">
+                            <span className="resource-icon">🔧</span>
+                            <span>新建工具</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="confirm-resource-btn"
+                            onClick={() => confirmAddResource(index, step.id, 'tool')}
+                            disabled={!newResourceData[`${step.id}_tool`]?.name?.trim()}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                        <div className="resource-form-fields">
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="工具名称（如：ChatGPT）"
+                            value={newResourceData[`${step.id}_tool`]?.name || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'tool', 'name', e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="链接（可选）"
+                            value={newResourceData[`${step.id}_tool`]?.url || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'tool', 'url', e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="简要说明（可选）"
+                            value={newResourceData[`${step.id}_tool`]?.description || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'tool', 'description', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 新建提示词卡片 */}
+                    {expandedResourceCards.has(`${step.id}_prompt`) && (
+                      <div className="new-resource-card">
+                        <div className="new-resource-card-header">
+                          <div className="new-resource-card-title">
+                            <span className="resource-icon">💬</span>
+                            <span>新建提示词</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="confirm-resource-btn"
+                            onClick={() => confirmAddResource(index, step.id, 'prompt')}
+                            disabled={!newResourceData[`${step.id}_prompt`]?.title?.trim()}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                        <div className="resource-form-fields">
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="提示词标题"
+                            value={newResourceData[`${step.id}_prompt`]?.title || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'prompt', 'title', e.target.value)}
+                          />
+                          <textarea
+                            className="resource-form-textarea"
+                            placeholder="输入提示词内容..."
+                            value={newResourceData[`${step.id}_prompt`]?.content || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'prompt', 'content', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 新建媒体卡片 */}
+                    {expandedResourceCards.has(`${step.id}_media`) && (
+                      <div className="new-resource-card">
+                        <div className="new-resource-card-header">
+                          <div className="new-resource-card-title">
+                            <span className="resource-icon">▶️</span>
+                            <span>新建媒体</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="confirm-resource-btn"
+                            onClick={() => confirmAddResource(index, step.id, 'media')}
+                            disabled={!newResourceData[`${step.id}_media`]?.url?.trim()}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                        <div className="resource-form-fields">
+                          <div className="file-upload-area">
+                            <span className="file-upload-icon">⬆</span>
+                            <span className="file-upload-text">点击上传图片或视频</span>
+                          </div>
+                          <div className="resource-divider">
+                            <span className="resource-divider-text">或输入链接</span>
+                          </div>
+                          <div className="link-input-row">
+                            <select
+                              className="media-type-select"
+                              value={newResourceData[`${step.id}_media`]?.type || 'image'}
+                              onChange={(e) => updateNewResourceData(step.id, 'media', 'type', e.target.value)}
+                            >
+                              <option value="image">图片</option>
+                              <option value="video">视频</option>
+                            </select>
+                            <input
+                              type="text"
+                              className="resource-form-input"
+                              placeholder="粘贴图片/视频 URL"
+                              value={newResourceData[`${step.id}_media`]?.url || ''}
+                              onChange={(e) => updateNewResourceData(step.id, 'media', 'url', e.target.value)}
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="说明文字（可选）"
+                            value={newResourceData[`${step.id}_media`]?.caption || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'media', 'caption', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 新建文档卡片 */}
+                    {expandedResourceCards.has(`${step.id}_document`) && (
+                      <div className="new-resource-card">
+                        <div className="new-resource-card-header">
+                          <div className="new-resource-card-title">
+                            <span className="resource-icon">🔗</span>
+                            <span>新建文档</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="confirm-resource-btn"
+                            onClick={() => confirmAddResource(index, step.id, 'document')}
+                            disabled={!newResourceData[`${step.id}_document`]?.name?.trim()}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                        <div className="resource-form-fields">
+                          <div className="file-upload-area">
+                            <span className="file-upload-icon">📄</span>
+                            <span className="file-upload-text">点击上传文档 (PDF、Word、Excel、PPT等)</span>
+                          </div>
+                          <div className="resource-divider">
+                            <span className="resource-divider-text">或输入链接</span>
+                          </div>
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="文档名称"
+                            value={newResourceData[`${step.id}_document`]?.name || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'document', 'name', e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="文档链接 (可粘贴网盘链接等)"
+                            value={newResourceData[`${step.id}_document`]?.url || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'document', 'url', e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="resource-form-input"
+                            placeholder="简要说明（可选）"
+                            value={newResourceData[`${step.id}_document`]?.description || ''}
+                            onChange={(e) => updateNewResourceData(step.id, 'document', 'description', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 已添加的资源列表展示 */}
+                    {step.tools.length > 0 && step.tools.map((tool) => (
+                      <div key={tool.id} className="added-resource-item">
+                        🔧 {tool.name}
+                        {tool.url && ` (${tool.url})`}
+                        {tool.description && ` - ${tool.description}`}
+                      </div>
+                    ))}
+                    {step.promptResources.length > 0 && step.promptResources.map((prompt) => (
+                      <div key={prompt.id} className="added-resource-item">
+                        💬 {prompt.title}
+                      </div>
+                    ))}
+                    {step.demonstrationMedia.length > 0 && step.demonstrationMedia.map((media) => (
+                      <div key={media.id} className="added-resource-item">
+                        ▶️ {media.type === 'image' ? '图片' : '视频'}: {media.url}
+                      </div>
+                    ))}
+                    {step.documentResources.length > 0 && step.documentResources.map((doc) => (
+                      <div key={doc.id} className="added-resource-item">
+                        🔗 {doc.name}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
