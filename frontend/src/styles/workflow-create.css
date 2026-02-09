@@ -1033,23 +1033,23 @@
 .steps-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .step-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(139, 92, 246, 0.1);
-  border-radius: 10px;
-  padding: 16px;
+  background: #fff;
+  border: 1px dashed #D8B4FE;
+  border-radius: 12px;
+  padding: 32px;
   transition: all 0.2s ease;
   cursor: move;
   box-shadow: none;
 }
 
 .step-card:hover {
-  border-color: rgba(139, 92, 246, 0.2);
-  background: rgba(255, 255, 255, 0.85);
+  border-color: #C4B5FD;
+  background: #fff;
 }
 
 .step-card.dragging {
@@ -1057,62 +1057,45 @@
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
 }
 
-/* 步骤头部 */
+/* 步骤头部 - 标题行 */
 .step-header {
   display: flex;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.06);
+  margin-bottom: 20px;
+  gap: 12px;
 }
 
 .step-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex: 1;
   min-width: 0;
-  padding-right: 30px;
 }
 
-.drag-handle {
-  color: #ccc;
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  padding: 2px;
-  flex-shrink: 0;
-  transition: color 0.15s ease;
-}
-
-.drag-handle:hover {
-  color: var(--color-primary);
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
-
+/* 步骤编号圆标 */
 .step-number {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 8px;
-  background: rgba(139, 92, 246, 0.08);
-  color: var(--color-primary);
-  font-size: 11px;
+  width: 32px;
+  height: 32px;
+  background: #7C3AED;
+  color: #fff;
+  font-size: 14px;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
+/* 步骤标题输入框 */
 .step-title-input {
   flex: 1;
-  padding: 6px 0;
+  padding: 8px 0;
   border: none;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid #e5e7eb;
   background: transparent;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-primary);
   transition: all 0.15s ease;
@@ -1125,24 +1108,25 @@
 
 .step-title-input::placeholder {
   color: #bbb;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .step-title-input.error {
   border-bottom-color: var(--color-error);
 }
 
+/* 删除按钮 */
 .delete-step-btn {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 20px;
-  height: 20px;
+  top: 24px;
+  right: 24px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: #ccc;
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
   transition: all 0.15s ease;
   display: flex;
@@ -1158,32 +1142,63 @@
 
 /* 步骤内容 */
 .step-content {
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .content-label {
   display: block;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
 }
 
 .optional-hint {
   font-weight: 400;
-  color: #bbb;
-  font-size: 11px;
+  color: #9CA3AF;
+  font-size: 13px;
+  margin-left: 4px;
 }
 
-.prompt-textarea,
+/* 步骤说明区域 - 带保存按钮 */
+.step-description-section {
+  margin-bottom: 20px;
+}
+
+.step-description-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.save-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #6B7280;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.save-step-btn:hover {
+  background: #4B5563;
+}
+
 .step-description-textarea,
 .expected-result-textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  padding: 12px;
+  border: 1px solid #E5E7EB;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+  background: #F3F4F6;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-primary);
   font-family: inherit;
@@ -1192,25 +1207,45 @@
   transition: all 0.15s ease;
 }
 
-.step-description-textarea,
-.expected-result-textarea {
-  min-height: 50px;
-}
-
-.prompt-textarea:focus,
 .step-description-textarea:focus,
 .expected-result-textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: #7C3AED;
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.08);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
 }
 
-.prompt-textarea::placeholder,
 .step-description-textarea::placeholder,
 .expected-result-textarea::placeholder {
-  color: #bbb;
-  font-size: 12px;
+  color: #9CA3AF;
+  font-size: 13px;
+}
+
+/* 提示词输入区（保持不同样式以区分） */
+.prompt-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+  transition: all 0.15s ease;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
+}
+
+.prompt-textarea::placeholder {
+  color: #9CA3AF;
+  font-size: 13px;
 }
 
 .prompt-textarea.error {
@@ -1442,23 +1477,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px;
-  border: 1px dashed rgba(139, 92, 246, 0.3);
-  border-radius: 8px;
+  gap: 6px;
+  padding: 16px;
+  height: 56px;
+  border: 2px dashed #D8B4FE;
+  border-radius: 12px;
   background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 12px;
+  color: #7C3AED;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .add-step-btn-inline:hover {
-  border-color: var(--color-primary);
-  border-style: solid;
-  color: var(--color-primary);
-  background: rgba(139, 92, 246, 0.04);
+  border-color: #7C3AED;
+  color: #7C3AED;
+  background: #F5F3FF;
 }
 
 /* ========== 底部操作按钮 ========== */
@@ -2103,7 +2138,239 @@
   }
 }
 
-/* ========== 工具/演示媒体/资源区域通用样式 ========== */
+/* ========== 资源区 ========== */
+.resource-area {
+  margin-bottom: 24px;
+}
+
+.resource-area-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.resource-area-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B7280;
+}
+
+.resource-add-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.resource-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #7C3AED;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.resource-add-btn:hover {
+  color: #6D28D9;
+}
+
+/* 资源卡片容器 */
+.resource-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 新建资源卡片通用样式 */
+.new-resource-card {
+  position: relative;
+  padding: 20px;
+  padding-left: 23px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.new-resource-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #7C3AED;
+  border-radius: 8px 0 0 8px;
+}
+
+.new-resource-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.new-resource-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.resource-icon {
+  font-size: 18px;
+}
+
+.confirm-resource-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #10B981;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.confirm-resource-btn:hover {
+  background: #059669;
+  transform: scale(1.05);
+}
+
+.confirm-resource-btn:disabled {
+  background: #D1D5DB;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 资源表单字段 */
+.resource-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.resource-form-input,
+.resource-form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.resource-form-input:focus,
+.resource-form-textarea:focus {
+  outline: none;
+  border-color: #7C3AED;
+  background: #fff;
+}
+
+.resource-form-input::placeholder,
+.resource-form-textarea::placeholder {
+  color: #9CA3AF;
+}
+
+.resource-form-textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+/* 文件上传区 */
+.file-upload-area {
+  width: 100%;
+  height: 80px;
+  border: 2px dashed #D1D5DB;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: #FAFAFA;
+}
+
+.file-upload-area:hover {
+  border-color: #7C3AED;
+  background: #F5F3FF;
+}
+
+.file-upload-icon {
+  font-size: 24px;
+  color: #9CA3AF;
+}
+
+.file-upload-text {
+  font-size: 14px;
+  color: #6B7280;
+}
+
+/* 分隔线 */
+.resource-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.resource-divider::before,
+.resource-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #E5E7EB;
+}
+
+.resource-divider-text {
+  font-size: 13px;
+  color: #9CA3AF;
+}
+
+/* 链接输入行 */
+.link-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.media-type-select {
+  width: 80px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.media-type-select:focus {
+  outline: none;
+  border-color: #7C3AED;
+}
+
+/* ========== 工具/演示媒体/资源区域通用样式（旧版兼容） ========== */
 .tools-section,
 .demonstration-section,
 .resources-section {

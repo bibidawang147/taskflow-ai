@@ -1238,58 +1238,63 @@ ${articleInput.trim()}
                   ×
                 </button>
 
-                {/* 步骤头部 */}
+                {/* 步骤头部 - 标题行 */}
                 <div className="step-header">
-                  <div className="step-header-left">
-                    <div className="drag-handle" title="拖拽排序">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="9" cy="5" r="1" />
-                        <circle cx="9" cy="12" r="1" />
-                        <circle cx="9" cy="19" r="1" />
-                        <circle cx="15" cy="5" r="1" />
-                        <circle cx="15" cy="12" r="1" />
-                        <circle cx="15" cy="19" r="1" />
-                      </svg>
-                    </div>
-                    <span className="step-number">步骤 {index + 1}</span>
-                    <input
-                      type="text"
-                      className={`step-title-input ${errors[`step_${index}_title`] ? 'error' : ''}`}
-                      placeholder="输入步骤标题..."
-                      value={step.title}
-                      onChange={(e) => handleUpdateStep(index, 'title', e.target.value)}
-                    />
-                  </div>
+                  <div className="step-number">{index + 1}</div>
+                  <input
+                    type="text"
+                    className={`step-title-input ${errors[`step_${index}_title`] ? 'error' : ''}`}
+                    placeholder="输入步骤标题..."
+                    value={step.title}
+                    onChange={(e) => handleUpdateStep(index, 'title', e.target.value)}
+                  />
                 </div>
                 {errors[`step_${index}_title`] && (
                   <div className="error-message">{errors[`step_${index}_title`]}</div>
                 )}
 
+                {/* 资源区 */}
+                <div className="resource-area">
+                  <div className="resource-area-header">
+                    <span className="resource-area-label">资源区</span>
+                    <div className="resource-add-buttons">
+                      <button type="button" className="resource-add-btn">
+                        + 添加工具
+                      </button>
+                      <button type="button" className="resource-add-btn">
+                        + 添加提示词
+                      </button>
+                      <button type="button" className="resource-add-btn">
+                        + 添加媒体
+                      </button>
+                      <button type="button" className="resource-add-btn">
+                        + 添加文档
+                      </button>
+                    </div>
+                  </div>
+                  {/* 资源卡片容器 - 待实现 */}
+                  <div className="resource-cards">
+                    {/* 新建资源卡片将在这里展示 */}
+                  </div>
+                </div>
+
                 {/* 步骤说明 */}
-                <div className="step-content">
-                  <label className="content-label">步骤说明 <span className="optional-hint">(可选)</span></label>
+                <div className="step-description-section">
+                  <div className="step-description-header">
+                    <label className="content-label">
+                      步骤说明 <span className="optional-hint">(可选，可拖拽资源卡片到此处)</span>
+                    </label>
+                    <button type="button" className="save-step-btn">
+                      ✓ 保存
+                    </button>
+                  </div>
                   <textarea
                     className="step-description-textarea"
-                    placeholder="简要描述这一步要做什么，让用户快速了解..."
-                    rows={2}
+                    placeholder="简要描述这一步要做什么，让用户快速了解...（可从上方拖拽资源卡片插入引用）"
+                    rows={3}
                     value={step.description}
                     onChange={(e) => handleUpdateStep(index, 'description', e.target.value)}
                   />
-                </div>
-
-                {/* 提示词输入 */}
-                <div className="step-content">
-                  <label className="content-label">提示词</label>
-                  <textarea
-                    className={`prompt-textarea ${errors[`step_${index}_prompt`] ? 'error' : ''}`}
-                    placeholder="输入给 AI 的提示词内容..."
-                    rows={6}
-                    value={step.prompt}
-                    onChange={(e) => handleUpdateStep(index, 'prompt', e.target.value)}
-                  />
-                  {errors[`step_${index}_prompt`] && (
-                    <div className="error-message">{errors[`step_${index}_prompt`]}</div>
-                  )}
                 </div>
 
                 {/* 使用的工具/平台 */}
