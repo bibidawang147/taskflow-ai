@@ -84,10 +84,40 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
   onComplete,
   onClick
 }, ref) => {
-  const detail = step.stepDetail
+  const rawDetail = step.stepDetail
+  const config = step.config || (step as any).data?.config || {}
 
-  // 判断是否使用新的 guideBlocks 格式
-  const hasGuideBlocks = detail?.guideBlocks && detail.guideBlocks.length > 0
+  // 自动从旧格式/config生成 guideBlocks
+  const detail = (() => {
+    const src = rawDetail || {} as any
+    if (src.guideBlocks && src.guideBlocks.length > 0) return src
+    const blocks: GuideBlock[] = []
+    let idx = 0
+    const desc = src.stepDescription || config.stepDescription || config.goal || ''
+    if (desc) blocks.push({ id: `a${idx++}`, type: 'text', text: desc } as any)
+    const tools = src.tools || config.tools || []
+    tools.forEach((t: any) => {
+      if (t.name?.trim()) blocks.push({ id: `a${idx++}`, type: 'tool', tool: { name: t.name, url: t.url || '', description: t.description || '' } } as any)
+    })
+    const prompt = src.promptTemplate || config.prompt || ''
+    if (prompt.trim()) blocks.push({ id: `a${idx++}`, type: 'prompt', prompt } as any)
+    const resources = [
+      ...(src.relatedResources || config.relatedResources || []),
+      ...(config.promptResources || []).map((p: any) => ({ title: p.title, type: 'link', url: '', description: p.content || '' })),
+      ...(config.documentResources || []).map((d: any) => ({ title: d.name, type: 'file', url: d.url || '', description: d.description || '' }))
+    ]
+    resources.forEach((r: any) => {
+      if (r.title?.trim()) blocks.push({ id: `a${idx++}`, type: 'resource', resource: { title: r.title, type: r.type || 'link', url: r.url || '', description: r.description || '', content: r.content || '' } } as any)
+    })
+    const media = src.demonstrationMedia || config.demonstrationMedia || []
+    media.forEach((m: any) => {
+      if (m.url?.trim()) blocks.push({ id: `a${idx++}`, type: 'media', media: { type: m.type || 'image', url: m.url, caption: m.caption || '' } } as any)
+    })
+    const expected = src.expectedResult || config.expectedResult || ''
+    if (expected.trim()) blocks.push({ id: `a${idx++}`, type: 'text', text: `预期结果：${expected}` } as any)
+    // 始终返回 guideBlocks 格式，即使为空也用新样式
+    return { ...src, guideBlocks: blocks }
+  })()
 
   const getStatusIcon = () => {
     if (isCompleted) {
@@ -256,7 +286,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
       {/* 卡片内容 - 可展开 */}
       {isExpanded && (
         <div className="step-card-content">
-          {hasGuideBlocks ? renderGuideBlocksContent() : renderLegacyContent()}
+          {renderGuideBlocksContent()}
 
           {/* 快捷键提示 */}
           {isActive && !isCompleted && (

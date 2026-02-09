@@ -1200,6 +1200,17 @@ export default function StoragePage() {
     loadWorkflows()
   }, [loadWorkflows])
 
+  // 加载本地保存的工作流
+  useEffect(() => {
+    const loadLocal = () => {
+      const saved = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+      setLocalSavedWorkflows(saved)
+    }
+    loadLocal()
+    window.addEventListener('savedWorkflowsUpdated', loadLocal)
+    return () => window.removeEventListener('savedWorkflowsUpdated', loadLocal)
+  }, [])
+
   // 加载执行历史
   const loadExecutionHistory = useCallback(async () => {
     try {
@@ -1341,19 +1352,36 @@ export default function StoragePage() {
       drafts: (createdWorkflows?.length || 0) - publishedWorkflows.length
     })
 
+    // 将本地保存的工作流转换为 LibraryWorkflow 格式
+    const localWorkflows: LibraryWorkflow[] = localSavedWorkflows.map(w => ({
+      id: w.id,
+      name: w.title,
+      summary: w.description || '',
+      status: 'active' as WorkflowStatus,
+      category: w.category || '未分类',
+      tags: Array.isArray(w.tags) ? w.tags : [],
+      owner: '我',
+      updatedAt: new Date(w.createdAt).toISOString().split('T')[0],
+      section: 'created' as LibrarySection,
+      config: { nodes: (w.steps || []).map((step: any, i: number) => ({ id: step.id, type: 'ai', label: step.title, config: step })) },
+      isOwner: true,
+      canEdit: true
+    }))
+
     // 合并静态数据和API数据，优先显示API数据
     const staticFavorites = initialLibraryData.filter(wf => wf.section === 'favorites')
     const staticCreated = initialLibraryData.filter(wf => wf.section === 'created')
     const staticRecent = initialLibraryData.filter(wf => wf.section === 'recent')
 
     return [
+      ...localWorkflows,
       ...created,
       ...staticCreated.filter(sf => !created.some(c => c.id === sf.id)),
       ...favorites,
       ...staticFavorites.filter(sf => !favorites.some(f => f.id === sf.id)),
       ...staticRecent
     ]
-  }, [favoriteWorkflows, createdWorkflows])
+  }, [favoriteWorkflows, createdWorkflows, localSavedWorkflows])
 
   const filteredLibrary = useMemo(() => {
     const keyword = librarySearch.trim().toLowerCase()
@@ -4988,12 +5016,79 @@ export default function StoragePage() {
               overflow: 'hidden'
             }}
           >
-            {tab.workflowId && (
-              <WorkflowExecutionTab
-                workflowId={tab.workflowId}
-                onClose={() => closeWorkspaceTab(tab.id)}
-              />
-            )}
+            {tab.workflowId && (() => {
+              const localWf = localSavedWorkflows.find(w => w.id === tab.workflowId)
+              const libWf = libraryData.find(w => w.id === tab.workflowId)
+              const initialData = localWf ? {
+                id: localWf.id,
+                title: localWf.title,
+                description: localWf.description,
+                category: localWf.category,
+                tags: localWf.tags,
+                preparations: localWf.preparations || [],
+                config: {
+                  edges: (localWf.steps || []).slice(0, -1).map((step: any, i: number) => ({
+                    id: `e${i}-${i + 1}`,
+                    source: step.id || `step-${i}`,
+                    target: (localWf.steps[i + 1]?.id || `step-${i + 1}`)
+                  }))
+                },
+                nodes: (localWf.steps || []).map((step: any, i: number) => {
+                  // 构建 guideBlocks（与小红书工作流一致的格式）
+                  const guideBlocks: any[] = []
+                  let blockIdx = 0
+                  if (step.description) {
+                    guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'text', text: step.description })
+                  }
+                  ;(step.tools || []).forEach((t: any) => {
+                    if (t.name?.trim()) {
+                      guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'tool', tool: { name: t.name, url: t.url || '', description: t.description || '' } })
+                    }
+                  })
+                  if (step.prompt?.trim()) {
+                    guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'prompt', prompt: step.prompt })
+                  }
+                  ;(step.promptResources || []).forEach((p: any) => {
+                    if (p.title?.trim()) {
+                      guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'resource', resource: { title: p.title, type: 'link', url: '', description: p.content || '' } })
+                    }
+                  })
+                  ;(step.documentResources || []).forEach((d: any) => {
+                    if (d.name?.trim()) {
+                      guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'resource', resource: { title: d.name, type: 'file', url: d.url || '', description: d.description || '' } })
+                    }
+                  })
+                  ;(step.demonstrationMedia || []).forEach((m: any) => {
+                    if (m.url?.trim()) {
+                      guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'media', media: { type: m.type || 'image', url: m.url, caption: m.caption || '' } })
+                    }
+                  })
+                  if (step.expectedResult?.trim()) {
+                    guideBlocks.push({ id: `gb-${i}-${blockIdx++}`, type: 'text', text: `预期结果：${step.expectedResult}` })
+                  }
+                  return {
+                    id: step.id || `step-${i}`,
+                    type: 'step',
+                    position: { x: 100 + i * 200, y: 100 },
+                    data: { type: 'step', label: step.title || `步骤 ${i + 1}`, config: {} },
+                    stepDetail: {
+                      id: step.id || `step-${i}`,
+                      nodeId: step.id || `step-${i}`,
+                      stepDescription: step.description || '',
+                      expectedResult: step.expectedResult || '',
+                      guideBlocks
+                    }
+                  }
+                })
+              } : undefined
+              return (
+                <WorkflowExecutionTab
+                  workflowId={tab.workflowId}
+                  initialData={initialData}
+                  onClose={() => closeWorkspaceTab(tab.id)}
+                />
+              )
+            })()}
           </div>
         ))}
 

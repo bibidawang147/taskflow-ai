@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { CheckCircle2, Circle, CircleDot } from 'lucide-react'
 import type { WorkflowNode, WorkflowEdge } from '../../types/workflow'
 
 interface WorkflowOverviewChartProps {
@@ -10,14 +9,6 @@ interface WorkflowOverviewChartProps {
   onNodeClick?: (nodeId: string) => void
 }
 
-interface PositionedNode {
-  node: WorkflowNode
-  x: number
-  y: number
-  column: number
-  row: number
-}
-
 export default function WorkflowOverviewChart({
   nodes,
   edges,
@@ -25,304 +16,171 @@ export default function WorkflowOverviewChart({
   completedNodeIds = new Set(),
   onNodeClick
 }: WorkflowOverviewChartProps) {
-  // 显示步骤节点（step 类型，或其他可执行节点）
   const stepNodes = useMemo(() => {
     const steps = nodes.filter(n => n.type === 'step')
     if (steps.length > 0) return steps
-    // 兼容旧数据
     return nodes.filter(n => ['ai', 'llm', 'tool', 'condition'].includes(n.type))
   }, [nodes])
 
-  // 计算节点位置 - 简单的横向布局
-  const { positionedNodes, width, height } = useMemo(() => {
-    const nodeWidth = 160
-    const nodeHeight = 48
-    const gapX = 80
-    const gapY = 60
-    const paddingX = 40
-    const paddingY = 30
+  // 按 edges 拓扑排序
+  const sortedNodes = useMemo(() => {
+    if (edges.length === 0) return stepNodes
 
-    // 构建邻接表
-    const adjacencyList = new Map<string, string[]>()
+    const adjacency = new Map<string, string[]>()
     const inDegree = new Map<string, number>()
-
-    stepNodes.forEach(node => {
-      adjacencyList.set(node.id, [])
-      inDegree.set(node.id, 0)
+    stepNodes.forEach(n => {
+      adjacency.set(n.id, [])
+      inDegree.set(n.id, 0)
     })
-
-    edges.forEach(edge => {
-      const from = edge.source
-      const to = edge.target
-      if (adjacencyList.has(from) && adjacencyList.has(to)) {
-        adjacencyList.get(from)!.push(to)
-        inDegree.set(to, (inDegree.get(to) || 0) + 1)
+    edges.forEach(e => {
+      if (adjacency.has(e.source) && adjacency.has(e.target)) {
+        adjacency.get(e.source)!.push(e.target)
+        inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1)
       }
     })
-
-    // 拓扑排序确定列位置
     const queue: string[] = []
-    const columnMap = new Map<string, number>()
-    const rowMap = new Map<string, number>()
-
-    stepNodes.forEach(node => {
-      if (inDegree.get(node.id) === 0) {
-        queue.push(node.id)
-        columnMap.set(node.id, 0)
-      }
+    stepNodes.forEach(n => {
+      if (inDegree.get(n.id) === 0) queue.push(n.id)
     })
-
-    // 跟踪每列的行数
-    const columnRowCount = new Map<number, number>()
-
+    const sorted: WorkflowNode[] = []
+    const visited = new Set<string>()
     while (queue.length > 0) {
-      const current = queue.shift()!
-      const currentCol = columnMap.get(current) || 0
-
-      // 分配行
-      const rowInColumn = columnRowCount.get(currentCol) || 0
-      rowMap.set(current, rowInColumn)
-      columnRowCount.set(currentCol, rowInColumn + 1)
-
-      const neighbors = adjacencyList.get(current) || []
-      neighbors.forEach(neighbor => {
-        const newDegree = (inDegree.get(neighbor) || 1) - 1
-        inDegree.set(neighbor, newDegree)
-
-        const existingCol = columnMap.get(neighbor) || 0
-        columnMap.set(neighbor, Math.max(existingCol, currentCol + 1))
-
-        if (newDegree === 0) {
-          queue.push(neighbor)
-        }
+      const id = queue.shift()!
+      if (visited.has(id)) continue
+      visited.add(id)
+      const node = stepNodes.find(n => n.id === id)
+      if (node) sorted.push(node)
+      ;(adjacency.get(id) || []).forEach(next => {
+        inDegree.set(next, (inDegree.get(next) || 0) - 1)
+        if (inDegree.get(next) === 0) queue.push(next)
       })
     }
-
-    // 处理未连接的节点
-    let nextColumn = Math.max(...Array.from(columnMap.values()), -1) + 1
-    stepNodes.forEach((node, index) => {
-      if (!columnMap.has(node.id)) {
-        columnMap.set(node.id, nextColumn)
-        rowMap.set(node.id, 0)
-        nextColumn++
-      }
-    })
-
-    // 计算实际位置
-    const maxColumn = Math.max(...Array.from(columnMap.values()), 0)
-    const maxRow = Math.max(...Array.from(rowMap.values()), 0)
-
-    const positioned: PositionedNode[] = stepNodes.map(node => ({
-      node,
-      column: columnMap.get(node.id) || 0,
-      row: rowMap.get(node.id) || 0,
-      x: paddingX + (columnMap.get(node.id) || 0) * (nodeWidth + gapX),
-      y: paddingY + (rowMap.get(node.id) || 0) * (nodeHeight + gapY)
-    }))
-
-    return {
-      positionedNodes: positioned,
-      width: paddingX * 2 + (maxColumn + 1) * nodeWidth + maxColumn * gapX,
-      height: paddingY * 2 + (maxRow + 1) * nodeHeight + maxRow * gapY
-    }
+    // 添加未连接的节点
+    stepNodes.forEach(n => { if (!visited.has(n.id)) sorted.push(n) })
+    return sorted
   }, [stepNodes, edges])
-
-  // 绘制连接线
-  const renderEdges = () => {
-    const nodePositions = new Map<string, PositionedNode>()
-    positionedNodes.forEach(pn => nodePositions.set(pn.node.id, pn))
-
-    return edges.map((edge, index) => {
-      const from = nodePositions.get(edge.source)
-      const to = nodePositions.get(edge.target)
-      if (!from || !to) return null
-
-      const nodeWidth = 160
-      const nodeHeight = 48
-
-      const x1 = from.x + nodeWidth
-      const y1 = from.y + nodeHeight / 2
-      const x2 = to.x
-      const y2 = to.y + nodeHeight / 2
-
-      // 贝塞尔曲线控制点
-      const midX = (x1 + x2) / 2
-      const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`
-
-      const isCompleted = completedNodeIds.has(edge.source) && completedNodeIds.has(edge.target)
-      const isActive = edge.source === activeNodeId || edge.target === activeNodeId
-
-      return (
-        <path
-          key={`${edge.source}-${edge.target}-${index}`}
-          d={path}
-          fill="none"
-          stroke={isCompleted ? '#10b981' : isActive ? '#3b82f6' : '#d1d5db'}
-          strokeWidth={isActive ? 2.5 : 2}
-          strokeDasharray={isCompleted || isActive ? 'none' : '4 2'}
-          markerEnd={`url(#arrow-${isCompleted ? 'completed' : isActive ? 'active' : 'default'})`}
-        />
-      )
-    })
-  }
-
-  // 渲染节点
-  const renderNodes = () => {
-    const nodeWidth = 160
-    const nodeHeight = 48
-    const borderRadius = 8
-
-    return positionedNodes.map(({ node, x, y }) => {
-      const isCompleted = completedNodeIds.has(node.id)
-      const isActive = node.id === activeNodeId
-      const isPending = !isCompleted && !isActive
-
-      let bgClass = 'fill-white'
-      let borderClass = 'stroke-gray-200'
-      let textClass = 'fill-gray-700'
-      let iconColor = '#9ca3af'
-
-      if (isCompleted) {
-        bgClass = 'fill-emerald-50'
-        borderClass = 'stroke-emerald-300'
-        textClass = 'fill-emerald-700'
-        iconColor = '#10b981'
-      } else if (isActive) {
-        bgClass = 'fill-blue-50'
-        borderClass = 'stroke-blue-400'
-        textClass = 'fill-blue-700'
-        iconColor = '#3b82f6'
-      }
-
-      const stepIndex = positionedNodes.findIndex(pn => pn.node.id === node.id) + 1
-
-      return (
-        <g
-          key={node.id}
-          className="overview-node cursor-pointer"
-          onClick={() => onNodeClick?.(node.id)}
-          style={{ transition: 'transform 0.15s ease' }}
-        >
-          {/* 节点背景 */}
-          <rect
-            x={x}
-            y={y}
-            width={nodeWidth}
-            height={nodeHeight}
-            rx={borderRadius}
-            className={`${bgClass} ${borderClass}`}
-            strokeWidth={isActive ? 2.5 : 1.5}
-          />
-
-          {/* 状态图标 */}
-          <g transform={`translate(${x + 12}, ${y + nodeHeight / 2 - 8})`}>
-            {isCompleted ? (
-              <circle cx="8" cy="8" r="8" fill={iconColor} />
-            ) : isActive ? (
-              <circle cx="8" cy="8" r="8" fill="none" stroke={iconColor} strokeWidth="2" />
-            ) : (
-              <circle cx="8" cy="8" r="7" fill="none" stroke="#d1d5db" strokeWidth="1.5" />
-            )}
-            {isCompleted && (
-              <path
-                d="M5 8 L7 10 L11 6"
-                stroke="white"
-                strokeWidth="1.5"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            )}
-            {isActive && (
-              <circle cx="8" cy="8" r="3" fill={iconColor} />
-            )}
-          </g>
-
-          {/* 步骤序号 */}
-          <text
-            x={x + 36}
-            y={y + nodeHeight / 2 + 1}
-            className={`text-xs font-medium ${textClass}`}
-            dominantBaseline="middle"
-          >
-            {stepIndex}.
-          </text>
-
-          {/* 节点标题 */}
-          <text
-            x={x + 50}
-            y={y + nodeHeight / 2 + 1}
-            className={`text-sm ${textClass}`}
-            dominantBaseline="middle"
-          >
-            {node.data.label.length > 10
-              ? node.data.label.slice(0, 10) + '...'
-              : node.data.label}
-          </text>
-        </g>
-      )
-    })
-  }
 
   if (stepNodes.length === 0) {
     return (
-      <div className="overview-chart-empty">
-        <p className="text-gray-500">暂无步骤</p>
+      <div style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
+        暂无步骤
       </div>
     )
   }
 
   return (
-    <div className="overview-chart-container">
-      <svg
-        width={Math.max(width, 300)}
-        height={Math.max(height, 80)}
-        className="overview-chart"
-      >
-        {/* 箭头标记定义 */}
-        <defs>
-          <marker
-            id="arrow-default"
-            markerWidth="8"
-            markerHeight="8"
-            refX="6"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" fill="#d1d5db" />
-          </marker>
-          <marker
-            id="arrow-active"
-            markerWidth="8"
-            markerHeight="8"
-            refX="6"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" fill="#3b82f6" />
-          </marker>
-          <marker
-            id="arrow-completed"
-            markerWidth="8"
-            markerHeight="8"
-            refX="6"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" fill="#10b981" />
-          </marker>
-        </defs>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, padding: '4px 0' }}>
+      {sortedNodes.map((node, index) => {
+        const isCompleted = completedNodeIds.has(node.id)
+        const isActive = node.id === activeNodeId
+        const label = (node as any).data?.label || node.label || '未命名'
+        const displayLabel = label.length > 12 ? label.slice(0, 12) + '...' : label
 
-        {/* 连接线 */}
-        <g className="edges">
-          {renderEdges()}
-        </g>
+        return (
+          <div key={node.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* 连接线 */}
+            {index > 0 && (
+              <div style={{
+                width: '1.5px',
+                height: '20px',
+                background: completedNodeIds.has(sortedNodes[index - 1].id) && (isCompleted || isActive)
+                  ? 'linear-gradient(to bottom, #10b981, #10b981)'
+                  : isActive
+                    ? 'linear-gradient(to bottom, #c4b5fd, #8b5cf6)'
+                    : '#e5e7eb',
+                flexShrink: 0
+              }} />
+            )}
 
-        {/* 节点 */}
-        <g className="nodes">
-          {renderNodes()}
-        </g>
-      </svg>
+            {/* 节点 */}
+            <div
+              onClick={() => onNodeClick?.(node.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                background: isCompleted
+                  ? 'rgba(16, 185, 129, 0.06)'
+                  : isActive
+                    ? 'rgba(139, 92, 246, 0.08)'
+                    : 'transparent',
+                border: isCompleted
+                  ? '1px solid rgba(16, 185, 129, 0.2)'
+                  : isActive
+                    ? '1px solid rgba(139, 92, 246, 0.25)'
+                    : '1px solid #e5e7eb',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive && !isCompleted) {
+                  e.currentTarget.style.background = 'rgba(139, 92, 246, 0.04)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive && !isCompleted) {
+                  e.currentTarget.style.background = 'transparent'
+                }
+              }}
+            >
+              {/* 状态圆点 */}
+              <div style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                background: isCompleted
+                  ? '#10b981'
+                  : isActive
+                    ? '#8b5cf6'
+                    : '#f3f4f6',
+                border: isCompleted
+                  ? 'none'
+                  : isActive
+                    ? 'none'
+                    : '1.5px solid #d1d5db',
+                transition: 'all 0.15s ease'
+              }}>
+                {isCompleted ? (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M3 6L5 8L9 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ) : isActive ? (
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'white' }} />
+                ) : (
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#9ca3af' }}>
+                    {index + 1}
+                  </span>
+                )}
+              </div>
+
+              {/* 标题 */}
+              <span style={{
+                fontSize: '13px',
+                fontWeight: isActive ? 600 : 500,
+                color: isCompleted
+                  ? '#059669'
+                  : isActive
+                    ? '#7c3aed'
+                    : '#4b5563',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s ease'
+              }}>
+                {displayLabel}
+              </span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

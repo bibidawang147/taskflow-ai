@@ -938,6 +938,32 @@ ${articleInput.trim()}
     return Object.keys(newErrors).length === 0
   }
 
+  // 本地保存工作流到 localStorage
+  const handleLocalSave = () => {
+    if (!formData.title.trim()) {
+      alert('请填写工作流标题')
+      return
+    }
+    const now = new Date().toISOString()
+    const savedWorkflow = {
+      id: Date.now().toString(),
+      title: formData.title,
+      description: formData.description,
+      tags: formData.tags,
+      category: formData.category,
+      steps: formData.steps,
+      preparations: formData.preparations,
+      createdAt: now,
+      updatedAt: now
+    }
+    const existing = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+    existing.push(savedWorkflow)
+    localStorage.setItem('savedWorkflows', JSON.stringify(existing))
+    // 触发 storage 事件通知其他组件
+    window.dispatchEvent(new Event('savedWorkflowsUpdated'))
+    alert('保存成功！')
+  }
+
   // 保存工作流（存草稿或发布）
   const handleSave = async (isDraft: boolean) => {
     if (!validateForm()) {
@@ -1833,6 +1859,12 @@ ${articleInput.trim()}
             disabled={saving}
           >
             取消
+          </button>
+          <button
+            className="action-btn secondary"
+            onClick={handleLocalSave}
+          >
+            保存
           </button>
           <button
             className="action-btn secondary"

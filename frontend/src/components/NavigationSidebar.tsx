@@ -267,9 +267,21 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   }>({ workflow: null, position: { x: 0, y: 0 } })
   const [batchMode, setBatchMode] = useState(false)
   const [selectedWorkflows, setSelectedWorkflows] = useState<Set<string>>(new Set())
+  const [localSavedWorkflows, setLocalSavedWorkflows] = useState<any[]>([])
 
   useEffect(() => {
     loadSidebarData()
+  }, [])
+
+  // 加载本地保存的工作流
+  useEffect(() => {
+    const loadLocal = () => {
+      const saved = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+      setLocalSavedWorkflows(saved)
+    }
+    loadLocal()
+    window.addEventListener('savedWorkflowsUpdated', loadLocal)
+    return () => window.removeEventListener('savedWorkflowsUpdated', loadLocal)
   }, [])
 
   const loadSidebarData = async () => {
@@ -685,6 +697,108 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 {searchQuery ? '未找到匹配的AI工作方法' : `暂无${category.name}`}
               </div>
             )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 按标签分组本地保存的工作流
+  const getLocalWorkflowsByTag = (): Record<string, any[]> => {
+    const groups: Record<string, any[]> = {}
+    localSavedWorkflows.forEach(w => {
+      if (w.tags && w.tags.length > 0) {
+        w.tags.forEach((tag: string) => {
+          if (!groups[tag]) groups[tag] = []
+          groups[tag].push(w)
+        })
+      } else {
+        if (!groups['未分类']) groups['未分类'] = []
+        groups['未分类'].push(w)
+      }
+    })
+    return groups
+  }
+
+  const renderLocalTagSection = (tag: string, workflows: any[]) => {
+    const sectionId = `local-tag-${tag}`
+    const isCollapsed = collapsedSections.has(sectionId)
+
+    return (
+      <div key={tag} style={{ marginBottom: '0.5rem' }}>
+        <div
+          onClick={() => toggleSection(sectionId)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#1A1A1A',
+            cursor: 'pointer',
+            userSelect: 'none',
+            borderRadius: '6px',
+            transition: 'background-color 0.2s ease',
+            marginBottom: '4px'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{tag}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '14px', color: '#8E8E93', fontWeight: 400 }}>
+              ({workflows.length})
+            </span>
+            <span style={{
+              fontSize: '18px', color: '#8E8E93', fontWeight: 300,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: '18px', height: '18px', flexShrink: 0
+            }}>
+              {isCollapsed ? '›' : '⌄'}
+            </span>
+          </div>
+        </div>
+        {!isCollapsed && (
+          <div style={{ marginTop: '0.25rem' }}>
+            {workflows.map(w => (
+              <div
+                key={w.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 16px 10px 24px',
+                  fontSize: '14px',
+                  color: '#3C3C43',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                  transition: 'background-color 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('workflow-library-id', w.id)
+                  e.dataTransfer.effectAllowed = 'copy'
+                  onWorkflowDragStart?.(w.id)
+                }}
+                onDragEnd={() => { onWorkflowDragEnd?.() }}
+              >
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: '#8b5cf6', flexShrink: 0
+                }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {w.title}
+                </span>
+                <span style={{ fontSize: '12px', color: '#9ca3af', flexShrink: 0 }}>
+                  {w.steps?.length || 0}步
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1315,6 +1429,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           {!collapsedSections.has('my-workflows') && (
             <>
+              {/* 本地保存的工作流按标签分组 */}
+              {Object.entries(getLocalWorkflowsByTag()).map(([tag, workflows]) =>
+                renderLocalTagSection(tag, workflows)
+              )}
               {/* 按6个标签大类显示工作流 */}
               {WORKFLOW_CATEGORIES.map(category => renderCategorySection(category))}
             </>

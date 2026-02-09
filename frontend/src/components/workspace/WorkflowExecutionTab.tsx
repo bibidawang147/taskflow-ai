@@ -49,6 +49,60 @@ export default function WorkflowExecutionTab({
   // 卡片引用
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
+  // 将旧格式 stepDetail 或 config 转换为 guideBlocks 格式
+  const ensureGuideBlocks = (detail: any, nodeConfig?: any): any => {
+    // 如果没有 stepDetail，尝试从 node.config 构建
+    const src = detail || (nodeConfig ? {
+      stepDescription: nodeConfig.stepDescription || nodeConfig.goal || '',
+      expectedResult: nodeConfig.expectedResult || '',
+      promptTemplate: nodeConfig.prompt || '',
+      tools: nodeConfig.tools || [],
+      demonstrationMedia: nodeConfig.demonstrationMedia || [],
+      relatedResources: [
+        ...(nodeConfig.promptResources || []).map((p: any) => ({ title: p.title, type: 'link', url: '', description: p.content || '' })),
+        ...(nodeConfig.documentResources || []).map((d: any) => ({ title: d.name, type: 'file', url: d.url || '', description: d.description || '' })),
+        ...(nodeConfig.relatedResources || [])
+      ]
+    } : null)
+    if (!src) return null
+    if (src.guideBlocks && src.guideBlocks.length > 0) return src
+    // 从旧字段生成 guideBlocks
+    const blocks: any[] = []
+    let idx = 0
+    if (src.stepDescription) {
+      blocks.push({ id: `auto-${idx++}`, type: 'text', text: src.stepDescription })
+    }
+    if (src.tools && src.tools.length > 0) {
+      src.tools.forEach((t: any) => {
+        if (t.name?.trim()) {
+          blocks.push({ id: `auto-${idx++}`, type: 'tool', tool: { name: t.name, url: t.url || '', description: t.description || '' } })
+        }
+      })
+    }
+    if (src.promptTemplate?.trim()) {
+      blocks.push({ id: `auto-${idx++}`, type: 'prompt', prompt: src.promptTemplate })
+    }
+    if (src.relatedResources && src.relatedResources.length > 0) {
+      src.relatedResources.forEach((r: any) => {
+        if (r.title?.trim()) {
+          blocks.push({ id: `auto-${idx++}`, type: 'resource', resource: { title: r.title, type: r.type || 'link', url: r.url || '', description: r.description || '', content: r.content || '' } })
+        }
+      })
+    }
+    if (src.demonstrationMedia && src.demonstrationMedia.length > 0) {
+      src.demonstrationMedia.forEach((m: any) => {
+        if (m.url?.trim()) {
+          blocks.push({ id: `auto-${idx++}`, type: 'media', media: { type: m.type || 'image', url: m.url, caption: m.caption || '' } })
+        }
+      })
+    }
+    if (src.expectedResult?.trim()) {
+      blocks.push({ id: `auto-${idx++}`, type: 'text', text: `预期结果：${src.expectedResult}` })
+    }
+    if (blocks.length === 0) return src
+    return { ...src, guideBlocks: blocks }
+  }
+
   // 加载工作流数据
   useEffect(() => {
     if (initialData) {
@@ -68,7 +122,7 @@ export default function WorkflowExecutionTab({
           label: node.label || node.data?.label || '未命名节点',
           config: node.config || node.data?.config || {}
         },
-        stepDetail: node.stepDetail || null
+        stepDetail: ensureGuideBlocks(node.stepDetail, node.config || node.data?.config)
       }))
 
       setData({
@@ -103,7 +157,7 @@ export default function WorkflowExecutionTab({
             label: node.label || node.data?.label || '未命名节点',
             config: node.config || node.data?.config || {}
           },
-          stepDetail: node.stepDetail || null
+          stepDetail: ensureGuideBlocks(node.stepDetail, node.config || node.data?.config)
         }))
 
         setData({
