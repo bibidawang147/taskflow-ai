@@ -994,13 +994,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
   margin: 0;
 }
 
@@ -1061,8 +1061,10 @@
 .step-header {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding-bottom: 20px;
   gap: 12px;
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .step-header-left {
@@ -1078,8 +1080,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   background: #7C3AED;
   color: #fff;
   font-size: 14px;
@@ -1093,26 +1095,24 @@
   flex: 1;
   padding: 8px 0;
   border: none;
-  border-bottom: 1px solid #e5e7eb;
   background: transparent;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 400;
   color: var(--color-text-primary);
   transition: all 0.15s ease;
 }
 
 .step-title-input:focus {
   outline: none;
-  border-bottom-color: var(--color-primary);
 }
 
 .step-title-input::placeholder {
-  color: #bbb;
+  color: #9CA3AF;
   font-weight: 400;
 }
 
 .step-title-input.error {
-  border-bottom-color: var(--color-error);
+  color: var(--color-error);
 }
 
 /* 删除按钮 */
@@ -1140,9 +1140,10 @@
   color: var(--color-error);
 }
 
-/* 步骤内容 */
+/* 步骤内容区域 */
 .step-content {
-  margin-bottom: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .content-label {
@@ -1150,7 +1151,7 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .optional-hint {
@@ -1162,21 +1163,23 @@
 
 /* 步骤说明区域 - 带保存按钮 */
 .step-description-section {
-  margin-bottom: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .step-description-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .save-step-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 0 14px;
+  height: 36px;
   background: #6B7280;
   color: #fff;
   border: none;
@@ -1203,7 +1206,7 @@
   color: var(--color-text-primary);
   font-family: inherit;
   resize: vertical;
-  min-height: 80px;
+  min-height: 90px;
   transition: all 0.15s ease;
 }
 
@@ -1218,7 +1221,7 @@
 .step-description-textarea::placeholder,
 .expected-result-textarea::placeholder {
   color: #9CA3AF;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* 提示词输入区（保持不同样式以区分） */
@@ -2140,26 +2143,26 @@
 
 /* ========== 资源区 ========== */
 .resource-area {
-  margin-bottom: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .resource-area-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
 }
 
 .resource-area-label {
   font-size: 14px;
   font-weight: 500;
-  color: #6B7280;
+  color: #374151;
 }
 
 .resource-add-buttons {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
 }
 
 .resource-add-btn {
@@ -2179,6 +2182,7 @@
 
 .resource-add-btn:hover {
   color: #6D28D9;
+  text-decoration: none;
 }
 
 /* 资源卡片容器 */
