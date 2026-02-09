@@ -63,7 +63,7 @@ export default function LoginPage() {
               display: 'block',
             }}
           >
-            工作流平台
+            瓴积AI
           </Link>
           <h2
             style={{
@@ -215,10 +215,6 @@ export default function LoginPage() {
               {loading ? '登录中...' : '登录'}
             </button>
 
-            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
-              <p>提示：注册账号后可直接登录</p>
-              <p>注册即获得 50,000 积分</p>
-            </div>
           </form>
         </div>
       </div>

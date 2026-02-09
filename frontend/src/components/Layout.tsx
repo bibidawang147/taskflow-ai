@@ -1,11 +1,14 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User } from 'lucide-react';
+import { User, Settings, HelpCircle, Package, LogOut } from 'lucide-react';
 import { authService } from '../services/auth';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = authService.isAuthenticated();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isActive = (path: string) => {
     if (path === '/ai-chat' || path === '/storage' || path === '/explore') {
@@ -21,9 +24,34 @@ export default function Layout() {
   };
 
   const handleLogout = () => {
+    setDropdownOpen(false);
     authService.logout();
     navigate('/login');
   };
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  // 路由变化时关闭菜单
+  useEffect(() => {
+    setDropdownOpen(false);
+  }, [location.pathname]);
+
+  const menuItems = [
+    { icon: Package, label: '会员中心', path: '/membership' },
+    { icon: Settings, label: '设置', path: '/settings' },
+    { icon: HelpCircle, label: '帮助中心', path: '/help' },
+  ];
 
   return (
     <div style={{ height: '100vh', background: 'linear-gradient(to bottom right, #f5f2ff 0%, #efe9ff 50%, #f5f2ff 100%)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -97,47 +125,131 @@ export default function Layout() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {isAuthenticated ? (
-              <>
-                {/* 用户头像和退出按钮 */}
+              <div ref={dropdownRef} style={{ position: 'relative' }}>
+                {/* 头像按钮 */}
                 <button
-                  onClick={handleLogout}
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: 'transparent',
+                    justifyContent: 'center',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: dropdownOpen ? '2px solid #8b5cf6' : '2px solid #e5e7eb',
+                    backgroundColor: dropdownOpen ? '#f3f0ff' : '#f3f4f6',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
+                    padding: 0,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    if (!dropdownOpen) {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
+                    if (!dropdownOpen) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    }
                   }}
                 >
-                  {/* 头像 */}
+                  <User size={18} color={dropdownOpen ? '#8b5cf6' : '#6b7280'} />
+                </button>
+
+                {/* 下拉菜单 */}
+                {dropdownOpen && (
                   <div
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: '#e5e7eb',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '230px',
+                      background: '#FFFFFF',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                      zIndex: 1001,
                       overflow: 'hidden',
+                      animation: 'dropdownFadeIn 0.15s ease',
                     }}
                   >
-                    <User size={18} color="#6b7280" />
+                    {/* 用户信息区 */}
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB' }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#111' }}>用户</div>
+                      <div style={{ fontSize: '13px', color: '#9CA3AF', marginTop: '4px' }}>欢迎使用瓴积AI</div>
+                    </div>
+
+                    {/* 菜单项 */}
+                    <div style={{ padding: '6px 0' }}>
+                      {menuItems.map((item) => (
+                        <button
+                          key={item.path}
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            navigate(item.path);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            height: '48px',
+                            padding: '0 20px',
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s ease',
+                            fontSize: '14px',
+                            color: '#333',
+                            textAlign: 'left',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#F3F4F6';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <item.icon size={20} color="#6B7280" />
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 退出登录 */}
+                    <div style={{ borderTop: '1px solid #E5E7EB' }}>
+                      <button
+                        onClick={handleLogout}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          width: '100%',
+                          height: '48px',
+                          padding: '0 20px',
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.15s ease',
+                          fontSize: '14px',
+                          color: '#EF4444',
+                          textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#FEF2F2';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <LogOut size={20} color="#EF4444" />
+                        <span>退出登录</span>
+                      </button>
+                    </div>
                   </div>
-                  {/* 退出文字 */}
-                  <span style={{ fontSize: '14px', color: '#9ca3af', fontWeight: '500' }}>退出</span>
-                </button>
-              </>
+                )}
+              </div>
             ) : (
               <>
                 <Link

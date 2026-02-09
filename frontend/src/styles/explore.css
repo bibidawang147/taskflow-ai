@@ -315,9 +315,9 @@
 
 /* AI工作方法广场副标题样式 */
 .panel-header__main .subtitle {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 300;
-  color: var(--color-primary);
+  color: #5a5ef2;
 }
 
 .section-header {
