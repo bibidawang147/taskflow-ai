@@ -1811,9 +1811,50 @@ export default function WorkspacePage() {
     setEditingRoleName('新职位')
   }
 
-  // 处理AI工具拖拽到画布
+  // 处理拖拽到画布（工作流 + AI工具）
   const handleCanvasDrop = (e: React.DragEvent) => {
     e.preventDefault()
+
+    // 计算放置位置（考虑缩放和偏移）
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / zoom - 70  // 减去卡片宽度的一半
+    const y = (e.clientY - rect.top) / zoom - 60    // 减去卡片高度的一半
+
+    // 尝试获取工作流数据
+    const workflowData = e.dataTransfer.getData('workflow')
+    if (workflowData) {
+      try {
+        const workflow = JSON.parse(workflowData)
+        console.log('接收到工作流数据:', workflow)
+
+        const newRoleId = `workflow-${Date.now()}`
+        const newJobRole = {
+          id: newRoleId,
+          name: workflow.title || '工作流',
+          icon: workflow.icon || '📋',
+          color: workflow.color || '#6366f1',
+          modules: ['all'],
+          description: workflow.description || '',
+          workflowId: workflow.id
+        }
+
+        const newCard: CardConfig = {
+          id: newRoleId,
+          type: 'card',
+          position: { x: Math.max(0, x), y: Math.max(0, y) },
+          size: { width: 140, height: 120 },
+          zIndex: 1
+        }
+
+        setJobRoles(prev => [...prev, newJobRole])
+        setCards(prev => [...prev, newCard])
+
+        alert(`工作流「${workflow.title}」已添加到画布！双击卡片展开使用。`)
+      } catch (error) {
+        console.error('添加工作流失败:', error)
+      }
+      return
+    }
 
     // 尝试获取AI工具数据
     const aiToolData = e.dataTransfer.getData('ai-tool')
@@ -1822,7 +1863,6 @@ export default function WorkspacePage() {
         const aiTool = JSON.parse(aiToolData)
         console.log('接收到AI工具数据:', aiTool)
 
-        // 创建新的职位角色
         const newRoleId = `ai-tool-${Date.now()}`
         const newJobRole = {
           id: newRoleId,
@@ -1834,12 +1874,6 @@ export default function WorkspacePage() {
           url: aiTool.url || ''
         }
 
-        // 计算放置位置（考虑缩放和偏移）
-        const rect = e.currentTarget.getBoundingClientRect()
-        const x = (e.clientX - rect.left) / zoom - 70  // 减去卡片宽度的一半
-        const y = (e.clientY - rect.top) / zoom - 60    // 减去卡片高度的一半
-
-        // 创建新的卡片配置
         const newCard: CardConfig = {
           id: newRoleId,
           type: 'card',
@@ -1848,25 +1882,12 @@ export default function WorkspacePage() {
           zIndex: 1
         }
 
-        console.log('创建新的jobRole:', newJobRole)
-        console.log('创建新的card:', newCard)
-
-        // 更新状态
-        setJobRoles(prev => {
-          const updated = [...prev, newJobRole]
-          console.log('更新后的jobRoles:', updated)
-          return updated
-        })
-        setCards(prev => {
-          const updated = [...prev, newCard]
-          console.log('更新后的cards:', updated)
-          return updated
-        })
+        setJobRoles(prev => [...prev, newJobRole])
+        setCards(prev => [...prev, newCard])
 
         alert(`AI工具「${aiTool.name}」已添加到画布！双击卡片展开使用。`)
       } catch (error) {
         console.error('添加AI工具失败:', error)
-        alert(`添加AI工具失败: ${error instanceof Error ? error.message : '未知错误'}`)
       }
     }
   }

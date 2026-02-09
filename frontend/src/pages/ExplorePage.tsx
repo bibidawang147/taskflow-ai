@@ -29,6 +29,19 @@ interface Workflow {
 // 分类标签
 const categoryTags = ['全部', '副业专区', '内容创作', '视频制作', '数据分析', '图文设计', '效率工具']
 
+// 分类颜色映射
+const getCategoryType = (category: string): string => {
+  const map: Record<string, string> = {
+    '内容创作': 'purple',
+    '视频制作': 'orange',
+    '效率工具': 'blue',
+    '数据分析': 'green',
+    '图文设计': 'pink',
+    '副业专区': 'gold'
+  }
+  return map[category] || 'default'
+}
+
 export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
@@ -101,7 +114,6 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
         <section className="section-block">
             <header className="panel-header">
               <div className="panel-header__main">
-                <h2>AI工作方法广场</h2>
                 <span className="subtitle">发现和使用社区分享的成熟AI工作方法</span>
               </div>
               <button
@@ -138,29 +150,35 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
                     className="workflow-card"
                     onClick={() => navigate(`/workflow-intro/${workflow.id}`)}
                   >
+                    {/* 第一行：标题 + 类型标签 */}
                     <div className="workflow-card__header">
                       <h3 className="workflow-card__title">{workflow.title}</h3>
-                      <span className="workflow-card__category">{workflow.category}</span>
+                      <span className={`workflow-card__category workflow-card__category--${getCategoryType(workflow.category)}`}>
+                        {workflow.category}
+                      </span>
                     </div>
 
-                    <div className="workflow-card__meta">
-                      <div className="workflow-card__author">
+                    {/* 第二行：作者信息 */}
+                    <div className="workflow-card__author">
+                      {workflow.isOfficial ? (
+                        <span className="workflow-card__official-dot"></span>
+                      ) : (
                         <span className="workflow-card__avatar">{workflow.author.name[0]}</span>
-                        <span className="workflow-card__author-name">{workflow.author.name}</span>
-                      </div>
-                      {workflow.stats.likes > 0 && (
-                        <>
-                          <span className="workflow-card__divider">·</span>
-                          <span className="workflow-card__rating">
-                            ★ {(workflow.stats.likes / 100).toFixed(1)}
-                          </span>
-                        </>
                       )}
-                      <span className="workflow-card__divider">·</span>
-                      <span className="workflow-card__stat">{formatNumber(workflow.stats.copies)} 次使用</span>
+                      <span className="workflow-card__author-name">{workflow.author.name}</span>
                     </div>
 
+                    {/* 第三行：描述文字 */}
                     <p className="workflow-card__description">{workflow.description}</p>
+
+                    {/* 第四行：功能标签 */}
+                    {workflow.sellingPoints && workflow.sellingPoints.length > 0 && (
+                      <div className="workflow-card__tags">
+                        {workflow.sellingPoints.map((tag, index) => (
+                          <span key={index} className="workflow-card__tag">{tag}</span>
+                        ))}
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>

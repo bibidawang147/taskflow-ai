@@ -15,7 +15,7 @@ type Rect = {
   height: number
 }
 
-type CanvasItemType = 'workflow' | 'ai-tool' | 'tool-link' | 'container'
+type CanvasItemType = 'workflow' | 'ai-tool' | 'tool-link' | 'article' | 'container'
 
 interface CanvasItemBase {
   id: string
@@ -44,6 +44,13 @@ interface ToolLinkCanvasItem extends CanvasItemBase {
   category?: string
 }
 
+interface ArticleCanvasItem extends CanvasItemBase {
+  type: 'article'
+  url: string
+  title: string
+  note?: string
+}
+
 interface ContainerCanvasItem extends CanvasItemBase {
   type: 'container'
   name: string
@@ -53,7 +60,7 @@ interface ContainerCanvasItem extends CanvasItemBase {
   color: string
 }
 
-type CanvasItem = WorkflowCanvasItem | AIToolCanvasItem | ToolLinkCanvasItem | ContainerCanvasItem
+type CanvasItem = WorkflowCanvasItem | AIToolCanvasItem | ToolLinkCanvasItem | ArticleCanvasItem | ContainerCanvasItem
 
 type CanvasItemsMap = Record<string, CanvasItem>
 

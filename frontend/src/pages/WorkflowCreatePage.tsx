@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { FileText } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
@@ -98,76 +98,74 @@ const AI_MODELS: Record<string, string[]> = {
   'Alibaba': ['Qwen-Max', 'Qwen-Plus', 'Qwen-Turbo']
 }
 
-// 场景分类（大类 -> 小类）
+// 场景分类（一级Tab -> 二级胶囊标签）
 const SCENARIO_CATEGORIES = [
   {
     id: 'content',
     name: '内容创作',
     children: [
-      { id: 'content-article', name: '文章写作' },
-      { id: 'content-copywriting', name: '文案撰写' },
-      { id: 'content-script', name: '脚本创作' },
-      { id: 'content-translate', name: '翻译润色' },
+      { id: 'xiaohongshu', name: '小红书' },
+      { id: 'douyin', name: '抖音' },
+      { id: 'gongzhonghao', name: '公众号' },
+      { id: 'shipinhao', name: '视频号' },
+      { id: 'bilibili', name: 'B站' },
+      { id: 'weibo', name: '微博' },
+      { id: 'content-other', name: '其他' },
     ]
   },
   {
-    id: 'marketing',
-    name: '营销推广',
+    id: 'video',
+    name: '视频制作',
     children: [
-      { id: 'marketing-social', name: '社交媒体' },
-      { id: 'marketing-ads', name: '广告投放' },
-      { id: 'marketing-seo', name: 'SEO优化' },
-      { id: 'marketing-email', name: '邮件营销' },
+      { id: 'video-short', name: '短视频' },
+      { id: 'video-vlog', name: 'Vlog' },
+      { id: 'video-tutorial', name: '教程' },
+      { id: 'video-ad', name: '广告片' },
+      { id: 'video-other', name: '其他' },
+    ]
+  },
+  {
+    id: 'data',
+    name: '数据分析',
+    children: [
+      { id: 'data-report', name: '报表' },
+      { id: 'data-visualization', name: '可视化' },
+      { id: 'data-prediction', name: '预测' },
+      { id: 'data-cleaning', name: '数据清洗' },
+      { id: 'data-other', name: '其他' },
     ]
   },
   {
     id: 'design',
-    name: '设计制作',
+    name: '图文设计',
     children: [
-      { id: 'design-image', name: '图片设计' },
-      { id: 'design-video', name: '视频制作' },
-      { id: 'design-ppt', name: 'PPT制作' },
-      { id: 'design-ui', name: 'UI设计' },
+      { id: 'design-poster', name: '海报' },
+      { id: 'design-banner', name: 'Banner' },
+      { id: 'design-logo', name: 'Logo' },
+      { id: 'design-ppt', name: 'PPT' },
+      { id: 'design-other', name: '其他' },
     ]
   },
   {
-    id: 'work',
-    name: '办公效率',
+    id: 'efficiency',
+    name: '效率工具',
     children: [
-      { id: 'work-doc', name: '文档处理' },
-      { id: 'work-data', name: '数据分析' },
-      { id: 'work-meeting', name: '会议纪要' },
-      { id: 'work-report', name: '报告撰写' },
+      { id: 'eff-doc', name: '文档处理' },
+      { id: 'eff-translate', name: '翻译' },
+      { id: 'eff-meeting', name: '会议纪要' },
+      { id: 'eff-code', name: '代码开发' },
+      { id: 'eff-other', name: '其他' },
     ]
   },
   {
-    id: 'development',
-    name: '开发技术',
+    id: 'monetize',
+    name: '变现专区',
     children: [
-      { id: 'dev-code', name: '代码开发' },
-      { id: 'dev-debug', name: '问题调试' },
-      { id: 'dev-doc', name: '技术文档' },
-      { id: 'dev-review', name: '代码审查' },
-    ]
-  },
-  {
-    id: 'learning',
-    name: '学习教育',
-    children: [
-      { id: 'learn-study', name: '知识学习' },
-      { id: 'learn-exam', name: '考试备考' },
-      { id: 'learn-language', name: '语言学习' },
-      { id: 'learn-skill', name: '技能提升' },
-    ]
-  },
-  {
-    id: 'other',
-    name: '其他',
-    children: [
-      { id: 'other-life', name: '生活助手' },
-      { id: 'other-creative', name: '创意灵感' },
-      { id: 'other-consult', name: '咨询顾问' },
-      { id: 'other-misc', name: '其他场景' },
+      { id: 'mon-ecommerce', name: '电商' },
+      { id: 'mon-affiliate', name: '带货' },
+      { id: 'mon-course', name: '课程' },
+      { id: 'mon-consulting', name: '咨询' },
+      { id: 'mon-other', name: '其他' },
     ]
   },
 ]
@@ -227,8 +225,14 @@ export default function WorkflowCreatePage() {
   const [expandedAdvanced, setExpandedAdvanced] = useState<Set<string>>(new Set())
   // AI 生成简介状态
   const [generatingDescription, setGeneratingDescription] = useState(false)
-  // 场景选择：当前选中的大类
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  // 场景选择：当前选中的大类（默认选中"内容创作"）
+  const [selectedCategory, setSelectedCategory] = useState<string | null>('content')
+  // 文章快速转 Popover 状态
+  const [showArticlePopover, setShowArticlePopover] = useState(false)
+  const [articleInput, setArticleInput] = useState('')
+  const [convertingArticle, setConvertingArticle] = useState(false)
+  const articlePopoverRef = useRef<HTMLDivElement>(null)
+  const articleBtnRef = useRef<HTMLButtonElement>(null)
 
   // 点击外部关闭下拉框
   useEffect(() => {
@@ -247,6 +251,27 @@ export default function WorkflowCreatePage() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [openDropdown])
+
+  // 点击外部关闭文章快速转 Popover
+  useEffect(() => {
+    const handlePopoverClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (
+        articlePopoverRef.current && !articlePopoverRef.current.contains(target) &&
+        articleBtnRef.current && !articleBtnRef.current.contains(target)
+      ) {
+        setShowArticlePopover(false)
+      }
+    }
+
+    if (showArticlePopover) {
+      document.addEventListener('mousedown', handlePopoverClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handlePopoverClickOutside)
+    }
+  }, [showArticlePopover])
 
   // 加载现有工作流（编辑模式）
   useEffect(() => {
@@ -527,6 +552,94 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
       alert(error.message || '生成失败，请重试')
     } finally {
       setGeneratingDescription(false)
+    }
+  }
+
+  // 文章快速转 - 一键转换
+  const handleArticleConvert = async () => {
+    if (!articleInput.trim()) return
+
+    setConvertingArticle(true)
+    try {
+      const isUrl = /^https?:\/\//.test(articleInput.trim())
+      const prompt = `你是一个专业的 AI 工作流编辑专家。请根据以下${isUrl ? '文章链接对应的内容' : '文章内容'}，将其拆解为一个结构化的 AI 工作流。
+
+${isUrl ? '文章链接：' : '文章内容：'}
+${articleInput.trim()}
+
+请严格按照以下 JSON 格式输出，不要有任何多余的文字或解释：
+{
+  "title": "工作流标题",
+  "description": "一句话介绍（50-100字）",
+  "steps": [
+    {
+      "title": "步骤标题",
+      "description": "步骤说明",
+      "prompt": "给 AI 的提示词内容"
+    }
+  ]
+}
+
+要求：
+1. 标题简洁明了，体现核心价值
+2. 步骤数量 2-6 个，每步骤有明确的目标
+3. prompt 要具体可执行，不要太笼统
+4. 直接输出 JSON，不要包裹在代码块中`
+
+      const response = await chatWithAI({
+        provider: 'doubao',
+        model: 'doubao-1-5-pro-32k-250115',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.5,
+        maxTokens: 3000
+      })
+
+      if (response.success && response.data.content) {
+        const content = response.data.content.trim()
+        // 尝试提取 JSON（可能被包裹在 ```json ``` 中）
+        const jsonMatch = content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+
+          const newSteps: WorkflowStep[] = (parsed.steps || []).map((s: any, idx: number) => ({
+            id: `step_${Date.now()}_${idx}`,
+            title: s.title || '',
+            description: s.description || '',
+            prompt: s.prompt || '',
+            expectedResult: '',
+            model: { brand: 'OpenAI', name: 'GPT-4', url: '' },
+            alternativeModels: [],
+            advancedSettings: { temperature: 0.7, maxTokens: 2000 },
+            showAdvanced: false,
+            tools: [],
+            demonstrationMedia: [],
+            relatedResources: [],
+            associatedSolutions: [],
+            associatedThemes: []
+          }))
+
+          setFormData({
+            ...formData,
+            title: parsed.title || formData.title,
+            description: parsed.description || formData.description,
+            steps: newSteps.length > 0 ? newSteps : formData.steps
+          })
+
+          setIsFromArticle(true)
+          setSourceContent(articleInput.trim())
+          setShowArticlePopover(false)
+          setArticleInput('')
+        } else {
+          alert('AI 返回格式异常，请重试')
+        }
+      } else {
+        alert('转换失败，请重试')
+      }
+    } catch (error: any) {
+      console.error('文章转换失败:', error)
+      alert(error.message || '转换失败，请重试')
+    } finally {
+      setConvertingArticle(false)
     }
   }
 
@@ -811,54 +924,67 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
 
         {/* 标题输入 */}
         <div className="title-section">
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+          <div className="title-row">
             <input
               type="text"
               className={`title-input ${errors.title ? 'error' : ''}`}
               placeholder="输入工作流标题，例如：AI辅助创作小红书爆款种草文案"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              style={{ flex: 1 }}
             />
-            {/* 文章快速转按钮 */}
-            <button
-              type="button"
-              onClick={() => navigate('/workflow/import-from-article')}
-              style={{
-                padding: '6px 14px',
-                backgroundColor: 'rgba(139, 92, 246, 0.08)',
-                color: '#8b5cf6',
-                border: '1.5px solid rgba(139, 92, 246, 0.25)',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '300',
-                cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                marginTop: '15px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.12)'
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.4)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.15)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)'
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.25)'
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <FileText size={16} />
-              <span>文章快速转</span>
-            </button>
+            <div className="article-convert-wrapper">
+              <button
+                ref={articleBtnRef}
+                type="button"
+                className={`article-convert-btn ${showArticlePopover ? 'active' : ''}`}
+                onClick={() => setShowArticlePopover(!showArticlePopover)}
+              >
+                <FileText size={15} />
+                <span>文章快速转</span>
+              </button>
+              {showArticlePopover && (
+                <div ref={articlePopoverRef} className="article-popover">
+                  <h4 className="article-popover-title">输入文章链接/直接粘贴文字内容</h4>
+                  <textarea
+                    className="article-popover-textarea"
+                    placeholder="粘贴文章链接或直接粘贴文字内容..."
+                    value={articleInput}
+                    onChange={(e) => setArticleInput(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="article-popover-actions">
+                    <button
+                      type="button"
+                      className="article-popover-cancel"
+                      onClick={() => {
+                        setShowArticlePopover(false)
+                        setArticleInput('')
+                      }}
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      className={`article-popover-submit ${articleInput.trim() ? 'enabled' : ''}`}
+                      disabled={!articleInput.trim() || convertingArticle}
+                      onClick={handleArticleConvert}
+                    >
+                      {convertingArticle ? (
+                        <>
+                          <span className="ai-loading-spinner"></span>
+                          转换中...
+                        </>
+                      ) : (
+                        '一键转换'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           {errors.title && <div className="error-message">{errors.title}</div>}
+          <div className="title-divider" />
         </div>
 
         {/* 基本信息区域 */}
@@ -867,10 +993,10 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
 
           <div className="form-field">
             <div className="field-label-with-action">
-              <label className="field-label">简介</label>
+              <label className="field-label">一句话介绍</label>
               <button
                 type="button"
-                className="ai-assist-btn"
+                className="ai-generate-btn"
                 onClick={handleGenerateDescription}
                 disabled={generatingDescription}
               >
@@ -881,11 +1007,7 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
                   </>
                 ) : (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5" />
-                      <path d="M2 12l10 5 10-5" />
-                    </svg>
+                    <span className="ai-sparkle">✨</span>
                     AI 生成
                   </>
                 )}
@@ -894,92 +1016,133 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
             <textarea
               className="field-textarea"
               placeholder="描述这个工作流的用途和特点...（可点击右上方 AI 生成按钮自动生成）"
-              rows={3}
+              rows={4}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
 
-          {/* 选择类型 */}
-          <div className="form-field">
-            <label className="field-label">选择类型</label>
-            <div className="type-selector-row">
-              <div className="difficulty-selector">
-                <button
-                  type="button"
-                  className={`difficulty-btn ${formData.difficultyLevel === 'beginner' ? 'active' : ''}`}
-                  onClick={() => setFormData({ ...formData, difficultyLevel: 'beginner' })}
-                >
-                  <span className="difficulty-text">免费</span>
-                </button>
-                <button
-                  type="button"
-                  className={`difficulty-btn ${formData.difficultyLevel === 'intermediate' ? 'active' : ''}`}
-                  onClick={() => setFormData({ ...formData, difficultyLevel: 'intermediate' })}
-                >
-                  <span className="difficulty-text">会员</span>
-                </button>
-                <button
-                  type="button"
-                  className={`difficulty-btn ${formData.difficultyLevel === 'advanced' ? 'active' : ''}`}
-                  onClick={() => setFormData({ ...formData, difficultyLevel: 'advanced' })}
-                >
-                  <span className="difficulty-text">付费</span>
-                </button>
+          {/* 选择类型 & 选择标签 - 同一行布局 */}
+          <div className="type-and-tags-row">
+            {/* 左侧：选择类型 */}
+            <div className="form-field type-field">
+              <label className="field-label">选择类型</label>
+              <div className="type-selector-row">
+                <div className="difficulty-selector">
+                  <button
+                    type="button"
+                    className={`difficulty-btn ${formData.difficultyLevel === 'beginner' ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, difficultyLevel: 'beginner' })}
+                  >
+                    <span className="difficulty-text">免费</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`difficulty-btn ${formData.difficultyLevel === 'intermediate' ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, difficultyLevel: 'intermediate' })}
+                  >
+                    <span className="difficulty-text">会员</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`difficulty-btn ${formData.difficultyLevel === 'advanced' ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, difficultyLevel: 'advanced' })}
+                  >
+                    <span className="difficulty-text">付费</span>
+                  </button>
+                </div>
+                {formData.difficultyLevel === 'advanced' && (
+                  <div className="price-input-group">
+                    <span className="price-currency">¥</span>
+                    <input
+                      type="number"
+                      className="price-input"
+                      placeholder="0"
+                      min="0"
+                      value={formData.price || ''}
+                      onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) || 0 })}
+                    />
+                  </div>
+                )}
               </div>
-              {formData.difficultyLevel === 'advanced' && (
-                <div className="price-input-group">
-                  <span className="price-currency">¥</span>
-                  <input
-                    type="number"
-                    className="price-input"
-                    placeholder="0"
-                    min="0"
-                    value={formData.price || ''}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) || 0 })}
-                  />
+            </div>
+
+            {/* 右侧：选择标签 */}
+            <div className="form-field tags-field">
+              <label className="field-label">选择标签</label>
+              {/* 一级标签 - Tab导航 */}
+              <div className="tag-tabs">
+                {SCENARIO_CATEGORIES.map((cat) => {
+                  const hasSelected = cat.children.some(c => formData.useScenarios.includes(c.id))
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`tag-tab ${selectedCategory === cat.id ? 'active' : ''}`}
+                      onClick={() => setSelectedCategory(cat.id)}
+                    >
+                      {cat.name}
+                      {hasSelected && <span className="tag-tab-dot" />}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* 二级标签 - 胶囊标签 */}
+              {selectedCategory && (
+                <div className="tag-capsules">
+                  {SCENARIO_CATEGORIES
+                    .find(cat => cat.id === selectedCategory)
+                    ?.children.map((child) => {
+                      const isSelected = formData.useScenarios.includes(child.id)
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          className={`tag-capsule ${isSelected ? 'active' : ''}`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setFormData({ ...formData, useScenarios: formData.useScenarios.filter(s => s !== child.id) })
+                            } else {
+                              setFormData({ ...formData, useScenarios: [...formData.useScenarios, child.id] })
+                            }
+                          }}
+                        >
+                          {child.name}
+                          {isSelected && <span className="capsule-check">✓</span>}
+                        </button>
+                      )
+                    })
+                  }
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* 适用场景 - 两级选择 */}
-          <div className="form-field">
-            <label className="field-label">适用场景</label>
-            <div className="scenario-two-level">
-              {/* 第一级：大类选择 */}
-              <select
-                className="scenario-select"
-                value={selectedCategory || ''}
-                onChange={(e) => setSelectedCategory(e.target.value || null)}
-              >
-                <option value="">选择大类...</option>
-                {SCENARIO_CATEGORIES.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-
-              {/* 第二级：小类选择 */}
-              <select
-                className="scenario-select"
-                value={formData.useScenarios[0] || ''}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setFormData({ ...formData, useScenarios: [e.target.value] })
-                  } else {
-                    setFormData({ ...formData, useScenarios: [] })
-                  }
-                }}
-                disabled={!selectedCategory}
-              >
-                <option value="">选择小类...</option>
-                {selectedCategory && SCENARIO_CATEGORIES
-                  .find(cat => cat.id === selectedCategory)
-                  ?.children.map((child) => (
-                    <option key={child.id} value={child.id}>{child.name}</option>
-                  ))
-                }
-              </select>
+              {/* 已选标签展示区 */}
+              {formData.useScenarios.length > 0 && (
+                <div className="selected-scenarios-area">
+                  <div className="selected-scenarios-divider" />
+                  <div className="selected-scenarios-list">
+                    {formData.useScenarios.map((scenarioId) => {
+                      let label = scenarioId
+                      for (const cat of SCENARIO_CATEGORIES) {
+                        const found = cat.children.find(c => c.id === scenarioId)
+                        if (found) { label = found.name; break }
+                      }
+                      return (
+                        <span key={scenarioId} className="selected-scenario-tag">
+                          <span className="selected-scenario-icon">📝</span>
+                          <span className="selected-scenario-name">{label}</span>
+                          <button
+                            type="button"
+                            className="selected-scenario-remove"
+                            onClick={() => setFormData({ ...formData, useScenarios: formData.useScenarios.filter(s => s !== scenarioId) })}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -989,14 +1152,10 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
           <div className="card-header-with-action">
             <div>
               <h2 className="card-title">前置准备</h2>
-              <p className="card-description">在开始工作流之前，用户需要准备什么？</p>
+              <p className="card-subtitle-hint">在开始工作流之前，用户需要准备什么？</p>
             </div>
             <button className="add-btn-small" onClick={handleAddPreparation}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              添加准备项
+              + 添加准备项
             </button>
           </div>
 

@@ -32,6 +32,16 @@ interface ToolLinkCanvasItem {
   position: Position
 }
 
+interface ArticleCanvasItem {
+  id: string
+  type: 'article'
+  url: string
+  title: string
+  note?: string
+  parentId: string
+  position: Position
+}
+
 interface ContainerCanvasItem {
   id: string
   type: 'container'
@@ -44,7 +54,7 @@ interface ContainerCanvasItem {
   color: string
 }
 
-type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ContainerCanvasItem
+type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ArticleCanvasItem | ContainerCanvasItem
 type CanvasItemsMap = Record<string, CanvasItem>
 
 interface NavigationSidebarProps {
@@ -62,7 +72,7 @@ interface WorkflowItemProps {
   workflow: Workflow
   batchMode: boolean
   isSelected: boolean
-  onDragStart: () => void
+  onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -87,7 +97,7 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
     <div
       key={workflow.id}
       draggable={!batchMode}
-      onDragStart={onDragStart}
+      onDragStart={(e) => onDragStart(e)}
       onDragEnd={onDragEnd}
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -494,8 +504,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   workflow={workflow}
                   batchMode={batchMode}
                   isSelected={selectedWorkflows.has(workflow.id)}
-                  onDragStart={() => {
+                  onDragStart={(e) => {
                     if (!batchMode) {
+                      e.dataTransfer.setData('workflow-library-id', workflow.id)
+                      e.dataTransfer.effectAllowed = 'copy'
                       onWorkflowDragStart?.(workflow.id)
                     }
                   }}
@@ -636,8 +648,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   workflow={workflow}
                   batchMode={batchMode}
                   isSelected={selectedWorkflows.has(workflow.id)}
-                  onDragStart={() => {
+                  onDragStart={(e) => {
                     if (!batchMode) {
+                      e.dataTransfer.setData('workflow-library-id', workflow.id)
+                      e.dataTransfer.effectAllowed = 'copy'
                       onWorkflowDragStart?.(workflow.id)
                     }
                   }}
@@ -1046,8 +1060,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 workflow={workflow}
                 batchMode={batchMode}
                 isSelected={selectedWorkflows.has(workflow.id)}
-                onDragStart={() => {
+                onDragStart={(e) => {
                   if (!batchMode) {
+                    e.dataTransfer.setData('workflow-library-id', workflow.id)
+                    e.dataTransfer.effectAllowed = 'copy'
                     onWorkflowDragStart?.(workflow.id)
                   }
                 }}

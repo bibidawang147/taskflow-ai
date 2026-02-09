@@ -44,8 +44,8 @@ type Position = {
   y: number
 }
 
-const CARD_WIDTH = 220
-const CARD_HEIGHT = 140
+const CARD_WIDTH = 264
+const CARD_HEIGHT = 133
 const CONTAINER_MIN_WIDTH = 280
 const CONTAINER_MIN_HEIGHT = 200
 const CONTAINER_PADDING = 16
@@ -200,6 +200,16 @@ interface ToolLinkCanvasItem {
   position: Position
 }
 
+interface ArticleCanvasItem {
+  id: string
+  type: 'article'
+  url: string
+  title: string
+  note?: string
+  parentId: string
+  position: Position
+}
+
 interface ContainerCanvasItem {
   id: string
   type: 'container'
@@ -212,7 +222,7 @@ interface ContainerCanvasItem {
   color: string
 }
 
-type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ContainerCanvasItem
+type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ArticleCanvasItem | ContainerCanvasItem
 type CanvasItemsMap = Record<string, CanvasItem>
 
 // 工作流库数据现在完全从API获取，不再使用硬编码数据
@@ -318,6 +328,9 @@ function getItemOuterSize(item: CanvasItem): { width: number; height: number } {
   }
   if (item.type === 'tool-link') {
     return { width: 70, height: 70 }  // 工具卡片是正方形
+  }
+  if (item.type === 'article') {
+    return { width: 220, height: 60 }  // 文章卡片
   }
   // 必然是 container 类型
   const containerItem = item as ContainerCanvasItem
@@ -725,6 +738,11 @@ export default function StoragePage() {
     name: '',
     description: ''
   })
+
+  // 文章添加模态框
+  const [showArticleModal, setShowArticleModal] = useState(false)
+  const [articleFormData, setArticleFormData] = useState({ url: '', title: '', note: '' })
+  const [articleUrlError, setArticleUrlError] = useState(false)
 
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
@@ -1620,7 +1638,6 @@ export default function StoragePage() {
   const handleCanvasDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
-
       // 尝试从 dataTransfer 读取工具链接数据
       const toolLinkData = event.dataTransfer.getData('tool-link')
 
@@ -1691,9 +1708,10 @@ export default function StoragePage() {
       }
 
       // 原有的工作流拖拽逻辑
-      if (!libraryDraggingId) return
+      const draggedWorkflowId = libraryDraggingId || event.dataTransfer.getData('workflow-library-id')
+      if (!draggedWorkflowId) return
 
-      const workflow = libraryData.find((item) => item.id === libraryDraggingId)
+      const workflow = libraryData.find((item) => item.id === draggedWorkflowId)
       if (!workflow) return
 
       const wrapperElement = transformRef.current?.instance.wrapperComponent
@@ -1752,8 +1770,10 @@ export default function StoragePage() {
   const handleCanvasDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     // 允许工具链接和工作流拖拽
     const hasToolLink = event.dataTransfer.types.includes('tool-link')
-    if (libraryDraggingId || hasToolLink) {
+    const hasWorkflow = event.dataTransfer.types.includes('workflow-library-id')
+    if (libraryDraggingId || hasToolLink || hasWorkflow) {
       event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
     }
   }
 
@@ -2616,16 +2636,22 @@ export default function StoragePage() {
     if (e) {
       e.stopPropagation()
     }
-    // 不能关闭画布 tab
+    // 不能关闭默认画布 tab（始终保留）
     if (tabId === CANVAS_TAB_ID) return
 
     setWorkspaceTabs(prev => {
       const newTabs = prev.filter(tab => tab.id !== tabId)
-      // 如果关闭的是当前 tab，切换到画布
+      // 如果关闭的是当前 tab，切换到默认画布
       if (activeTabId === tabId) {
         setActiveTabId(CANVAS_TAB_ID)
       }
       return newTabs
+    })
+    // 清理关闭的画布数据
+    setCanvasDataByTabId(prev => {
+      const next = { ...prev }
+      delete next[tabId]
+      return next
     })
   }, [activeTabId])
 
@@ -2747,6 +2773,64 @@ export default function StoragePage() {
     })
   }
 
+  // 处理添加文章
+  const handleAddArticle = () => {
+    if (!articleFormData.url.trim()) {
+      setArticleUrlError(true)
+      return
+    }
+
+    let articleUrl = articleFormData.url.trim()
+    try {
+      if (!articleUrl.startsWith('http://') && !articleUrl.startsWith('https://')) {
+        articleUrl = 'https://' + articleUrl
+      }
+      new URL(articleUrl)
+    } catch {
+      setArticleUrlError(true)
+      return
+    }
+
+    const articleCardId = generateId('article-card')
+
+    updateCanvasItems((draft) => {
+      const preferredPosition = { x: 20, y: 20 }
+      const position = findNonOverlappingPosition(
+        draft,
+        ROOT_CONTAINER_ID,
+        preferredPosition,
+        220,
+        60
+      )
+
+      let articleTitle = articleFormData.title.trim()
+      if (!articleTitle) {
+        try {
+          articleTitle = new URL(articleUrl).hostname.replace('www.', '')
+        } catch {
+          articleTitle = '新文章'
+        }
+      }
+
+      draft[articleCardId] = {
+        id: articleCardId,
+        type: 'article',
+        url: articleUrl,
+        title: articleTitle,
+        note: articleFormData.note.trim() || undefined,
+        parentId: ROOT_CONTAINER_ID,
+        position
+      } as ArticleCanvasItem
+
+      attachToParent(draft, ROOT_CONTAINER_ID, articleCardId)
+      recalcContainerSizes(draft, [ROOT_CONTAINER_ID])
+    })
+
+    setShowArticleModal(false)
+    setArticleFormData({ url: '', title: '', note: '' })
+    setArticleUrlError(false)
+  }
+
   // 处理右键菜单
   const handleContextMenu = (e: React.MouseEvent, itemId: string) => {
     e.preventDefault()
@@ -2837,6 +2921,24 @@ export default function StoragePage() {
       recalcContainerSizes(draft, [parentId])
     })
     console.log('🗑️ [StoragePage] 删除工具卡片:', cardId)
+  }
+
+  // 删除文章卡片
+  const handleDeleteArticleCard = (cardId: string) => {
+    const item = canvasItems[cardId]
+    if (!item || item.type !== 'article') return
+
+    if (!confirm('确定要删除这个文章卡片吗？')) return
+
+    updateCanvasItems((draft) => {
+      const parentId = item.parentId || ROOT_CONTAINER_ID
+      const parent = draft[parentId]
+      if (parent && parent.type === 'container') {
+        parent.childrenIds = parent.childrenIds.filter(id => id !== cardId)
+      }
+      delete draft[cardId]
+      recalcContainerSizes(draft, [parentId])
+    })
   }
 
   const confirmDeleteWorkflowCard = () => {
@@ -3176,8 +3278,8 @@ export default function StoragePage() {
           top: card.position.y,
           width: CARD_WIDTH,
           height: CARD_HEIGHT,
-          borderRadius: '12px',
-          border: isDragging ? '2px dashed rgba(139, 92, 246, 0.8)' : '2px dashed rgba(139, 92, 246, 0.3)',
+          borderRadius: 0,
+          border: isDragging ? '1px solid rgba(139, 92, 246, 0.6)' : '1px solid rgba(0, 0, 0, 0.1)',
           background: '#ffffff',
           cursor: 'grab',
           padding: '12px',
@@ -3188,22 +3290,22 @@ export default function StoragePage() {
           // 添加位置过渡动画（拖拽时不应用）
           transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out, box-shadow 0.2s, transform 0.2s, border 0.2s',
           boxShadow: isDragging
-            ? '0 8px 24px rgba(139, 92, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.05)'
-            : '0 2px 8px rgba(0, 0, 0, 0.04)',
+            ? '0 8px 24px rgba(139, 92, 246, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05)'
+            : '0 1px 4px rgba(0, 0, 0, 0.04)',
           zIndex: isDragging ? 1000 : 1,
           transform: isDragging ? 'scale(1.02)' : 'scale(1)'
         }}
         onMouseEnter={(e) => {
           if (!isDragging) {
-            e.currentTarget.style.border = '2px dashed rgba(139, 92, 246, 0.6)'
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(139, 92, 246, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06)'
+            e.currentTarget.style.border = '1px solid rgba(139, 92, 246, 0.35)'
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04)'
             e.currentTarget.style.transform = 'translateY(-2px)'
           }
         }}
         onMouseLeave={(e) => {
           if (!isDragging) {
-            e.currentTarget.style.border = '2px dashed rgba(139, 92, 246, 0.3)'
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)'
+            e.currentTarget.style.border = '1px solid rgba(0, 0, 0, 0.1)'
+            e.currentTarget.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.04)'
             e.currentTarget.style.transform = 'translateY(0)'
           }
         }}
@@ -3562,8 +3664,164 @@ export default function StoragePage() {
       if (item.type === 'tool-link') {
         return renderToolLinkCard(item)
       }
+      if (item.type === 'article') {
+        return renderArticleCard(item)
+      }
       return renderContainer(item)
     })
+  }
+
+  const renderArticleCard = (card: ArticleCanvasItem) => {
+    const isDragging = draggingItemId === card.id
+
+    return (
+      <div
+        className="no-pan"
+        key={card.id}
+        onMouseDown={(event) => handleItemMouseDown(event, card.id)}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          window.open(card.url, '_blank')
+        }}
+        style={{
+          position: 'absolute',
+          left: card.position.x,
+          top: card.position.y,
+          width: 220,
+          borderRadius: '12px',
+          border: '1px solid #E5E7EB',
+          background: '#ffffff',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          boxShadow: isDragging
+            ? '0 8px 16px rgba(0, 0, 0, 0.15)'
+            : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          transition: isDragging ? 'none' : 'left 0.3s, top 0.3s, box-shadow 0.2s, transform 0.2s',
+          zIndex: isDragging ? 1000 : 1,
+          userSelect: 'none',
+          transform: isDragging ? 'scale(1.02)' : 'scale(1)'
+        }}
+        onMouseEnter={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)'
+            e.currentTarget.style.transform = 'translateY(-2px)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isDragging) {
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
+            e.currentTarget.style.transform = 'translateY(0)'
+          }
+        }}
+      >
+        {/* 删除按钮 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleDeleteArticleCard(card.id)
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '6px',
+            right: '6px',
+            width: '18px',
+            height: '18px',
+            borderRadius: '4px',
+            border: 'none',
+            background: 'rgba(107, 114, 128, 0.1)',
+            color: '#6b7280',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            transition: 'all 0.2s',
+            zIndex: 10,
+            padding: 0,
+            opacity: 0
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#6b7280'
+            e.currentTarget.style.color = '#ffffff'
+            e.currentTarget.style.opacity = '1'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(107, 114, 128, 0.1)'
+            e.currentTarget.style.color = '#6b7280'
+            e.currentTarget.style.opacity = '0'
+          }}
+          title="删除文章卡片"
+        >
+          ✕
+        </button>
+
+        {/* Favicon */}
+        <div style={{ flexShrink: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {(() => {
+            try {
+              const url = new URL(card.url)
+              const faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=24`
+              return (
+                <img
+                  src={faviconUrl}
+                  alt=""
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '4px',
+                    objectFit: 'contain'
+                  }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none'
+                    if (e.currentTarget.parentElement) {
+                      e.currentTarget.parentElement.innerHTML = '<span style="font-size:20px;color:#9ca3af">🌐</span>'
+                    }
+                  }}
+                />
+              )
+            } catch {
+              return <span style={{ fontSize: '20px', color: '#9ca3af' }}>🌐</span>
+            }
+          })()}
+        </div>
+
+        {/* 文字内容 */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          minWidth: 0
+        }}>
+          <div style={{
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#111827',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '160px'
+          }}>
+            {card.title}
+          </div>
+          <div style={{
+            fontSize: '12px',
+            color: '#9ca3af',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '160px'
+          }}>
+            {card.url}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const renderContainer = (container: ContainerCanvasItem) => {
@@ -3585,14 +3843,14 @@ export default function StoragePage() {
           height: outerHeight,
           userSelect: 'none',
           backgroundColor: '#ffffff',
-          border: isDragging ? '2px dashed rgba(139, 92, 246, 0.8)' : '2px dashed rgba(139, 92, 246, 0.3)',
-          borderRadius: '12px',
+          border: isDragging ? '1px solid rgba(139, 92, 246, 0.6)' : '1px solid rgba(0, 0, 0, 0.1)',
+          borderRadius: 0,
           overflow: container.collapsed ? 'hidden' : 'visible',
           // 添加位置过渡动画（拖拽时不应用）
           transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out, border 0.2s, box-shadow 0.2s',
           boxShadow: isDragging
-            ? '0 8px 24px rgba(139, 92, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.05)'
-            : '0 2px 8px rgba(0, 0, 0, 0.04)',
+            ? '0 8px 24px rgba(139, 92, 246, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05)'
+            : '0 1px 4px rgba(0, 0, 0, 0.04)',
           zIndex: isDragging ? 1000 : 1
         }}
       >
@@ -3607,8 +3865,8 @@ export default function StoragePage() {
             padding: '0 12px',
             cursor: 'grab',
             background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(124, 58, 237, 0.05) 100%)',
-            borderBottom: container.collapsed ? 'none' : '1px dashed rgba(139, 92, 246, 0.2)',
-            borderRadius: '10px 10px 0 0'
+            borderBottom: container.collapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
+            borderRadius: 0
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -4291,7 +4549,7 @@ export default function StoragePage() {
                   )}
                 </span>
                 <span className="workspace-tab-title">{tab.title}</span>
-                {tab.type !== 'canvas' && (
+                {tab.id !== CANVAS_TAB_ID && (
                   <button
                     className="workspace-tab-close"
                     onClick={(e) => closeWorkspaceTab(tab.id, e)}
@@ -4308,7 +4566,7 @@ export default function StoragePage() {
                 width: '22px',
                 height: '22px',
                 borderRadius: '5px',
-                border: '1.5px solid #c4b5fd',
+                border: 'none',
                 background: 'transparent',
                 color: '#8b5cf6',
                 cursor: 'pointer',
@@ -4316,20 +4574,17 @@ export default function StoragePage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginLeft: '6px',
+                alignSelf: 'center',
                 transition: 'all 0.15s ease'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#8b5cf6'
-                e.currentTarget.style.borderColor = '#8b5cf6'
-                e.currentTarget.style.color = 'white'
+                e.currentTarget.style.color = '#7c3aed'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.borderColor = '#c4b5fd'
                 e.currentTarget.style.color = '#8b5cf6'
               }}
             >
-              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <Plus className="w-5 h-5" strokeWidth={3} />
             </button>
           </div>
 
@@ -4601,6 +4856,22 @@ export default function StoragePage() {
               title="添加工具链接到画布"
             >
               添加工具
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowArticleModal(true)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid #c4b5fd',
+                backgroundColor: '#f5f3ff',
+                color: '#5b21b6',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              添加文章
             </button>
           </div>
 
@@ -5233,6 +5504,244 @@ export default function StoragePage() {
                   fontSize: '14px',
                   cursor: 'pointer',
                   fontWeight: 500
+                }}
+              >
+                添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 文章添加模态框 */}
+      {showArticleModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => {
+            setShowArticleModal(false)
+            setArticleFormData({ url: '', title: '', note: '' })
+            setArticleUrlError(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setShowArticleModal(false)
+              setArticleFormData({ url: '', title: '', note: '' })
+              setArticleUrlError(false)
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '13px',
+              padding: '26px',
+              width: '416px',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: '0 0 24px 0',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#111'
+            }}>
+              添加参考文章
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* 文章链接 - 必填 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: '#333',
+                  marginBottom: '8px'
+                }}>
+                  文章链接 <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="url"
+                  value={articleFormData.url}
+                  onChange={(e) => {
+                    setArticleFormData({ ...articleFormData, url: e.target.value })
+                    if (articleUrlError) setArticleUrlError(false)
+                  }}
+                  placeholder="https://example.com/article"
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    padding: '0 16px',
+                    borderRadius: '8px',
+                    border: articleUrlError ? '2px solid #EF4444' : '1px solid #D1D5DB',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => {
+                    if (!articleUrlError) {
+                      e.target.style.border = '2px solid #7C3AED'
+                      e.target.style.boxShadow = '0 0 0 3px rgba(124, 58, 237, 0.1)'
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!articleUrlError) {
+                      e.target.style.border = '1px solid #D1D5DB'
+                      e.target.style.boxShadow = 'none'
+                    }
+                  }}
+                  autoFocus
+                />
+                {articleUrlError && (
+                  <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#EF4444' }}>请输入文章链接</p>
+                )}
+              </div>
+
+              {/* 文章标题 - 选填 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: '#333',
+                  marginBottom: '8px'
+                }}>
+                  文章标题 <span style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: 400 }}>(选填，留空自动从URL提取)</span>
+                </label>
+                <input
+                  type="text"
+                  value={articleFormData.title}
+                  onChange={(e) => setArticleFormData({ ...articleFormData, title: e.target.value })}
+                  placeholder="例如：如何写出爆款小红书笔记"
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    padding: '0 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #D1D5DB',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.border = '2px solid #7C3AED'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(124, 58, 237, 0.1)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.border = '1px solid #D1D5DB'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                />
+              </div>
+
+              {/* 备注 - 选填 */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: '#333',
+                  marginBottom: '8px'
+                }}>
+                  备注 <span style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: 400 }}>(选填)</span>
+                </label>
+                <textarea
+                  value={articleFormData.note}
+                  onChange={(e) => setArticleFormData({ ...articleFormData, note: e.target.value })}
+                  placeholder="添加一些备注信息"
+                  style={{
+                    width: '100%',
+                    minHeight: '100px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #D1D5DB',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical' as const,
+                    fontFamily: 'inherit',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.border = '2px solid #7C3AED'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(124, 58, 237, 0.1)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.border = '1px solid #D1D5DB'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 底部按钮 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              marginTop: '28px'
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowArticleModal(false)
+                  setArticleFormData({ url: '', title: '', note: '' })
+                  setArticleUrlError(false)
+                }}
+                style={{
+                  padding: '0 24px',
+                  height: '40px',
+                  borderRadius: '8px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F3F4F6'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white'
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleAddArticle}
+                style={{
+                  padding: '0 24px',
+                  height: '40px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#7C3AED',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#6D28D9'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#7C3AED'
                 }}
               >
                 添加

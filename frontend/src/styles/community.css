@@ -12,7 +12,7 @@
   --color-text-tertiary: #9ca3af;
 
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
+  --color-bg-secondary: #faf7ff;
   --color-bg-muted: #f3f4f6;
 
   --color-border: #e5e7eb;
@@ -315,6 +315,7 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 18px;
   margin-bottom: 16px;
+  background: #faf7ff;
 }
 
 .workflow-card {
@@ -327,6 +328,8 @@
   flex-direction: column;
   gap: 12px;
   transition: all 0.2s ease;
+  min-width: 0;
+  width: 100%;
 }
 
 .workflow-card:not(:has(.workflow-card__action-btn)) {
@@ -351,7 +354,7 @@
 .workflow-card__title {
   font-size: 16px;
   font-weight: var(--weight-bold);
-  color: var(--color-text-primary);
+  color: #374151;
   margin: 0;
   flex: 1;
   line-height: var(--line-tight);
@@ -362,15 +365,48 @@
 }
 
 .workflow-card__category {
-  background: rgba(102, 126, 234, 0.08);
-  color: #667eea;
-  padding: 4px 10px;
-  border-radius: 100px;
-  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: var(--weight-medium);
-  border: 1px solid rgba(102, 126, 234, 0.15);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* 分类颜色变体 */
+.workflow-card__category--purple {
+  background: #f0e6ff;
+  color: #7c3aed;
+}
+
+.workflow-card__category--orange {
+  background: #fff0e6;
+  color: #ea580c;
+}
+
+.workflow-card__category--blue {
+  background: #e6f0ff;
+  color: #2563eb;
+}
+
+.workflow-card__category--green {
+  background: #e6fff0;
+  color: #059669;
+}
+
+.workflow-card__category--pink {
+  background: #ffe6f0;
+  color: #db2777;
+}
+
+.workflow-card__category--gold {
+  background: #fff8e6;
+  color: #d97706;
+}
+
+.workflow-card__category--default {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 /* 元信息行 - 作者、评分、统计 */
@@ -393,20 +429,28 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #e5e7eb;
+  color: #6b7280;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-medium);
+  flex-shrink: 0;
+}
+
+.workflow-card__official-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7c3aed;
   flex-shrink: 0;
 }
 
 .workflow-card__author-name {
   font-size: 13px;
-  color: var(--color-text-secondary);
-  font-weight: var(--weight-medium);
+  color: var(--color-text-tertiary);
+  font-weight: var(--weight-regular);
 }
 
 .workflow-card__divider {
@@ -427,15 +471,32 @@
 
 /* 描述文本 */
 .workflow-card__description {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: var(--weight-regular);
-  color: var(--color-text-secondary);
-  line-height: var(--line-relaxed);
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 功能标签 */
+.workflow-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.workflow-card__tag {
+  background: #f5f5f5;
+  color: #6b7280;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: var(--weight-regular);
 }
 
 /* 卡片操作按钮 */
