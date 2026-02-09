@@ -26,7 +26,7 @@ export default function Layout() {
   };
 
   return (
-    <div style={{ height: '100vh', backgroundColor: '#faf7ff', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', background: 'linear-gradient(to bottom right, #f5f2ff 0%, #efe9ff 50%, #f5f2ff 100%)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <nav
         style={{
           background: 'linear-gradient(to bottom right, #f8f6ff 0%, #f3eeff 50%, #f8f6ff 100%)',
@@ -170,7 +170,7 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', background: '#faf7ff', scrollBehavior: 'smooth' }}>
+      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', background: 'transparent', scrollBehavior: 'smooth' }}>
         <Outlet />
       </main>
     </div>

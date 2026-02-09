@@ -54,7 +54,7 @@
   padding: 32px 0 64px;
   color: var(--color-text-primary);
   line-height: var(--line-relaxed);
-  background: #faf7ff;
+  background: linear-gradient(to bottom right, #f0ecff 0%, #e8e0ff 50%, #f0ecff 100%);
   min-height: 100vh;
 }
 
