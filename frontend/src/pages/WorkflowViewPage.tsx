@@ -211,53 +211,51 @@ export default function WorkflowViewPage() {
         {/* 标题区域 */}
         <div className="workflow-title-section">
           <div className="workflow-title-left">
-            <h1 className="workflow-title">{workflow.title || workflow.name}</h1>
+            <div className="workflow-title-row">
+              <h1 className="workflow-title">{workflow.title || workflow.name}</h1>
+              <div className="workflow-meta">
+                {workflow.category && (
+                  <span className="meta-tag">{workflow.category}</span>
+                )}
+                {workflow.difficultyLevel && (
+                  <span className={`meta-tag meta-tag--${workflow.difficultyLevel}`}>
+                    {workflow.difficultyLevel === 'beginner' ? '入门' :
+                     workflow.difficultyLevel === 'intermediate' ? '进阶' : '高级'}
+                  </span>
+                )}
+                <span className="meta-steps">{stepNodes.length} 个步骤</span>
+              </div>
+            </div>
             {workflow.description && (
               <p className="workflow-description">{workflow.description}</p>
             )}
-            <div className="workflow-meta">
-              {workflow.category && (
-                <span className="meta-tag">{workflow.category}</span>
-              )}
-              {workflow.difficultyLevel && (
-                <span className={`meta-tag meta-tag--${workflow.difficultyLevel}`}>
-                  {workflow.difficultyLevel === 'beginner' ? '入门' :
-                   workflow.difficultyLevel === 'intermediate' ? '进阶' : '高级'}
-                </span>
-              )}
-              <span className="meta-steps">{stepNodes.length} 个步骤</span>
-            </div>
           </div>
 
           <div className="workflow-title-right">
-            {/* 进度指示器 */}
-            <div className="progress-card">
-              <div className="progress-header">
-                <span className="progress-label">执行进度</span>
-                <span className="progress-value">{execution.progressPercentage}%</span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${execution.progressPercentage}%` }}
-                />
-              </div>
-              <div className="progress-footer">
-                {execution.isAllCompleted ? (
-                  <span className="progress-complete">
-                    <CheckCircle2 className="w-4 h-4" />
-                    已完成全部步骤
-                  </span>
-                ) : (
-                  <span className="progress-status">
-                    {execution.completedSteps.size}/{execution.totalSteps} 步已完成
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* 操作按钮 */}
+            {/* 操作按钮 + 内联进度 */}
             <div className="action-buttons">
+              {/* 内联进度指示器 */}
+              <div className="progress-card progress-card--inline">
+                <span className="progress-inline-text">
+                  {execution.isAllCompleted ? (
+                    <span className="progress-complete">
+                      <CheckCircle2 className="w-4 h-4" />
+                      已完成
+                    </span>
+                  ) : (
+                    <span className="progress-status">
+                      {execution.completedSteps.size}/{execution.totalSteps}
+                    </span>
+                  )}
+                </span>
+                <div className="progress-bar progress-bar--inline">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${execution.progressPercentage}%` }}
+                  />
+                </div>
+              </div>
+
               {!execution.isAllCompleted && execution.activeStepId && (
                 <button
                   className="btn-primary"

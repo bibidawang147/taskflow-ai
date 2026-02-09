@@ -215,8 +215,10 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
         </div>
 
         <div className="step-card-title-section">
-          <div className="step-card-number">步骤 {stepIndex}</div>
-          <h3 className="step-card-title">{(step as any).data?.label || step.label}</h3>
+          <div className="step-card-title-row">
+            <span className="step-card-number">步骤 {stepIndex}</span>
+            <h3 className="step-card-title">{(step as any).data?.label || step.label}</h3>
+          </div>
           {detail?.stepDescription && (
             <p className="step-card-description">{detail.stepDescription}</p>
           )}
