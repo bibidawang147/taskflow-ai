@@ -41,15 +41,12 @@
   border-radius: 0;
   padding: var(--spacing-lg);
   border: 1px solid var(--border-default);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
   transition: all var(--transition-base);
   cursor: pointer;
 }
 
 .workflow-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
 }
 
 .workflow-card-title {

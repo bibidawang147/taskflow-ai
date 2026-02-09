@@ -1221,9 +1221,9 @@
 .expected-result-textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid rgba(139, 92, 246, 0.2);
   border-radius: 8px;
-  background: #F3F4F6;
+  background: rgba(139, 92, 246, 0.04);
   font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-primary);
@@ -1512,9 +1512,9 @@
   gap: 6px;
   padding: 16px;
   height: 56px;
-  border: 2px dashed #D8B4FE;
+  border: 0.5px dashed rgba(139, 92, 246, 0.3);
   border-radius: 12px;
-  background: transparent;
+  background: rgba(139, 92, 246, 0.04);
   color: #7C3AED;
   font-size: 14px;
   font-weight: 500;

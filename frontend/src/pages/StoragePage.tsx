@@ -782,6 +782,7 @@ export default function StoragePage() {
   const [editingName, setEditingName] = useState('')
   const [favoriteWorkflows, setFavoriteWorkflows] = useState<Workflow[]>([])
   const [createdWorkflows, setCreatedWorkflows] = useState<Workflow[]>([])
+  const [localSavedWorkflows, setLocalSavedWorkflows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   // 创建空白画布的初始数据
   const createEmptyCanvasData = (): CanvasItemsMap => ({
@@ -4110,7 +4111,7 @@ export default function StoragePage() {
           display: 'flex',
           height: 'calc(100vh - 64px)',
           width: '100%',
-          backgroundColor: '#f5f3ff',
+          background: 'linear-gradient(to right, #edefff 0%, #f2f3ff 100%)',
           overflow: 'hidden',
           gap: 0,
           position: 'relative'
@@ -4528,7 +4529,7 @@ export default function StoragePage() {
             justifyContent: 'space-between',
             padding: '0 1rem',
             backgroundColor: '#ffffff',
-            minHeight: '48px'
+            minHeight: '55px'
           }}
         >
           {/* Tab 列表 */}
@@ -4574,7 +4575,8 @@ export default function StoragePage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginLeft: '6px',
-                alignSelf: 'center',
+                position: 'relative' as const,
+                top: '-12px',
                 transition: 'all 0.15s ease'
               }}
               onMouseEnter={(e) => {
@@ -4711,7 +4713,7 @@ export default function StoragePage() {
             flex: 1,
             position: 'relative',
             overflow: 'hidden',
-            background: '#f3e8ff',
+            background: 'linear-gradient(to right, #edefff 0%, #f2f3ff 100%)',
             touchAction: 'none',
             transform: 'translateZ(0)',
             minHeight: 0,
@@ -5007,7 +5009,7 @@ export default function StoragePage() {
               flexDirection: 'column',
               overflowY: 'auto',
               overflowX: 'hidden',
-              backgroundColor: '#faf7ff',
+              backgroundColor: '#edefff',
               touchAction: 'pan-y',
               WebkitOverflowScrolling: 'touch'
             }}

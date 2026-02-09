@@ -24,6 +24,7 @@ interface Workflow {
   isOfficial?: boolean
   highlight?: string
   sellingPoints?: string[]
+  tags?: string[]
 }
 
 // 分类标签
@@ -40,6 +41,19 @@ const getCategoryType = (category: string): string => {
     '副业专区': 'gold'
   }
   return map[category] || 'default'
+}
+
+// 根据分类生成优势标签
+const getAdvantageTags = (category: string): string[] => {
+  const map: Record<string, string[]> = {
+    '内容创作': ['新手友好', '爆款公式', '高转化'],
+    '视频制作': ['省时80%', '热门模板', '零门槛'],
+    '效率工具': ['省时80%', '新手友好', '即开即用'],
+    '数据分析': ['零门槛', '高效率', '可视化'],
+    '图文设计': ['热门模板', '新手友好', '高转化'],
+    '副业专区': ['零门槛', '高转化', '爆款公式']
+  }
+  return map[category] || ['新手友好', '热门模板']
 }
 
 export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
@@ -171,14 +185,26 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
                     {/* 第三行：描述文字 */}
                     <p className="workflow-card__description">{workflow.description}</p>
 
-                    {/* 第四行：功能标签 */}
+                    {/* 小字解释 */}
+                    {workflow.highlight && (
+                      <p className="workflow-card__highlight">{workflow.highlight}</p>
+                    )}
+
+                    {/* 底部标签区 */}
                     {workflow.sellingPoints && workflow.sellingPoints.length > 0 && (
-                      <div className="workflow-card__tags">
+                      <div className="workflow-card__bottom-tags">
                         {workflow.sellingPoints.map((tag, index) => (
-                          <span key={index} className="workflow-card__tag">{tag}</span>
+                          <span key={index} className="workflow-card__bottom-tag">{tag}</span>
                         ))}
                       </div>
                     )}
+
+                    {/* 优势标签 */}
+                    <div className="workflow-card__advantage-tags">
+                      {getAdvantageTags(workflow.category).map((tag, index) => (
+                        <span key={index} className="workflow-card__advantage-tag">{tag}</span>
+                      ))}
+                    </div>
                   </article>
                 ))}
               </div>
