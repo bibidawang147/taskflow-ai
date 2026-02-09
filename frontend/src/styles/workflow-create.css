@@ -1059,7 +1059,7 @@
 .step-card {
   position: relative;
   background: #fff;
-  border: 1px dashed #D8B4FE;
+  border: 0.5px solid rgba(139, 92, 246, 0.2);
   border-radius: 12px;
   padding: 32px;
   transition: all 0.2s ease;
@@ -1096,18 +1096,21 @@
 }
 
 /* 步骤编号圆标 */
-.step-number {
+.step-card .step-number {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: #7C3AED;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  background: rgba(139, 92, 246, 0.08);
+  color: #8b5cf6;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
   flex-shrink: 0;
+  letter-spacing: -0.02em;
+  margin-bottom: 0;
 }
 
 /* 步骤标题输入框 */
@@ -1236,6 +1239,12 @@
   border-color: #7C3AED;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
+}
+
+.step-description-textarea.drag-over {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.04);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.12);
 }
 
 .step-description-textarea::placeholder,
@@ -2209,93 +2218,112 @@
 .resource-cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 /* 新建资源卡片通用样式 */
 .new-resource-card {
   position: relative;
-  padding: 20px;
-  padding-left: 23px;
-  background: #fff;
+  padding: 12px 14px;
+  background: rgba(139, 92, 246, 0.03);
   border-radius: 8px;
-  border: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
 
 .new-resource-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #7C3AED;
-  border-radius: 8px 0 0 8px;
+  display: none;
 }
 
 .new-resource-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .new-resource-card-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 16px;
+  gap: 6px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: #8b5cf6;
 }
 
 .resource-icon {
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .confirm-resource-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: #10B981;
+  width: 24px;
+  height: 24px;
+  background: #8b5cf6;
   color: #fff;
   border: none;
-  border-radius: 50%;
-  font-size: 16px;
+  border-radius: 6px;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
   flex-shrink: 0;
 }
 
 .confirm-resource-btn:hover {
-  background: #059669;
-  transform: scale(1.05);
+  background: #7c3aed;
 }
 
 .confirm-resource-btn:disabled {
-  background: #D1D5DB;
+  background: #e5e7eb;
+  color: #9ca3af;
   cursor: not-allowed;
-  transform: none;
+}
+
+.resource-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.close-resource-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  color: #9ca3af;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.close-resource-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 /* 资源表单字段 */
 .resource-form-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .resource-form-input,
 .resource-form-textarea {
   width: 100%;
-  padding: 10px 12px;
-  background: #F9FAFB;
-  border: 1px solid #E5E7EB;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid rgba(139, 92, 246, 0.15);
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text-primary);
   font-family: inherit;
   transition: all 0.15s ease;
@@ -2304,34 +2332,36 @@
 .resource-form-input:focus,
 .resource-form-textarea:focus {
   outline: none;
-  border-color: #7C3AED;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.08);
   background: #fff;
 }
 
 .resource-form-input::placeholder,
 .resource-form-textarea::placeholder {
-  color: #9CA3AF;
+  color: #bbb;
+  font-size: 12px;
 }
 
 .resource-form-textarea {
   resize: vertical;
-  min-height: 120px;
+  min-height: 100px;
 }
 
 /* 文件上传区 */
 .file-upload-area {
   width: 100%;
-  height: 80px;
-  border: 2px dashed #D1D5DB;
+  height: 68px;
+  border: 1.5px dashed rgba(139, 92, 246, 0.25);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
-  background: #FAFAFA;
+  background: rgba(139, 92, 246, 0.02);
 }
 
 .file-upload-area:hover {
@@ -2340,13 +2370,13 @@
 }
 
 .file-upload-icon {
-  font-size: 24px;
-  color: #9CA3AF;
+  font-size: 18px;
+  color: #8b5cf6;
 }
 
 .file-upload-text {
-  font-size: 14px;
-  color: #6B7280;
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 /* 分隔线 */
@@ -2362,7 +2392,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: #E5E7EB;
+  background: rgba(139, 92, 246, 0.12);
 }
 
 .resource-divider-text {
@@ -2396,13 +2426,75 @@
 
 /* 已添加的资源项 */
 .added-resource-item {
-  padding: 10px 12px;
-  background: rgba(124, 58, 237, 0.05);
-  border: 1px solid rgba(124, 58, 237, 0.15);
-  border-radius: 6px;
+  display: none;
+}
+
+/* 已保存资源卡片行 */
+.saved-resources-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.saved-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 8px;
   font-size: 13px;
-  color: var(--color-text-primary);
-  line-height: 1.5;
+  transition: all 0.15s ease;
+  cursor: grab;
+}
+
+.saved-resource-chip:active {
+  cursor: grabbing;
+}
+
+.saved-resource-chip:hover {
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.saved-resource-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.saved-resource-name {
+  color: #374151;
+  font-weight: 500;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-resource-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.saved-resource-remove:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 /* ========== 工具/演示媒体/资源区域通用样式（旧版兼容） ========== */

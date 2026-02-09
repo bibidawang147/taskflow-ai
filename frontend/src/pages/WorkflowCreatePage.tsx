@@ -1449,6 +1449,96 @@ ${articleInput.trim()}
                     </div>
                   </div>
 
+                  {/* 已保存的资源卡片 */}
+                  {(step.tools.length > 0 || step.promptResources.length > 0 || step.demonstrationMedia.length > 0 || step.documentResources.length > 0) && (
+                    <div className="saved-resources-row">
+                      {step.tools.map((tool) => (
+                        <div key={tool.id} className="saved-resource-chip"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `[工具: ${tool.name}]`)
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                        >
+                          <span className="saved-resource-type">工具</span>
+                          <span className="saved-resource-name">{tool.name}</span>
+                          <button
+                            type="button"
+                            className="saved-resource-remove"
+                            onClick={() => {
+                              const newSteps = [...formData.steps]
+                              newSteps[index].tools = newSteps[index].tools.filter(t => t.id !== tool.id)
+                              setFormData({ ...formData, steps: newSteps })
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                      {step.promptResources.map((prompt) => (
+                        <div key={prompt.id} className="saved-resource-chip"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `[提示词: ${prompt.title}]`)
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                        >
+                          <span className="saved-resource-type">提示词</span>
+                          <span className="saved-resource-name">{prompt.title}</span>
+                          <button
+                            type="button"
+                            className="saved-resource-remove"
+                            onClick={() => {
+                              const newSteps = [...formData.steps]
+                              newSteps[index].promptResources = newSteps[index].promptResources.filter(p => p.id !== prompt.id)
+                              setFormData({ ...formData, steps: newSteps })
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                      {step.demonstrationMedia.map((media) => (
+                        <div key={media.id} className="saved-resource-chip"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `[${media.type === 'image' ? '图片' : '视频'}: ${media.caption || media.url}]`)
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                        >
+                          <span className="saved-resource-type">{media.type === 'image' ? '图片' : '视频'}</span>
+                          <span className="saved-resource-name">{media.caption || media.url}</span>
+                          <button
+                            type="button"
+                            className="saved-resource-remove"
+                            onClick={() => {
+                              const newSteps = [...formData.steps]
+                              newSteps[index].demonstrationMedia = newSteps[index].demonstrationMedia.filter(m => m.id !== media.id)
+                              setFormData({ ...formData, steps: newSteps })
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                      {step.documentResources.map((doc) => (
+                        <div key={doc.id} className="saved-resource-chip"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', `[文档: ${doc.name}]`)
+                            e.dataTransfer.effectAllowed = 'copy'
+                          }}
+                        >
+                          <span className="saved-resource-type">文档</span>
+                          <span className="saved-resource-name">{doc.name}</span>
+                          <button
+                            type="button"
+                            className="saved-resource-remove"
+                            onClick={() => {
+                              const newSteps = [...formData.steps]
+                              newSteps[index].documentResources = newSteps[index].documentResources.filter(d => d.id !== doc.id)
+                              setFormData({ ...formData, steps: newSteps })
+                            }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* 资源卡片容器 */}
                   <div className="resource-cards">
                     {/* 新建工具卡片 */}
@@ -1456,17 +1546,25 @@ ${articleInput.trim()}
                       <div className="new-resource-card">
                         <div className="new-resource-card-header">
                           <div className="new-resource-card-title">
-                            <span className="resource-icon">🔧</span>
                             <span>新建工具</span>
                           </div>
-                          <button
-                            type="button"
-                            className="confirm-resource-btn"
-                            onClick={() => confirmAddResource(index, step.id, 'tool')}
-                            disabled={!newResourceData[`${step.id}_tool`]?.name?.trim()}
-                          >
-                            ✓
-                          </button>
+                          <div className="resource-header-actions">
+                            <button
+                              type="button"
+                              className="confirm-resource-btn"
+                              onClick={() => confirmAddResource(index, step.id, 'tool')}
+                              disabled={!newResourceData[`${step.id}_tool`]?.name?.trim()}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className="close-resource-btn"
+                              onClick={() => toggleResourceCard(step.id, 'tool')}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="resource-form-fields">
                           <input
@@ -1499,17 +1597,25 @@ ${articleInput.trim()}
                       <div className="new-resource-card">
                         <div className="new-resource-card-header">
                           <div className="new-resource-card-title">
-                            <span className="resource-icon">💬</span>
                             <span>新建提示词</span>
                           </div>
-                          <button
-                            type="button"
-                            className="confirm-resource-btn"
-                            onClick={() => confirmAddResource(index, step.id, 'prompt')}
-                            disabled={!newResourceData[`${step.id}_prompt`]?.title?.trim()}
-                          >
-                            ✓
-                          </button>
+                          <div className="resource-header-actions">
+                            <button
+                              type="button"
+                              className="confirm-resource-btn"
+                              onClick={() => confirmAddResource(index, step.id, 'prompt')}
+                              disabled={!newResourceData[`${step.id}_prompt`]?.title?.trim()}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className="close-resource-btn"
+                              onClick={() => toggleResourceCard(step.id, 'prompt')}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="resource-form-fields">
                           <input
@@ -1534,21 +1640,29 @@ ${articleInput.trim()}
                       <div className="new-resource-card">
                         <div className="new-resource-card-header">
                           <div className="new-resource-card-title">
-                            <span className="resource-icon">▶️</span>
                             <span>新建媒体</span>
                           </div>
-                          <button
-                            type="button"
-                            className="confirm-resource-btn"
-                            onClick={() => confirmAddResource(index, step.id, 'media')}
-                            disabled={!newResourceData[`${step.id}_media`]?.url?.trim()}
-                          >
-                            ✓
-                          </button>
+                          <div className="resource-header-actions">
+                            <button
+                              type="button"
+                              className="confirm-resource-btn"
+                              onClick={() => confirmAddResource(index, step.id, 'media')}
+                              disabled={!newResourceData[`${step.id}_media`]?.url?.trim()}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className="close-resource-btn"
+                              onClick={() => toggleResourceCard(step.id, 'media')}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="resource-form-fields">
                           <div className="file-upload-area">
-                            <span className="file-upload-icon">⬆</span>
+                            <span className="file-upload-icon">↑</span>
                             <span className="file-upload-text">点击上传图片或视频</span>
                           </div>
                           <div className="resource-divider">
@@ -1587,21 +1701,29 @@ ${articleInput.trim()}
                       <div className="new-resource-card">
                         <div className="new-resource-card-header">
                           <div className="new-resource-card-title">
-                            <span className="resource-icon">🔗</span>
                             <span>新建文档</span>
                           </div>
-                          <button
-                            type="button"
-                            className="confirm-resource-btn"
-                            onClick={() => confirmAddResource(index, step.id, 'document')}
-                            disabled={!newResourceData[`${step.id}_document`]?.name?.trim()}
-                          >
-                            ✓
-                          </button>
+                          <div className="resource-header-actions">
+                            <button
+                              type="button"
+                              className="confirm-resource-btn"
+                              onClick={() => confirmAddResource(index, step.id, 'document')}
+                              disabled={!newResourceData[`${step.id}_document`]?.name?.trim()}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className="close-resource-btn"
+                              onClick={() => toggleResourceCard(step.id, 'document')}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="resource-form-fields">
                           <div className="file-upload-area">
-                            <span className="file-upload-icon">📄</span>
+                            <span className="file-upload-icon">↑</span>
                             <span className="file-upload-text">点击上传文档 (PDF、Word、Excel、PPT等)</span>
                           </div>
                           <div className="resource-divider">
@@ -1633,28 +1755,6 @@ ${articleInput.trim()}
                     )}
 
                     {/* 已添加的资源列表展示 */}
-                    {step.tools.length > 0 && step.tools.map((tool) => (
-                      <div key={tool.id} className="added-resource-item">
-                        🔧 {tool.name}
-                        {tool.url && ` (${tool.url})`}
-                        {tool.description && ` - ${tool.description}`}
-                      </div>
-                    ))}
-                    {step.promptResources.length > 0 && step.promptResources.map((prompt) => (
-                      <div key={prompt.id} className="added-resource-item">
-                        💬 {prompt.title}
-                      </div>
-                    ))}
-                    {step.demonstrationMedia.length > 0 && step.demonstrationMedia.map((media) => (
-                      <div key={media.id} className="added-resource-item">
-                        ▶️ {media.type === 'image' ? '图片' : '视频'}: {media.url}
-                      </div>
-                    ))}
-                    {step.documentResources.length > 0 && step.documentResources.map((doc) => (
-                      <div key={doc.id} className="added-resource-item">
-                        🔗 {doc.name}
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -1674,6 +1774,26 @@ ${articleInput.trim()}
                     rows={3}
                     value={step.description}
                     onChange={(e) => handleUpdateStep(index, 'description', e.target.value)}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'copy'
+                      e.currentTarget.classList.add('drag-over')
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('drag-over')
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.classList.remove('drag-over')
+                      const resourceRef = e.dataTransfer.getData('text/plain')
+                      if (resourceRef && resourceRef.startsWith('[')) {
+                        const textarea = e.target as HTMLTextAreaElement
+                        const pos = textarea.selectionStart
+                        const before = step.description.slice(0, pos)
+                        const after = step.description.slice(pos)
+                        handleUpdateStep(index, 'description', before + resourceRef + after)
+                      }
+                    }}
                   />
                 </div>
 
