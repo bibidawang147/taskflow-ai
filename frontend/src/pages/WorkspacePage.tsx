@@ -3126,11 +3126,7 @@ export default function WorkspacePage() {
   const draftWorkflowCount = myWorkflows.filter(workflow => workflow.status === '草稿').length
   const pageBackgroundStyle = {
     minHeight: '100vh',
-    background: `
-      linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-      linear-gradient(to bottom, #e5e7eb 1px, transparent 1px),
-      #fafafa
-    `,
+    background: 'linear-gradient(to right, #edefff 0%, #f2f3ff 100%)',
     backgroundSize: '24px 24px',
     padding: '2rem 0',
     position: 'relative' as const
@@ -6885,139 +6881,201 @@ export default function WorkspacePage() {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '1rem'
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 320px))',
+              gap: '1.25rem'
             }}>
               {(workItems[activeWorkflow.moduleId] || []).map((item) => (
                 <div
                   key={item.id}
                   className="workspace-workflow-card"
                   style={{
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#FFFFFF',
+                    border: selectedWorkItem === String(item.id) ? '1px solid #7C3AED' : '1px solid #000000',
                     borderRadius: '12px',
-                    padding: '16px',
-                    transition: 'all 0.3s ease',
-                    cursor: 'pointer',
+                    padding: '20px',
+                    transition: 'all 0.2s ease',
+                    cursor: 'grab',
                     position: 'relative',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
+                    boxShadow: selectedWorkItem === String(item.id)
+                      ? '0 4px 16px rgba(124, 58, 237, 0.15)'
+                      : '0 2px 8px rgba(0, 0, 0, 0.08)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.3)'
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px rgba(0, 0, 0, 0.12)'
-                    e.currentTarget.style.transform = 'translateY(-2px)'
-                    const deleteBtn = e.currentTarget.querySelector('.delete-btn') as HTMLElement
-                    if (deleteBtn) deleteBtn.style.opacity = '1'
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.12)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb'
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08)'
-                    e.currentTarget.style.transform = 'translateY(0)'
-                    const deleteBtn = e.currentTarget.querySelector('.delete-btn') as HTMLElement
-                    if (deleteBtn) deleteBtn.style.opacity = '0'
+                    e.currentTarget.style.boxShadow = selectedWorkItem === String(item.id)
+                      ? '0 4px 16px rgba(124, 58, 237, 0.15)'
+                      : '0 2px 8px rgba(0, 0, 0, 0.08)'
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.style.cursor = 'grabbing'
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.cursor = 'grab'
                   }}
                   onClick={() => {
-                    navigate(`/workflow-intro/${item.id}`)
+                    setSelectedWorkItem(selectedWorkItem === String(item.id) ? null : String(item.id))
                   }}
                 >
-                  {/* 删除按钮 */}
-                  <button
-                    className="delete-btn"
-                    style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      width: '28px',
-                      height: '28px',
-                      border: 'none',
-                      borderRadius: '6px',
-                      backgroundColor: '#fee',
-                      color: '#dc2626',
-                      fontSize: '16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: 0,
-                      transition: 'all 0.2s',
-                      zIndex: 10
-                    }}
-                    onClick={(e) => deleteWorkflowFromList(item.id, e)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#dc2626'
-                      e.currentTarget.style.color = 'white'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#fee'
-                      e.currentTarget.style.color = '#dc2626'
-                    }}
-                    title="删除工作流"
-                  >
-                    ×
-                  </button>
-
+                  {/* 1. 标题行：标题 + 状态标签 + 关闭按钮 */}
                   <div style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '12px'
                   }}>
-                    {/* 标题 */}
+                    {/* 工作流标题 */}
                     <h4 style={{
+                      flex: 1,
                       margin: 0,
                       fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#1f2937',
-                      letterSpacing: '-0.01em',
+                      fontWeight: 700,
+                      color: '#111',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      paddingRight: '32px'
+                      lineHeight: 1.4
                     }}>
                       {item.name}
                     </h4>
 
-                    {/* 描述 */}
-                    <p style={{
-                      margin: 0,
-                      fontSize: '14px',
-                      color: '#6b7280',
-                      lineHeight: 1.6,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
+                    {/* 状态标签 */}
+                    <span style={{
+                      flexShrink: 0,
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      color: '#10B981',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      borderRadius: '999px',
+                      padding: '2px 10px',
+                      lineHeight: '18px',
+                      whiteSpace: 'nowrap'
                     }}>
-                      {item.description}
-                    </p>
+                      运行中
+                    </span>
 
-                    {/* 底部标签 */}
+                    {/* × 关闭按钮 */}
+                    <button
+                      style={{
+                        flexShrink: 0,
+                        width: '20px',
+                        height: '20px',
+                        border: 'none',
+                        background: 'none',
+                        color: '#9CA3AF',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        lineHeight: 1,
+                        borderRadius: '4px',
+                        transition: 'color 0.15s ease'
+                      }}
+                      onClick={(e) => deleteWorkflowFromList(String(item.id), e)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#374151'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#9CA3AF'
+                      }}
+                      title="移除卡片"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* 2. 描述文字 */}
+                  <p style={{
+                    margin: '0 0 16px 0',
+                    fontSize: '13px',
+                    color: '#6B7280',
+                    lineHeight: 1.55,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical' as const,
+                    overflow: 'hidden'
+                  }}>
+                    {item.description}
+                  </p>
+
+                  {/* 3. 标签区 + 执行按钮（底部，flex 两端对齐） */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px'
+                  }}>
+                    {/* 左侧标签 */}
                     <div style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
                       gap: '8px',
-                      paddingTop: '8px',
-                      borderTop: '1px solid #f3f4f6'
+                      flexWrap: 'wrap',
+                      flex: 1,
+                      minWidth: 0
                     }}>
-                      <div style={{
-                        padding: '4px 12px',
-                        backgroundColor: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color + '15' || 'rgba(102, 126, 234, 0.1)',
-                        borderRadius: '100px',
+                      <span style={{
+                        display: 'inline-block',
+                        background: '#F3E8FF',
+                        color: '#7C3AED',
                         fontSize: '12px',
                         fontWeight: 500,
-                        color: moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color || '#667eea',
-                        border: '1px solid ' + (moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.color + '30' || 'rgba(102, 126, 234, 0.2)')
+                        border: '1px solid #D8B4FE',
+                        borderRadius: '6px',
+                        padding: '4px 12px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.name || '小红书'}
+                      </span>
+                      <span style={{
+                        display: 'inline-block',
+                        background: '#F3E8FF',
+                        color: '#7C3AED',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        border: '1px solid #D8B4FE',
+                        borderRadius: '6px',
+                        padding: '4px 12px',
+                        whiteSpace: 'nowrap'
                       }}>
                         {item.difficulty}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#9ca3af',
-                        fontWeight: 500
-                      }}>
-                        点击编辑 →
-                      </div>
+                      </span>
                     </div>
+
+                    {/* 右侧执行按钮 */}
+                    <button
+                      style={{
+                        flexShrink: 0,
+                        background: '#7C3AED',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '999px',
+                        height: '36px',
+                        padding: '0 20px',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'background 0.15s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/workflow-intro/${item.id}`)
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#6D28D9'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#7C3AED'
+                      }}
+                    >
+                      执行 ▶
+                    </button>
                   </div>
                 </div>
               ))}

@@ -13,11 +13,12 @@
 .workspace-tabs-bar {
   flex-shrink: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   padding: 0 1rem;
   background: #ffffff;
-  min-height: 48px;
+  min-height: 50px;
+  overflow: visible;
 }
 
 .workspace-tabs-list {
@@ -36,7 +37,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: calc(0.5rem + 5px) 0.75rem calc(0.5rem + 5px);
+  margin-top: -10px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px 8px 0 0;
@@ -45,21 +47,19 @@
   color: #6b7280;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   position: relative;
 }
 
 .workspace-tab:hover {
-  background: #f3f0ff;
+  background: #edefff;
   color: #8b5cf6;
 }
 
 .workspace-tab--active {
-  background: #f3e8ff;
+  background: #edefff;
   color: #8b5cf6;
   border: none;
-  margin-bottom: -4px;
-  padding-bottom: calc(0.5rem + 3px);
   z-index: 1;
   font-weight: 700;
 }
@@ -133,7 +133,7 @@
   flex-direction: column;
   height: 100%;
   max-height: 100%;
-  background: #faf7ff;
+  background: #edefff;
   overflow: hidden;
   touch-action: auto; /* 允许所有触摸操作 */
   position: relative;
@@ -162,7 +162,7 @@
   justify-content: space-between;
   gap: 1.5rem;
   padding: 1rem 1.5rem;
-  background: linear-gradient(to bottom, #ffffff, #faf7ff);
+  background: linear-gradient(to bottom, #ffffff, #edefff);
   border-bottom: 1px solid #e9e3f5;
 }
 
@@ -261,7 +261,7 @@
 .btn-icon:hover {
   border-color: #8b5cf6;
   color: #8b5cf6;
-  background: #f3f0ff;
+  background: #edefff;
 }
 
 .btn-outline {
@@ -282,7 +282,7 @@
 .btn-outline:hover {
   border-color: #8b5cf6;
   color: #8b5cf6;
-  background: #f3f0ff;
+  background: #edefff;
 }
 
 .completion-badge {
@@ -339,7 +339,7 @@
 }
 
 .shortcuts-card {
-  background: #f3f0ff;
+  background: #edefff;
   border-color: transparent;
 }
 

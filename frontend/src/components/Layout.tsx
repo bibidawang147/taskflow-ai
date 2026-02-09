@@ -54,16 +54,14 @@ export default function Layout() {
   ];
 
   return (
-    <div style={{ height: '100vh', background: 'linear-gradient(to bottom right, #f5f2ff 0%, #efe9ff 50%, #f5f2ff 100%)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <nav
         style={{
-          background: 'linear-gradient(to bottom right, #f8f6ff 0%, #f3eeff 50%, #f8f6ff 100%)',
+          background: 'linear-gradient(to right, #edefff 0%, #f2f3ff 100%)',
           borderBottom: 'none',
           padding: '0',
           position: 'relative',
           zIndex: 1000,
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
           boxShadow: 'none',
           flexShrink: 0
         }}
@@ -282,7 +280,17 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', background: 'transparent', scrollBehavior: 'smooth' }}>
+      <main style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        background: location.pathname === '/explore'
+          ? 'linear-gradient(to right, #f0edff 0%, #eae5fc 100%)'
+          : 'transparent',
+        scrollBehavior: 'smooth'
+      }}>
         <Outlet />
       </main>
     </div>

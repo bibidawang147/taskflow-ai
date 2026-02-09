@@ -1289,7 +1289,6 @@ ${articleInput.trim()}
                       }
                       return (
                         <span key={scenarioId} className="selected-scenario-tag">
-                          <span className="selected-scenario-icon">📝</span>
                           <span className="selected-scenario-name">{label}</span>
                           <button
                             type="button"
@@ -1311,9 +1310,9 @@ ${articleInput.trim()}
         {/* 前置准备区域 */}
         <div className="info-card preparations-card">
           <div className="card-header-with-action">
-            <div>
+            <div className="card-title-row">
               <h2 className="card-title">前置准备</h2>
-              <p className="card-subtitle-hint">在开始工作流之前，用户需要准备什么？</p>
+              <span className="card-subtitle-hint-inline">在开始工作流之前，用户需要准备什么？</span>
             </div>
             <button className="add-btn-small" onClick={handleAddPreparation}>
               + 添加准备项
@@ -1368,7 +1367,7 @@ ${articleInput.trim()}
         {/* 操作步骤区域 */}
         <div className="steps-section">
           <div className="steps-header">
-            <h2 className="section-title">操作步骤</h2>
+            <h2 className="card-title" style={{ margin: 0 }}>操作步骤</h2>
             <button className="add-step-btn" onClick={handleAddStep}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -1688,159 +1687,6 @@ ${articleInput.trim()}
                     value={step.expectedResult}
                     onChange={(e) => handleUpdateStep(index, 'expectedResult', e.target.value)}
                   />
-                </div>
-
-                {/* 步骤高级设置（可收缩） */}
-                <div className="step-advanced-settings">
-                  <button
-                    type="button"
-                    className="step-advanced-toggle"
-                    onClick={() => toggleStepAdvanced(step.id)}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      style={{ transform: expandedAdvanced.has(step.id) ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
-                    >
-                      <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                    <span>高级设置</span>
-                    {(step.associatedSolutions.length > 0 || step.associatedThemes.length > 0) && (
-                      <span className="step-advanced-badge">
-                        {step.associatedSolutions.length + step.associatedThemes.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {expandedAdvanced.has(step.id) && (
-                    <div className="step-advanced-content">
-                      {/* 关联到工作包 */}
-                      <div className="form-field">
-                        <label className="field-label">关联到工作包</label>
-                        <div className="multi-select-dropdown">
-                          <div
-                            className="multi-select-trigger"
-                            onClick={() => setOpenDropdown(openDropdown === `${step.id}_solution` ? null : `${step.id}_solution`)}
-                          >
-                            <span className="selected-text">
-                              {step.associatedSolutions.length === 0
-                                ? '选择工作包...'
-                                : `已选择 ${step.associatedSolutions.length} 个`}
-                            </span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                              style={{ transform: openDropdown === `${step.id}_solution` ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                              <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                          </div>
-                          {openDropdown === `${step.id}_solution` && (
-                            <div className="multi-select-options">
-                              {popularWorkPackages.map((pkg) => (
-                                <label key={pkg.id} className="multi-select-option">
-                                  <input
-                                    type="checkbox"
-                                    checked={step.associatedSolutions.includes(pkg.id)}
-                                    onChange={(e) => {
-                                      const newSolutions = e.target.checked
-                                        ? [...step.associatedSolutions, pkg.id]
-                                        : step.associatedSolutions.filter(id => id !== pkg.id)
-                                      handleUpdateStep(index, 'associatedSolutions', newSolutions)
-                                    }}
-                                  />
-                                  <span className="option-icon">{pkg.icon}</span>
-                                  <span className="option-name">{pkg.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {step.associatedSolutions.length > 0 && (
-                          <div className="selected-tags">
-                            {step.associatedSolutions.map(id => {
-                              const pkg = popularWorkPackages.find(p => p.id === id)
-                              return pkg ? (
-                                <span key={id} className="selected-tag selected-tag-sm">
-                                  <span className="tag-icon">{pkg.icon}</span>
-                                  <span className="tag-text">{pkg.name}</span>
-                                  <button
-                                    type="button"
-                                    className="tag-remove-btn"
-                                    onClick={() => handleUpdateStep(index, 'associatedSolutions', step.associatedSolutions.filter(sid => sid !== id))}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              ) : null
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 关联到主题 */}
-                      <div className="form-field">
-                        <label className="field-label">关联到主题</label>
-                        <div className="multi-select-dropdown">
-                          <div
-                            className="multi-select-trigger"
-                            onClick={() => setOpenDropdown(openDropdown === `${step.id}_theme` ? null : `${step.id}_theme`)}
-                          >
-                            <span className="selected-text">
-                              {step.associatedThemes.length === 0
-                                ? '选择主题...'
-                                : `已选择 ${step.associatedThemes.length} 个`}
-                            </span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                              style={{ transform: openDropdown === `${step.id}_theme` ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                              <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                          </div>
-                          {openDropdown === `${step.id}_theme` && (
-                            <div className="multi-select-options">
-                              {exploreThemes.map((theme) => (
-                                <label key={theme.id} className="multi-select-option">
-                                  <input
-                                    type="checkbox"
-                                    checked={step.associatedThemes.includes(theme.id)}
-                                    onChange={(e) => {
-                                      const newThemes = e.target.checked
-                                        ? [...step.associatedThemes, theme.id]
-                                        : step.associatedThemes.filter(id => id !== theme.id)
-                                      handleUpdateStep(index, 'associatedThemes', newThemes)
-                                    }}
-                                  />
-                                  <span className="option-icon">{theme.icon}</span>
-                                  <span className="option-name">{theme.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {step.associatedThemes.length > 0 && (
-                          <div className="selected-tags">
-                            {step.associatedThemes.map(id => {
-                              const theme = exploreThemes.find(t => t.id === id)
-                              return theme ? (
-                                <span key={id} className="selected-tag selected-tag-sm">
-                                  <span className="tag-icon">{theme.icon}</span>
-                                  <span className="tag-text">{theme.name}</span>
-                                  <button
-                                    type="button"
-                                    className="tag-remove-btn"
-                                    onClick={() => handleUpdateStep(index, 'associatedThemes', step.associatedThemes.filter(tid => tid !== id))}
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              ) : null
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
               </div>
