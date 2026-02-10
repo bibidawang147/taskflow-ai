@@ -42,12 +42,14 @@
   border-radius: 0;
   padding: var(--spacing-lg);
   border: 0.5px solid #d1d5db !important;
-  box-shadow: none;
+  box-shadow: 4px 4px 0px rgba(159, 122, 234, 0.15);
   transition: all var(--transition-base);
   cursor: pointer;
 }
 
 .workflow-card:hover {
+  box-shadow: 6px 6px 0px rgba(159, 122, 234, 0.25);
+  transform: translate(-1px, -1px);
 }
 
 .workflow-card-title {
