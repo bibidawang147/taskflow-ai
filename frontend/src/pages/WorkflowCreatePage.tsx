@@ -187,7 +187,12 @@ const SCENARIO_CATEGORIES = [
   },
 ]
 
-export default function WorkflowCreatePage() {
+interface WorkflowCreatePageProps {
+  onTitleChange?: (title: string) => void
+  externalTitle?: string
+}
+
+export default function WorkflowCreatePage({ onTitleChange, externalTitle }: WorkflowCreatePageProps = {}) {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
@@ -368,6 +373,13 @@ export default function WorkflowCreatePage() {
       return rest
     })
   }
+
+  // 同步外部标题（tab双击编辑）到表单
+  useEffect(() => {
+    if (externalTitle !== undefined && externalTitle !== formData.title && externalTitle !== '未命名工作流') {
+      setFormData(prev => ({ ...prev, title: externalTitle }))
+    }
+  }, [externalTitle])
 
   // 点击外部关闭下拉框
   useEffect(() => {
@@ -1117,7 +1129,11 @@ ${articleInput.trim()}
               className={`title-input ${errors.title ? 'error' : ''}`}
               placeholder="输入工作流标题，例如：AI辅助创作小红书爆款种草文案"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) => {
+                const newTitle = e.target.value
+                setFormData({ ...formData, title: newTitle })
+                onTitleChange?.(newTitle || '未命名工作流')
+              }}
             />
             <div className="article-convert-wrapper">
               <button

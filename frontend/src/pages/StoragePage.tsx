@@ -896,10 +896,13 @@ export default function StoragePage() {
 
   // 当前画布的数据（兼容旧代码）
   const canvasItems = canvasDataByTabId[activeTabId] || createEmptyCanvasData()
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
   const setCanvasItems = (updater: CanvasItemsMap | ((prev: CanvasItemsMap) => CanvasItemsMap)) => {
+    const tabId = activeTabIdRef.current
     setCanvasDataByTabId(prev => ({
       ...prev,
-      [activeTabId]: typeof updater === 'function' ? updater(prev[activeTabId] || createEmptyCanvasData()) : updater
+      [tabId]: typeof updater === 'function' ? updater(prev[tabId] || createEmptyCanvasData()) : updater
     }))
   }
 
@@ -5939,7 +5942,12 @@ export default function StoragePage() {
               WebkitOverflowScrolling: 'touch'
             }}
           >
-            <WorkflowCreatePage />
+            <WorkflowCreatePage
+              onTitleChange={(title) => {
+                setWorkspaceTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title } : t))
+              }}
+              externalTitle={tab.title !== '未命名工作流' ? tab.title : undefined}
+            />
           </div>
         ))}
       </div>
