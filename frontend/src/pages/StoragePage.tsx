@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff, Search } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
 import '../styles/workspace-tabs.css'
 import {
@@ -801,6 +801,8 @@ export default function StoragePage() {
   const [librarySearch, setLibrarySearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
   const [sidebarPinned, setSidebarPinned] = useState(false) // 侧边栏是否固定
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('') // 工作方法库搜索
+  const [showLibrarySearch, setShowLibrarySearch] = useState(false) // 是否显示搜索框
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
 
   // 渐进式执行模态框（改为分屏模式）
@@ -884,6 +886,8 @@ export default function StoragePage() {
     { id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }
   ])
   const [activeTabId, setActiveTabId] = useState(CANVAS_TAB_ID)
+  const [editingTabId, setEditingTabId] = useState<string | null>(null)
+  const [editingTabTitle, setEditingTabTitle] = useState('')
 
   // 每个画布 Tab 的数据存储
   const [canvasDataByTabId, setCanvasDataByTabId] = useState<Record<string, CanvasItemsMap>>({
@@ -4745,42 +4749,174 @@ export default function StoragePage() {
           }}
         >
           {!sidebarCollapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI工作方法库</h2>
-              <button
-                onClick={() => {
-                  if (sidebarPinned) {
-                    setSidebarPinned(false)
-                  } else {
-                    setSidebarPinned(true)
-                  }
-                }}
-                title={sidebarPinned ? '取消固定' : '固定侧边栏'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  backgroundColor: sidebarPinned ? '#f3f0ff' : 'transparent',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  flexShrink: 0
-                }}
-                onMouseEnter={(e) => {
-                  if (!sidebarPinned) e.currentTarget.style.backgroundColor = '#f3f4f6'
-                }}
-                onMouseLeave={(e) => {
-                  if (!sidebarPinned) e.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                {sidebarPinned
-                  ? <Pin size={14} color="#8b5cf6" />
-                  : <PinOff size={14} color="#9ca3af" />
-                }
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI工作方法库</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <button
+                    onClick={() => {
+                      setShowLibrarySearch(!showLibrarySearch)
+                      if (showLibrarySearch) setLibrarySearchQuery('')
+                    }}
+                    title="搜索工作方法"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: showLibrarySearch ? '#f3f0ff' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!showLibrarySearch) e.currentTarget.style.backgroundColor = '#f3f4f6'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!showLibrarySearch) e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    <Search size={14} color={showLibrarySearch ? '#8b5cf6' : '#9ca3af'} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSidebarPinned(!sidebarPinned)
+                    }}
+                    title={sidebarPinned ? '取消固定' : '固定侧边栏'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: sidebarPinned ? '#f3f0ff' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!sidebarPinned) e.currentTarget.style.backgroundColor = '#f3f4f6'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!sidebarPinned) e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    {sidebarPinned
+                      ? <Pin size={14} color="#8b5cf6" />
+                      : <PinOff size={14} color="#9ca3af" />
+                    }
+                  </button>
+                </div>
+              </div>
+              {showLibrarySearch && (
+                <div>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={13} color="#9ca3af" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      autoFocus
+                      value={librarySearchQuery}
+                      onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                      placeholder="搜索工作方法..."
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px 6px 28px',
+                        fontSize: '13px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        color: '#374151',
+                        boxSizing: 'border-box',
+                        transition: 'border-color 0.2s'
+                      }}
+                      onFocus={(e) => { e.currentTarget.style.borderColor = '#8b5cf6' }}
+                      onBlur={(e) => { e.currentTarget.style.borderColor = '#e5e7eb' }}
+                    />
+                    {librarySearchQuery && (
+                      <button
+                        onClick={() => setLibrarySearchQuery('')}
+                        style={{
+                          position: 'absolute',
+                          right: '6px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <X size={12} color="#9ca3af" />
+                      </button>
+                    )}
+                  </div>
+                  {librarySearchQuery.trim() && (() => {
+                    const query = librarySearchQuery.toLowerCase()
+                    const results = libraryData.filter((w: any) =>
+                      w.name?.toLowerCase().includes(query) ||
+                      w.summary?.toLowerCase().includes(query) ||
+                      w.category?.toLowerCase().includes(query) ||
+                      (Array.isArray(w.tags) && w.tags.some((t: string) => t.toLowerCase().includes(query)))
+                    )
+                    return (
+                      <div style={{
+                        marginTop: '4px',
+                        maxHeight: '240px',
+                        overflowY: 'auto',
+                        borderRadius: '6px',
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: '#fff'
+                      }}>
+                        {results.length > 0 ? results.map((w: any) => (
+                          <div
+                            key={w.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('workflow-library-id', w.id)
+                              e.dataTransfer.effectAllowed = 'copy'
+                              handleLibraryDragStart(w.id)
+                            }}
+                            onDragEnd={handleLibraryDragEnd}
+                            onClick={() => {
+                              openWorkflowTab(w.id, w.name)
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '13px',
+                              color: '#374151',
+                              cursor: 'grab',
+                              borderBottom: '1px solid #f3f4f6',
+                              transition: 'background-color 0.15s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f5f3ff' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                          >
+                            <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {w.name}
+                            </div>
+                            {w.category && (
+                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '1px' }}>
+                                {w.category}
+                              </div>
+                            )}
+                          </div>
+                        )) : (
+                          <div style={{ padding: '12px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>
+                            未找到匹配的工作方法
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -5056,6 +5192,7 @@ export default function StoragePage() {
               canvasItems={canvasItems}
               libraryData={libraryData}
               embedded={true}
+              externalSearchQuery={librarySearchQuery || undefined}
             />
           </div>
         </div>
@@ -5157,7 +5294,51 @@ export default function StoragePage() {
                     <Play className="w-4 h-4" />
                   )}
                 </span>
-                <span className="workspace-tab-title">{tab.title}</span>
+                {editingTabId === tab.id ? (
+                  <input
+                    className="workspace-tab-title"
+                    value={editingTabTitle}
+                    onChange={(e) => setEditingTabTitle(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = editingTabTitle.trim()
+                      if (trimmed) {
+                        setWorkspaceTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title: trimmed } : t))
+                      }
+                      setEditingTabId(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur()
+                      } else if (e.key === 'Escape') {
+                        setEditingTabId(null)
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '1.5px solid #8b5cf6',
+                      outline: 'none',
+                      font: 'inherit',
+                      color: 'inherit',
+                      padding: 0,
+                      minWidth: '3em',
+                      width: `${editingTabTitle.length + 1}em`
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span
+                    className="workspace-tab-title"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation()
+                      setEditingTabId(tab.id)
+                      setEditingTabTitle(tab.title)
+                    }}
+                  >
+                    {tab.title}
+                  </span>
+                )}
                 {tab.id !== CANVAS_TAB_ID && (
                   <button
                     className="workspace-tab-close"
@@ -5199,7 +5380,7 @@ export default function StoragePage() {
           </div>
 
           {/* 工作流操作按钮 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, alignSelf: 'stretch', paddingBottom: '8px', paddingTop: '8px' }}>
             {/* 创建AI工作方法按钮 */}
             <button
               onClick={() => openCreateTab()}
