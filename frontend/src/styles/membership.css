@@ -1,0 +1,527 @@
+/**
+ * 会员页面样式
+ * Membership Page Styles
+ */
+
+/* ========== 页面容器 ========== */
+.membership-page {
+  min-height: 100vh;
+  background: var(--bg-base);
+  padding: 48px 24px 80px;
+}
+
+.membership-container {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ========== 页面头部 ========== */
+.membership-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.membership-title {
+  font-size: 28px;
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin: 0 0 10px 0;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.membership-subtitle {
+  font-size: 15px;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ========== 当前等级徽章 ========== */
+.membership-current-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-semibold);
+  font-size: 13px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.membership-current-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ========== 卡片网格 ========== */
+.membership-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 48px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .membership-grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ========== 会员卡片 ========== */
+.membership-card {
+  position: relative;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+  transition: all var(--transition-slow);
+}
+
+.membership-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+
+.membership-card--popular {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), var(--shadow-lg);
+}
+
+.membership-card--popular:hover {
+  box-shadow: 0 0 0 1px var(--primary), var(--shadow-xl);
+}
+
+.membership-card--current {
+  border-color: var(--success);
+}
+
+/* ========== 热门/当前 标签 ========== */
+.membership-badge {
+  position: absolute;
+  top: 16px;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+
+.membership-badge--popular {
+  right: 16px;
+  background: var(--primary);
+  color: white;
+}
+
+.membership-badge--current {
+  left: 16px;
+  background: var(--success-light);
+  color: #059669;
+}
+
+/* ========== 卡片头部 ========== */
+.membership-card-header {
+  padding: 32px 24px 20px;
+  text-align: center;
+}
+
+.membership-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+}
+
+.membership-card-icon--free {
+  background: #F3F4F6;
+  color: var(--text-tertiary);
+}
+
+.membership-card-icon--pro {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.membership-card-icon--enterprise {
+  background: #F3E8FF;
+  color: #7C3AED;
+}
+
+.membership-card-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.membership-card-name {
+  font-size: 18px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.membership-card-period {
+  font-size: 13px;
+  color: var(--text-disabled);
+  margin: 0;
+}
+
+/* ========== 价格区域 ========== */
+.membership-price {
+  padding: 0 24px 24px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.membership-price-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+}
+
+.membership-price-currency {
+  font-size: 18px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.membership-price-number {
+  font-size: 40px;
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.membership-price-unit {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+
+.membership-price-free {
+  font-size: 28px;
+  font-weight: var(--weight-bold);
+  color: var(--text-tertiary);
+  line-height: 1;
+}
+
+/* ========== 功能列表 ========== */
+.membership-features {
+  padding: 24px;
+  list-style: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.membership-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.membership-feature-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--success);
+  margin-top: 1px;
+}
+
+/* ========== 操作按钮 ========== */
+.membership-card-action {
+  padding: 0 24px 24px;
+}
+
+.membership-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: none;
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.membership-btn--free {
+  background: var(--bg-hover);
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.membership-btn--upgrade {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px var(--primary-shadow);
+}
+
+.membership-btn--upgrade:hover:not(:disabled) {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.membership-btn--upgrade:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.membership-btn--enterprise {
+  background: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+}
+
+.membership-btn--enterprise:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+  transform: translateY(-1px);
+}
+
+.membership-btn--enterprise:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.membership-btn--current {
+  background: var(--bg-hover);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.membership-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ========== 功能对比表 ========== */
+.membership-compare {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+}
+
+.membership-compare-header {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.membership-compare-title {
+  font-size: 18px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.membership-compare-body {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.membership-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.membership-table thead th {
+  padding: 14px 20px;
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-panel);
+}
+
+.membership-table thead th:first-child {
+  text-align: left;
+}
+
+.membership-table thead th:not(:first-child) {
+  text-align: center;
+}
+
+.membership-table thead th.membership-th--pro {
+  color: var(--primary);
+}
+
+.membership-table thead th.membership-th--enterprise {
+  color: #7C3AED;
+}
+
+.membership-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: background var(--transition-fast);
+}
+
+.membership-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.membership-table tbody tr:hover {
+  background: var(--bg-panel);
+}
+
+.membership-table td {
+  padding: 14px 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.membership-table td:first-child {
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.membership-table td:not(:first-child) {
+  text-align: center;
+}
+
+.membership-table-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.membership-table-check svg {
+  width: 13px;
+  height: 13px;
+}
+
+.membership-table-dash {
+  color: var(--text-placeholder);
+  font-size: 16px;
+}
+
+.membership-table-value {
+  font-weight: var(--weight-medium);
+}
+
+.membership-table-value--pro {
+  color: var(--primary);
+}
+
+.membership-table-value--enterprise {
+  color: #7C3AED;
+}
+
+/* ========== 底部说明 ========== */
+.membership-footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-disabled);
+  line-height: 1.8;
+}
+
+/* ========== 微信二维码弹窗 ========== */
+.membership-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  animation: membership-fade-in 0.2s ease;
+}
+
+.membership-modal {
+  position: relative;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+  max-width: 340px;
+  width: 90%;
+  animation: membership-slide-up 0.25s ease;
+}
+
+.membership-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.membership-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.membership-modal-title {
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 20px 0;
+}
+
+.membership-modal-qrcode-wrapper {
+  display: block;
+  width: 200px;
+  height: 175px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.membership-modal-qrcode {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.membership-modal-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 16px 0 0 0;
+}
+
+@keyframes membership-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes membership-slide-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
