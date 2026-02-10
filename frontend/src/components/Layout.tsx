@@ -1,13 +1,44 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Settings, HelpCircle, Package, LogOut } from 'lucide-react';
+import { User, Settings, HelpCircle, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useState, useRef, useEffect } from 'react';
+
+const API_BASE = 'http://localhost:3000';
+
+interface SubscriptionInfo {
+  role: string;
+  roleExpiresAt: string | null;
+  daysRemaining: number;
+  activeSubscription: {
+    plan: string;
+    source: string;
+    startedAt: string;
+    expiresAt: string;
+  } | null;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  free: 'Free',
+  pro: 'Pro 会员',
+  creator: '创作者',
+  admin: '管理员'
+};
+
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  pro: { bg: '#FEF3C7', text: '#D97706' },
+  creator: { bg: '#F3E8FF', text: '#7C3AED' },
+  admin: { bg: '#DBEAFE', text: '#2563EB' }
+};
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = authService.isAuthenticated();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isActive = (path: string) => {
@@ -29,6 +60,63 @@ export default function Layout() {
     navigate('/login');
   };
 
+  // 获取会员状态
+  const fetchSubscription = async () => {
+    try {
+      const token = authService.getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/promo/subscription`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSubscription(await res.json());
+      }
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) fetchSubscription();
+  }, [isAuthenticated]);
+
+  const handleInviteSubmit = async () => {
+    if (!inviteCode.trim()) return;
+    setInviteLoading(true);
+    setInviteResult(null);
+    try {
+      const token = authService.getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // 1. 预校验
+      const checkRes = await fetch(`${API_BASE}/api/promo/check?code=${encodeURIComponent(inviteCode.trim())}`, { headers });
+      const checkData = await checkRes.json();
+      if (!checkRes.ok || !checkData.valid) {
+        setInviteResult({ type: 'error', msg: checkData.error || '兑换码无效' });
+        setInviteLoading(false);
+        return;
+      }
+
+      // 2. 兑换
+      const res = await fetch(`${API_BASE}/api/promo/redeem`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ code: inviteCode.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setInviteResult({ type: 'success', msg: data.message || '兑换成功' });
+        setInviteCode('');
+        fetchSubscription(); // 刷新会员状态
+      } else {
+        setInviteResult({ type: 'error', msg: data.error || '兑换失败' });
+      }
+    } catch {
+      setInviteResult({ type: 'error', msg: '网络错误，请重试' });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   // 点击外部关闭下拉菜单
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -47,8 +135,14 @@ export default function Layout() {
     setDropdownOpen(false);
   }, [location.pathname]);
 
+  const isAdmin = subscription?.role === 'admin';
+
   const menuItems = [
     { icon: Package, label: '会员中心', path: '/membership' },
+    ...(isAdmin ? [
+      { icon: ShieldCheck, label: '订单管理', path: '/admin/orders' },
+      { icon: CreditCard, label: '定价管理', path: '/admin/pricing' },
+    ] : []),
     { icon: Settings, label: '设置', path: '/settings' },
     { icon: HelpCircle, label: '帮助中心', path: '/help' },
   ];
@@ -172,10 +266,42 @@ export default function Layout() {
                       animation: 'dropdownFadeIn 0.15s ease',
                     }}
                   >
-                    {/* 用户信息区 */}
+                    {/* 用户信息区 + 会员标签 */}
                     <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB' }}>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#111' }}>用户</div>
-                      <div style={{ fontSize: '13px', color: '#9CA3AF', marginTop: '4px' }}>欢迎使用瓴积AI</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 700, color: '#111' }}>用户</span>
+                        {subscription && subscription.role !== 'free' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            backgroundColor: ROLE_COLORS[subscription.role]?.bg || '#F3F4F6',
+                            color: ROLE_COLORS[subscription.role]?.text || '#6B7280',
+                          }}>
+                            <Crown size={11} />
+                            {ROLE_LABELS[subscription.role] || subscription.role}
+                          </span>
+                        )}
+                      </div>
+                      {subscription && subscription.role !== 'free' && subscription.daysRemaining > 0 ? (
+                        <div style={{
+                          fontSize: '12px',
+                          color: subscription.daysRemaining <= 7 ? '#EF4444' : '#9CA3AF',
+                          marginTop: '4px',
+                          fontWeight: subscription.daysRemaining <= 7 ? 500 : 400,
+                        }}>
+                          {subscription.daysRemaining <= 7
+                            ? `会员即将到期，剩余 ${subscription.daysRemaining} 天`
+                            : `到期时间：${new Date(subscription.roleExpiresAt!).toLocaleDateString('zh-CN')}`
+                          }
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: '#9CA3AF', marginTop: '4px' }}>欢迎使用瓴积AI</div>
+                      )}
                     </div>
 
                     {/* 菜单项 */}
@@ -213,6 +339,64 @@ export default function Layout() {
                           <span>{item.label}</span>
                         </button>
                       ))}
+                    </div>
+
+                    {/* 填写邀请码 */}
+                    <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <Gift size={16} color="#8b5cf6" />
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>填写邀请码</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="text"
+                          value={inviteCode}
+                          onChange={(e) => { setInviteCode(e.target.value); setInviteResult(null); }}
+                          placeholder="请输入邀请码"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = '#8b5cf6')}
+                          onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleInviteSubmit(); }}
+                        />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleInviteSubmit(); }}
+                          disabled={inviteLoading || !inviteCode.trim()}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: inviteLoading || !inviteCode.trim() ? '#d1d5db' : '#8b5cf6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            cursor: inviteLoading || !inviteCode.trim() ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {inviteLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          兑换
+                        </button>
+                      </div>
+                      {inviteResult && (
+                        <div style={{
+                          fontSize: '12px',
+                          marginTop: '6px',
+                          color: inviteResult.type === 'success' ? '#059669' : '#dc2626',
+                        }}>
+                          {inviteResult.msg}
+                        </div>
+                      )}
                     </div>
 
                     {/* 退出登录 */}

@@ -648,6 +648,26 @@ async function main() {
     console.log(`✅ 模型定价创建完成: ${modelPricing.modelName}`)
   }
 
+  // 6. 创建定价配置
+  const pricingConfig = await prisma.pricingConfig.upsert({
+    where: { id: 'singleton' },
+    update: {},
+    create: {
+      id: 'singleton',
+      currentTier: 'early_bird',
+      earlyBirdPrice: 199,
+      growthPrice: 349,
+      standardPrice: 499,
+      earlyBirdLimit: 500,
+      earlyBirdSold: 0,
+      renewalDiscount: 0.7,
+      renewalWindowDays: 30,
+      growthStartAt: new Date('2026-09-01T00:00:00Z'),
+      standardStartAt: new Date('2027-03-01T00:00:00Z'),
+    }
+  })
+  console.log(`✅ 定价配置创建完成: ${pricingConfig.currentTier}`)
+
   console.log('🎉 种子数据创建完成!')
 }
 

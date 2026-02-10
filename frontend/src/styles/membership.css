@@ -430,6 +430,210 @@
   color: #7C3AED;
 }
 
+/* ========== 加载状态 ========== */
+.membership-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60vh;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.membership-loading-icon {
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ========== 阶段标签 ========== */
+.membership-tier-label {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  color: #d97706;
+  background: #fef3c7;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+}
+
+/* ========== 早鸟进度条 ========== */
+.membership-earlybird-bar {
+  max-width: 480px;
+  margin: 0 auto 32px;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid #fde68a;
+}
+
+.membership-earlybird-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.membership-earlybird-label {
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  color: #d97706;
+}
+
+.membership-earlybird-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.membership-earlybird-track {
+  height: 6px;
+  background: #fef3c7;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.membership-earlybird-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.membership-earlybird-hint {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #b45309;
+  text-align: center;
+}
+
+/* ========== 原价划线 & 续费提示 ========== */
+.membership-price-original {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-disabled);
+  text-decoration: line-through;
+}
+
+.membership-price-renewal {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #059669;
+  font-weight: var(--weight-medium);
+}
+
+/* ========== 优惠码输入 ========== */
+.membership-promo {
+  padding: 0 24px 16px;
+}
+
+.membership-promo-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 36px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  transition: border-color var(--transition-fast);
+}
+
+.membership-promo-input:focus-within {
+  border-color: var(--primary);
+}
+
+.membership-promo-input input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.membership-promo-input input::placeholder {
+  color: var(--text-placeholder);
+}
+
+/* ========== 购买错误提示 ========== */
+.membership-purchase-error {
+  padding: 0 24px 16px;
+  font-size: 12px;
+  color: var(--error);
+  text-align: center;
+}
+
+/* ========== 购买结果弹窗 ========== */
+.membership-modal--purchase {
+  max-width: 400px;
+}
+
+.membership-order-summary {
+  text-align: left;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.membership-order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.membership-order-row:last-child {
+  border-bottom: none;
+}
+
+.membership-order-row--total {
+  background: var(--bg-panel);
+}
+
+.membership-order-discount {
+  color: #059669;
+  font-weight: var(--weight-medium);
+}
+
+.membership-order-original {
+  text-decoration: line-through;
+  color: var(--text-disabled);
+}
+
+.membership-order-total {
+  font-size: 18px;
+  font-weight: var(--weight-bold);
+  color: var(--primary);
+}
+
+.membership-order-pay {
+  padding-top: 4px;
+}
+
+.membership-order-pay-title {
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
 /* ========== 底部说明 ========== */
 .membership-footer {
   margin-top: 32px;

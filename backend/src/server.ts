@@ -27,6 +27,9 @@ import navigationRoutes from './routes/navigation'
 import favoritesRoutes from './routes/favorites'
 import communityRoutes from './routes/community'
 import chatsRoutes from './routes/chats'
+import promoRoutes from './routes/promo'
+import adminPromoRoutes from './routes/adminPromo'
+import pricingRoutes from './routes/pricing'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticateToken } from './middleware/auth'
 import logger, { stream } from './utils/logger'
@@ -40,6 +43,7 @@ initializeTools()
 
 // 启动 BullMQ Worker
 import './workers/workflow.worker'
+import './workers/subscription.worker'
 logger.info('🚀 BullMQ Worker 已启动')
 
 const app = express()
@@ -126,6 +130,9 @@ app.use('/api/navigation', navigationRoutes)
 app.use('/api/favorites', favoritesRoutes)
 app.use('/api/community', communityRoutes) // 社群功能路由
 app.use('/api/chats', chatsRoutes) // AI对话会话管理
+app.use('/api/promo', promoRoutes) // 邀请码/优惠码
+app.use('/api/admin/promo', adminPromoRoutes) // 管理员-码管理
+app.use('/api/pricing', pricingRoutes) // 定价+购买+订单管理
 
 // 错误处理
 app.use(errorHandler)

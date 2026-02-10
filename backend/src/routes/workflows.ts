@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { AuthenticatedRequest, authenticateToken, optionalAuthenticateToken } from '../middleware/auth'
 import { Response } from 'express'
 import prisma from '../utils/database'
+import { requireRole } from '../middleware/requireRole'
+import { checkUsage } from '../middleware/checkUsage'
 import { WorkflowTemplateService } from '../services/workflowTemplateService'
 import { ArticleAnalysisService } from '../services/articleAnalysisService'
 import { MockArticleAnalysisService } from '../services/mockArticleAnalysisService'
@@ -487,7 +489,7 @@ router.delete('/:id/favorite', authenticateToken, async (req: AuthenticatedReque
 })
 
 // 克隆工作流到用户账户（需要认证）
-router.post('/:id/clone', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/clone', authenticateToken, requireRole('pro'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { createId } = require('@paralleldrive/cuid2')
     const userId = req.user!.id
@@ -639,7 +641,7 @@ router.post('/:id/clone', authenticateToken, async (req: AuthenticatedRequest, r
 })
 
 // 从文章URL或文本生成智能工作流（需要认证）
-router.post('/generate/from-article', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/generate/from-article', authenticateToken, checkUsage('ai_convert'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id
     const { url, content, title, autoSave = true } = req.body
@@ -775,7 +777,7 @@ router.post('/generate/from-article', authenticateToken, async (req: Authenticat
 })
 
 // 解析文章内容，返回工作流数据（用于前端预填充）
-router.post('/parse-article', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/parse-article', authenticateToken, checkUsage('ai_convert'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { type, content, url, images, videos } = req.body
 
@@ -1199,7 +1201,7 @@ router.post('/generate/from-article-mock', authenticateToken, async (req: Authen
 })
 
 // 🚀 统一的成果逆向生成工作流（支持图片、视频等）
-router.post('/generate/from-content', authenticateToken, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/generate/from-content', authenticateToken, checkUsage('ai_convert'), upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id
     const { contentType, url, text, autoSave = true } = req.body

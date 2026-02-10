@@ -49,8 +49,19 @@ model User {
   // 充值订单
   rechargeOrders RechargeOrder[]
 
-  // 用户等级
+  // 用户等级（旧字段，保留兼容）
   tier String @default("free") // free, pro, enterprise
+
+  // 会员角色（新邀请码/订阅系统使用）
+  role          String    @default("free") // "free" | "pro" | "creator" | "admin"
+  roleExpiresAt DateTime? // 会员到期时间，null 表示永久或免费用户
+
+  // 兑换记录
+  redemptions   PromoCodeRedemption[]
+  // 订阅记录
+  subscriptions Subscription[]
+  // 用量限制
+  usageLimits   UsageLimit[]
 
   // 工作台布局
   workspaceLayout WorkspaceLayout?
@@ -814,4 +825,146 @@ model ChatSession {
   @@index([userId])
   @@index([updatedAt])
   @@map("chat_sessions")
+}
+
+// ==================== 邀请码/优惠码系统 ====================
+
+// 邀请码/优惠码
+model PromoCode {
+  id              String    @id @default(cuid())
+  code            String    @unique // 码本身，如 "LJINVITE-A3K9X2MN"
+
+  // 码类型和效果
+  type            String    // "invite" | "discount" | "gift" | "annual"
+  plan            String    @default("pro") // 赠送什么等级："pro" | "creator"
+  durationDays    Int       // 赠送天数，如 30（1个月）、365（1年）
+  discountPercent Int?      // 折扣百分比（优惠码用），如 50 表示五折
+
+  // 使用限制
+  maxUses         Int?      // 最大使用次数，null 表示不限
+  usedCount       Int       @default(0) // 已使用次数
+
+  // 生效和过期
+  isActive        Boolean   @default(true) // 是否启用
+  startsAt        DateTime  @default(now()) // 码生效时间
+  expiresAt       DateTime? // 码过期时间，null 表示永不过期
+
+  // 元数据
+  description     String?   // 备注说明，如 "早鸟邀请活动"
+  createdBy       String?   // 创建者 userId
+  batchId         String?   // 批次ID，方便按批次管理
+
+  // 关联
+  redemptions     PromoCodeRedemption[]
+  subscriptions   Subscription[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([code])
+  @@index([type])
+  @@index([batchId])
+  @@index([isActive])
+  @@map("promo_codes")
+}
+
+// 兑换记录
+model PromoCodeRedemption {
+  id          String   @id @default(cuid())
+
+  codeId      String
+  code        PromoCode @relation(fields: [codeId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+
+  redeemedAt  DateTime  @default(now())
+
+  // 同一个码同一个用户只能兑换一次
+  @@unique([codeId, userId])
+  @@index([userId])
+  @@index([codeId])
+  @@map("promo_code_redemptions")
+}
+
+// 订阅记录
+model Subscription {
+  id            String    @id @default(cuid())
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+
+  plan          String    // "pro" | "creator"
+  status        String    @default("active") // "active" | "expired" | "cancelled"
+  source        String    // "invite_code" | "promo_code" | "purchase" | "gift" | "admin"
+
+  promoCodeId   String?
+  promoCode     PromoCode? @relation(fields: [promoCodeId], references: [id])
+
+  startedAt     DateTime
+  expiresAt     DateTime
+
+  amount        Float?    // 支付金额
+  paymentMethod String?   // 支付方式
+
+  // 定价相关字段
+  priceTier       String?   // "early_bird" | "growth" | "standard"
+  originalPrice   Float?    // 下单时在售价
+  paidAmount      Float?    // 实付金额
+  isRenewal       Boolean   @default(false)
+  renewalDiscount Float?    // 续费折扣率
+  paymentId       String?   // 支付凭证号
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([priceTier])
+  @@map("subscriptions")
+}
+
+// 功能用量限制
+model UsageLimit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  feature   String   // "ai_convert" | "publish" | "replicate"
+  usedCount Int      @default(0)
+  resetAt   DateTime // 下次重置时间（每月1号）
+
+  @@unique([userId, feature])
+  @@index([userId])
+  @@index([resetAt])
+  @@map("usage_limits")
+}
+
+// ==================== 定价配置（全局单例） ====================
+
+model PricingConfig {
+  id                String   @id @default("singleton")
+
+  currentTier       String   @default("early_bird") // "early_bird" | "growth" | "standard"
+
+  // 各阶段价格
+  earlyBirdPrice    Float    @default(199)
+  growthPrice       Float    @default(349)
+  standardPrice     Float    @default(499)
+
+  // 早鸟名额控制
+  earlyBirdLimit    Int      @default(500)
+  earlyBirdSold     Int      @default(0)
+
+  // 续费折扣
+  renewalDiscount   Float    @default(0.7)   // 七折续费
+  renewalWindowDays Int      @default(30)    // 到期前30天可续费
+
+  // 阶段切换时间点
+  growthStartAt     DateTime                 // 成长价开始时间
+  standardStartAt   DateTime                 // 原价开始时间
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("pricing_config")
 }

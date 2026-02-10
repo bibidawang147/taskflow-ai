@@ -31,6 +31,9 @@ import WorkflowCreatePage from './pages/WorkflowCreatePage'
 import ImportFromArticlePage from './pages/ImportFromArticlePage'
 import SolutionPage from './pages/SolutionPage'
 import WorkflowViewPage from './pages/WorkflowViewPage'
+import AdminPromoPage from './pages/AdminPromoPage'
+import AdminOrdersPage from './pages/AdminOrdersPage'
+import AdminPricingPage from './pages/AdminPricingPage'
 
 function App() {
   return (
@@ -42,7 +45,7 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>
-        <Route index element={<ExplorePage />} />
+        <Route index element={<StoragePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="home" element={<HomePage />} />
         <Route path="workspace" element={<StoragePage />} />
@@ -69,6 +72,9 @@ function App() {
         <Route path="community/posts" element={<CommunityPostsPage />} />
         <Route path="community/posts/new" element={<NewPostPage />} />
         <Route path="community/posts/:id" element={<PostDetailPage />} />
+        <Route path="admin/promo" element={<AdminPromoPage />} />
+        <Route path="admin/orders" element={<AdminOrdersPage />} />
+        <Route path="admin/pricing" element={<AdminPricingPage />} />
       </Route>
     </Routes>
   )
