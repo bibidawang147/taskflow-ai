@@ -5193,6 +5193,11 @@ export default function StoragePage() {
               onWorkflowDragStart={handleLibraryDragStart}
               onWorkflowDragEnd={handleLibraryDragEnd}
               canvasItems={canvasItems}
+              allCanvasData={workspaceTabs.filter(t => t.type === 'canvas').map(t => ({
+                tabId: t.id,
+                title: t.title,
+                items: canvasDataByTabId[t.id] || {}
+              }))}
               libraryData={libraryData}
               embedded={true}
               externalSearchQuery={librarySearchQuery || undefined}

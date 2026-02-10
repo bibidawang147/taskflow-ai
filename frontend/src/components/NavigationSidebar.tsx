@@ -64,6 +64,7 @@ interface NavigationSidebarProps {
   onWorkflowDragStart?: (workflowId: string) => void
   onWorkflowDragEnd?: () => void
   canvasItems?: CanvasItemsMap
+  allCanvasData?: { tabId: string; title: string; items: CanvasItemsMap }[]
   libraryData?: any[]
   embedded?: boolean // 是否嵌入到其他容器中使用（不显示外层容器样式）
   externalSearchQuery?: string // 外部传入的搜索词
@@ -244,6 +245,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   onWorkflowDragStart,
   onWorkflowDragEnd,
   canvasItems = {},
+  allCanvasData,
   libraryData = [],
   embedded = false,
   externalSearchQuery
@@ -885,28 +887,34 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     setDraggedTag(null)
   }
 
-  // 渲染画布结构
-  const renderCanvasStructure = () => {
+  // 渲染单个画布的内容
+  const renderSingleCanvasContent = (items: CanvasItemsMap) => {
     const ROOT_CONTAINER_ID = 'canvas-root'
-    const isCollapsed = collapsedSections.has('canvas-structure')
-
-    // 获取所有容器和工作流
-    const containers = Object.values(canvasItems).filter(
+    const containers = Object.values(items).filter(
       (item): item is ContainerCanvasItem => item.type === 'container' && item.id !== ROOT_CONTAINER_ID
     )
-    const workflows = Object.values(canvasItems).filter(
+    const workflows = Object.values(items).filter(
       (item): item is WorkflowCanvasItem => item.type === 'workflow'
     )
+    const rootContainers = containers.filter(c => c.parentId === ROOT_CONTAINER_ID)
+    const rootWorkflows = workflows.filter(w => w.parentId === ROOT_CONTAINER_ID)
 
-    // 渲染容器及其子项
-    const renderContainerItem = (container: ContainerCanvasItem, depth: number = 0) => {
+    if (rootContainers.length === 0 && rootWorkflows.length === 0) {
+      return (
+        <div style={{ padding: '0.5rem 1rem', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>
+          画布为空
+        </div>
+      )
+    }
+
+    // 渲染容器需要用到对应的 items
+    const renderContainerItemForCanvas = (container: ContainerCanvasItem, depth: number = 0) => {
       const containerWorkflows = workflows.filter(w => w.parentId === container.id)
       const childContainers = containers.filter(c => c.parentId === container.id)
       const isContainerCollapsed = collapsedSections.has(`canvas-container-${container.id}`)
 
       return (
         <div key={container.id} style={{ marginBottom: '0.25rem' }}>
-          {/* 容器标题 */}
           <div
             onClick={() => toggleSection(`canvas-container-${container.id}`)}
             style={{
@@ -925,12 +933,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between'
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#F5F5F7'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '14px' }}>📁</span>
@@ -949,38 +953,20 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               <ChevronRight size={14} />
             </span>
           </div>
-
-          {/* 容器内的工作流和子容器 */}
           {!isContainerCollapsed && (
             <div>
-              {/* 子容器 */}
-              {childContainers.map(childContainer => renderContainerItem(childContainer, depth + 1))}
-
-              {/* 工作流 */}
+              {childContainers.map(c => renderContainerItemForCanvas(c, depth + 1))}
               {containerWorkflows.map(workflow => {
                 const workflowData = libraryData.find(w => w.id === workflow.workflowId)
                 return (
-                  <div
-                    key={workflow.id}
-                    style={{
-                      paddingLeft: `${(depth + 1) * 16 + 16}px`,
-                      paddingRight: '16px',
-                      paddingTop: '6px',
-                      paddingBottom: '6px',
-                      fontSize: '13px',
-                      color: '#6b7280',
-                      borderRadius: '6px',
-                      transition: 'background-color 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F5F5F7'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
+                  <div key={workflow.id} style={{
+                    paddingLeft: `${(depth + 1) * 16 + 16}px`, paddingRight: '16px',
+                    paddingTop: '6px', paddingBottom: '6px', fontSize: '13px', color: '#6b7280',
+                    borderRadius: '6px', transition: 'background-color 0.2s ease',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                   >
                     <span style={{ fontSize: '12px' }}>📄</span>
                     <span>{workflowData?.name || '未命名工作流'}</span>
@@ -993,9 +979,37 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       )
     }
 
-    // 获取根容器下的顶层容器
-    const rootContainers = containers.filter(c => c.parentId === ROOT_CONTAINER_ID)
-    const rootWorkflows = workflows.filter(w => w.parentId === ROOT_CONTAINER_ID)
+    return (
+      <>
+        {rootContainers.map(container => renderContainerItemForCanvas(container, 0))}
+        {rootWorkflows.map(workflow => {
+          const workflowData = libraryData.find(w => w.id === workflow.workflowId)
+          return (
+            <div key={workflow.id} style={{
+              paddingLeft: '16px', paddingRight: '16px', paddingTop: '6px', paddingBottom: '6px',
+              fontSize: '13px', color: '#6b7280', borderRadius: '6px',
+              transition: 'background-color 0.2s ease', display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+            >
+              <span style={{ fontSize: '12px' }}>📄</span>
+              <span>{workflowData?.name || '未命名工作流'}</span>
+            </div>
+          )
+        })}
+      </>
+    )
+  }
+
+  // 渲染画布结构
+  const renderCanvasStructure = () => {
+    const isCollapsed = collapsedSections.has('canvas-structure')
+
+    // 确定要展示的画布数据
+    const canvasDataList = allCanvasData && allCanvasData.length > 0
+      ? allCanvasData
+      : [{ tabId: 'current', title: '当前画布', items: canvasItems }]
 
     return (
       <div style={{ marginBottom: '0.5rem' }}>
@@ -1049,50 +1063,55 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
         {!isCollapsed && (
           <div>
-            {rootContainers.length === 0 && rootWorkflows.length === 0 ? (
-              <div style={{
-                padding: '0.5rem 1rem',
-                fontSize: '12px',
-                color: '#9ca3af',
-                textAlign: 'center'
-              }}>
-                画布为空
-              </div>
-            ) : (
-              <>
-                {rootContainers.map(container => renderContainerItem(container, 0))}
-                {rootWorkflows.map(workflow => {
-                  const workflowData = libraryData.find(w => w.id === workflow.workflowId)
-                  return (
-                    <div
-                      key={workflow.id}
-                      style={{
-                        paddingLeft: '16px',
-                        paddingRight: '16px',
-                        paddingTop: '6px',
-                        paddingBottom: '6px',
-                        fontSize: '13px',
-                        color: '#6b7280',
-                        borderRadius: '6px',
-                        transition: 'background-color 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#F5F5F7'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }}
-                    >
-                      <span style={{ fontSize: '12px' }}>📄</span>
-                      <span>{workflowData?.name || '未命名工作流'}</span>
+            {canvasDataList.map(canvasData => {
+              const tabSectionId = `canvas-tab-${canvasData.tabId}`
+              const isTabCollapsed = collapsedSections.has(tabSectionId)
+
+              return (
+                <div key={canvasData.tabId} style={{ marginBottom: '2px' }}>
+                  {/* 每个画布Tab的标题 */}
+                  <div
+                    onClick={() => toggleSection(tabSectionId)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '5px 16px 5px 30px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#4B5563',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      borderRadius: '6px',
+                      transition: 'background-color 0.2s ease',
+                      marginBottom: '1px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '13px' }}>🎨</span>
+                      <span>{canvasData.title}</span>
                     </div>
-                  )
-                })}
-              </>
-            )}
+                    <span style={{
+                      color: '#8E8E93',
+                      transition: 'all 0.2s ease',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      transform: isTabCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
+                    }}>
+                      <ChevronRight size={14} />
+                    </span>
+                  </div>
+                  {/* 该画布的内容 */}
+                  {!isTabCollapsed && (
+                    <div style={{ paddingLeft: '8px' }}>
+                      {renderSingleCanvasContent(canvasData.items)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
