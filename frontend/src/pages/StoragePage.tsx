@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
 import '../styles/workspace-tabs.css'
 import {
@@ -225,7 +225,29 @@ interface ContainerCanvasItem {
 type CanvasItem = WorkflowCanvasItem | ToolLinkCanvasItem | ArticleCanvasItem | ContainerCanvasItem
 type CanvasItemsMap = Record<string, CanvasItem>
 
-// 工作流库数据现在完全从API获取，不再使用硬编码数据
+// === 连接线 (Edge) 类型 ===
+type HandleDirection = 'top' | 'bottom' | 'left' | 'right'
+
+interface CanvasEdge {
+  id: string
+  sourceItemId: string
+  sourceHandle: HandleDirection
+  targetItemId: string
+  targetHandle: HandleDirection
+  label?: string
+  labelOffset?: Position
+}
+
+type CanvasEdgesMap = Record<string, CanvasEdge>
+
+type ConnectionState =
+  | { mode: 'idle' }
+  | { mode: 'connecting'; sourceItemId: string; sourceHandle: HandleDirection; mousePosition: Position }
+
+const HANDLE_RADIUS = 5
+const HANDLE_HIT_RADIUS = 12
+
+// AI工作方法库数据现在完全从API获取，不再使用硬编码数据
 const initialLibraryData: LibraryWorkflow[] = []
 
 
@@ -366,6 +388,63 @@ function getItemCenterAbsolute(items: CanvasItemsMap, itemId: string): Position 
   return {
     x: topLeft.x + size.width / 2,
     y: topLeft.y + size.height / 2
+  }
+}
+
+// === 连接线工具函数 ===
+function getHandleAbsolutePosition(
+  items: CanvasItemsMap,
+  itemId: string,
+  direction: HandleDirection
+): Position {
+  const item = items[itemId]
+  if (!item) return { x: 0, y: 0 }
+  const topLeft = getItemAbsoluteTopLeft(items, itemId)
+  const size = getItemOuterSize(item)
+  switch (direction) {
+    case 'top':    return { x: topLeft.x + size.width / 2, y: topLeft.y }
+    case 'bottom': return { x: topLeft.x + size.width / 2, y: topLeft.y + size.height }
+    case 'left':   return { x: topLeft.x, y: topLeft.y + size.height / 2 }
+    case 'right':  return { x: topLeft.x + size.width, y: topLeft.y + size.height / 2 }
+  }
+}
+
+function applyDirectionOffset(point: Position, dir: HandleDirection, offset: number): Position {
+  switch (dir) {
+    case 'top':    return { x: point.x, y: point.y - offset }
+    case 'bottom': return { x: point.x, y: point.y + offset }
+    case 'left':   return { x: point.x - offset, y: point.y }
+    case 'right':  return { x: point.x + offset, y: point.y }
+  }
+}
+
+function computeBezierPath(
+  start: Position,
+  end: Position,
+  sourceDir: HandleDirection,
+  targetDir: HandleDirection
+): string {
+  const dx = Math.abs(end.x - start.x)
+  const dy = Math.abs(end.y - start.y)
+  const offset = Math.max(50, Math.min(150, Math.max(dx, dy) * 0.4))
+  const cp1 = applyDirectionOffset(start, sourceDir, offset)
+  const cp2 = applyDirectionOffset(end, targetDir, offset)
+  return `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`
+}
+
+function bezierMidpoint(
+  start: Position, end: Position, sourceDir: HandleDirection, targetDir: HandleDirection
+): Position {
+  const dx = Math.abs(end.x - start.x)
+  const dy = Math.abs(end.y - start.y)
+  const offset = Math.max(50, Math.min(150, Math.max(dx, dy) * 0.4))
+  const cp1 = applyDirectionOffset(start, sourceDir, offset)
+  const cp2 = applyDirectionOffset(end, targetDir, offset)
+  const t = 0.5
+  const u = 1 - t
+  return {
+    x: u * u * u * start.x + 3 * u * u * t * cp1.x + 3 * u * t * t * cp2.x + t * t * t * end.x,
+    y: u * u * u * start.y + 3 * u * u * t * cp1.y + 3 * u * t * t * cp2.y + t * t * t * end.y
   }
 }
 
@@ -721,6 +800,7 @@ export default function StoragePage() {
   const [searchParams] = useSearchParams()
   const [librarySearch, setLibrarySearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
+  const [sidebarPinned, setSidebarPinned] = useState(false) // 侧边栏是否固定
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
 
   // 渐进式执行模态框（改为分屏模式）
@@ -818,6 +898,33 @@ export default function StoragePage() {
       [activeTabId]: typeof updater === 'function' ? updater(prev[activeTabId] || createEmptyCanvasData()) : updater
     }))
   }
+
+  // === 连接线 (Edge) 状态 ===
+  const [edgesByTabId, setEdgesByTabId] = useState<Record<string, CanvasEdgesMap>>({
+    [CANVAS_TAB_ID]: {}
+  })
+  const canvasEdges = edgesByTabId[activeTabId] || {}
+  const setCanvasEdges = (updater: CanvasEdgesMap | ((prev: CanvasEdgesMap) => CanvasEdgesMap)) => {
+    setEdgesByTabId(prev => ({
+      ...prev,
+      [activeTabId]: typeof updater === 'function' ? updater(prev[activeTabId] || {}) : updater
+    }))
+  }
+  const [connectionState, setConnectionState] = useState<ConnectionState>({ mode: 'idle' })
+  const connectionStateRef = useRef<ConnectionState>({ mode: 'idle' })
+  const [selectedEdgeId, _setSelectedEdgeId] = useState<string | null>(null)
+  const selectedEdgeIdRef = useRef<string | null>(null)
+  const setSelectedEdgeId = (v: string | null | ((prev: string | null) => string | null)) => {
+    _setSelectedEdgeId(prev => {
+      const next = typeof v === 'function' ? v(prev) : v
+      selectedEdgeIdRef.current = next
+      return next
+    })
+  }
+  const [editingEdgeLabel, setEditingEdgeLabel] = useState<{ edgeId: string; x: number; y: number } | null>(null)
+  const draggingLabelRef = useRef<{ edgeId: string; startMouse: Position; startOffset: Position } | null>(null)
+  const connectionAnimFrameRef = useRef<number | null>(null)
+
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null)
   const [resizingContainerId, setResizingContainerId] = useState<string | null>(null)
   const [isPanning, setIsPanning] = useState(false)
@@ -863,6 +970,13 @@ export default function StoragePage() {
           console.log('✅ [StoragePage] 找到保存的画布布局，恢复数据...')
           // 深拷贝以确保可以修改
           loadedItems = JSON.parse(JSON.stringify(result.snapshot.canvasItems)) as CanvasItemsMap
+          // 恢复连接线
+          if ((result.snapshot as any).canvasEdges) {
+            setEdgesByTabId(prev => ({
+              ...prev,
+              [CANVAS_TAB_ID]: (result.snapshot as any).canvasEdges as CanvasEdgesMap
+            }))
+          }
         } else {
           console.log('⚠️ [StoragePage] 没有保存的画布布局，使用默认布局')
           loadedItems = {
@@ -1078,7 +1192,8 @@ export default function StoragePage() {
           {
             cards: [],
             zoom: 1.0,
-            canvasItems: mainCanvasItems // 只保存主画布数据
+            canvasItems: mainCanvasItems, // 只保存主画布数据
+            canvasEdges: edgesByTabId[CANVAS_TAB_ID] || {}
           } as any
         )
         console.log('✅ [StoragePage] 保存结果:', success ? '成功' : '失败')
@@ -1088,7 +1203,7 @@ export default function StoragePage() {
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [canvasDataByTabId])
+  }, [canvasDataByTabId, edgesByTabId])
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
@@ -1100,6 +1215,29 @@ export default function StoragePage() {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Escape: 取消连接
+      if (event.key === 'Escape') {
+        if (connectionStateRef.current.mode === 'connecting') {
+          window.removeEventListener('mousemove', handleConnectionMouseMove)
+          setConnectionState({ mode: 'idle' })
+          connectionStateRef.current = { mode: 'idle' }
+        }
+        setSelectedEdgeId(null)
+        return
+      }
+      // Delete/Backspace: 删除选中的 edge
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const currentSelectedEdge = selectedEdgeIdRef.current
+        if (!isTypingTarget(event.target) && currentSelectedEdge) {
+          setCanvasEdges(prev => {
+            const next = { ...prev }
+            delete next[currentSelectedEdge]
+            return next
+          })
+          setSelectedEdgeId(null)
+          return
+        }
+      }
       if (event.code !== 'Space') {
         return
       }
@@ -1257,8 +1395,8 @@ export default function StoragePage() {
     }
 
     const handleMouseLeave = (e: MouseEvent) => {
-      // 如果鼠标离开了侧边栏区域，自动收起
-      if (e.clientX > SIDEBAR_WIDTH) {
+      // 如果鼠标离开了侧边栏区域，自动收起（pinned时不收起）
+      if (e.clientX > SIDEBAR_WIDTH && !sidebarPinned) {
         setSidebarCollapsed(true)
         setIsHoveringEdge(false)
       }
@@ -1269,7 +1407,7 @@ export default function StoragePage() {
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [sidebarCollapsed])
+  }, [sidebarCollapsed, sidebarPinned])
 
   // 格式化时长
   const formatDuration = (ms?: number) => {
@@ -1297,7 +1435,7 @@ export default function StoragePage() {
   }
 
   const libraryData = useMemo(() => {
-    console.log('🔄 [libraryData] 重新计算工作流库数据')
+    console.log('🔄 [libraryData] 重新计算AI工作方法库数据')
     console.log('📊 [libraryData] favoriteWorkflows数量:', favoriteWorkflows?.length || 0)
     console.log('📊 [libraryData] createdWorkflows数量:', createdWorkflows?.length || 0)
 
@@ -1918,6 +2056,138 @@ export default function StoragePage() {
     window.removeEventListener('mouseup', handleWindowMouseUp)
   }, [attachToParent, detachFromParent, handleWindowMouseMove, updateCanvasItems])
 
+  // === 连接线交互 ===
+  const clientToCanvasCoords = useCallback((clientX: number, clientY: number): Position => {
+    const { scale, positionX, positionY } = transformStateRef.current
+    const wrapperEl = canvasContainerRef.current?.querySelector('.workflow-transform-wrapper')
+    if (!wrapperEl) return { x: 0, y: 0 }
+    const rect = wrapperEl.getBoundingClientRect()
+    return {
+      x: (clientX - rect.left - positionX) / scale,
+      y: (clientY - rect.top - positionY) / scale
+    }
+  }, [])
+
+  const createEdge = useCallback((
+    sourceItemId: string,
+    sourceHandle: HandleDirection,
+    targetItemId: string,
+    targetHandle: HandleDirection
+  ) => {
+    if (sourceItemId === targetItemId) return
+    const exists = Object.values(canvasEdges).some(e =>
+      (e.sourceItemId === sourceItemId && e.targetItemId === targetItemId) ||
+      (e.sourceItemId === targetItemId && e.targetItemId === sourceItemId)
+    )
+    if (exists) return
+    const edgeId = generateId('edge')
+    setCanvasEdges(prev => ({
+      ...prev,
+      [edgeId]: { id: edgeId, sourceItemId, sourceHandle, targetItemId, targetHandle }
+    }))
+  }, [canvasEdges, setCanvasEdges])
+
+  const handleConnectionMouseMove = useCallback((e: MouseEvent) => {
+    if (connectionAnimFrameRef.current) return
+    connectionAnimFrameRef.current = requestAnimationFrame(() => {
+      connectionAnimFrameRef.current = null
+      const current = connectionStateRef.current
+      if (current.mode !== 'connecting') return
+      const pos = clientToCanvasCoords(e.clientX, e.clientY)
+      const newState: ConnectionState = { ...current, mousePosition: pos }
+      setConnectionState(newState)
+      connectionStateRef.current = newState
+    })
+  }, [clientToCanvasCoords])
+
+  const handleConnectionMouseUp = useCallback((e: MouseEvent) => {
+    window.removeEventListener('mousemove', handleConnectionMouseMove)
+    window.removeEventListener('mouseup', handleConnectionMouseUp)
+    const current = connectionStateRef.current
+    if (current.mode !== 'connecting') return
+    const targetEl = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement
+    const handleEl = targetEl?.closest?.('[data-handle-direction]') as HTMLElement
+    if (handleEl) {
+      const targetItemId = handleEl.getAttribute('data-handle-item')
+      const targetDir = handleEl.getAttribute('data-handle-direction') as HandleDirection
+      if (targetItemId && targetItemId !== current.sourceItemId) {
+        createEdge(current.sourceItemId, current.sourceHandle, targetItemId, targetDir)
+      }
+    }
+    setConnectionState({ mode: 'idle' })
+    connectionStateRef.current = { mode: 'idle' }
+  }, [handleConnectionMouseMove, createEdge])
+
+  const handleConnectionStart = useCallback((e: React.MouseEvent, itemId: string, direction: HandleDirection) => {
+    const pos = clientToCanvasCoords(e.clientX, e.clientY)
+    const state: ConnectionState = {
+      mode: 'connecting',
+      sourceItemId: itemId,
+      sourceHandle: direction,
+      mousePosition: pos
+    }
+    setConnectionState(state)
+    connectionStateRef.current = state
+    window.addEventListener('mousemove', handleConnectionMouseMove)
+    window.addEventListener('mouseup', handleConnectionMouseUp)
+  }, [clientToCanvasCoords, handleConnectionMouseMove, handleConnectionMouseUp])
+
+  const handleConnectionClick = useCallback((e: React.MouseEvent, itemId: string, direction: HandleDirection) => {
+    if (connectionState.mode === 'idle') {
+      const pos = clientToCanvasCoords(e.clientX, e.clientY)
+      const state: ConnectionState = {
+        mode: 'connecting',
+        sourceItemId: itemId,
+        sourceHandle: direction,
+        mousePosition: pos
+      }
+      setConnectionState(state)
+      connectionStateRef.current = state
+      window.addEventListener('mousemove', handleConnectionMouseMove)
+    } else if (connectionState.mode === 'connecting') {
+      window.removeEventListener('mousemove', handleConnectionMouseMove)
+      if (itemId !== connectionState.sourceItemId) {
+        createEdge(connectionState.sourceItemId, connectionState.sourceHandle, itemId, direction)
+      }
+      setConnectionState({ mode: 'idle' })
+      connectionStateRef.current = { mode: 'idle' }
+    }
+  }, [connectionState, clientToCanvasCoords, handleConnectionMouseMove, createEdge])
+
+  // 标签拖拽
+  const handleLabelDragMove = useCallback((e: MouseEvent) => {
+    const drag = draggingLabelRef.current
+    if (!drag) return
+    const canvasPos = clientToCanvasCoords(e.clientX, e.clientY)
+    const startCanvas = clientToCanvasCoords(drag.startMouse.x, drag.startMouse.y)
+    const dx = canvasPos.x - startCanvas.x
+    const dy = canvasPos.y - startCanvas.y
+    const newOffset = { x: drag.startOffset.x + dx, y: drag.startOffset.y + dy }
+    setCanvasEdges(prev => {
+      const edge = prev[drag.edgeId]
+      if (!edge) return prev
+      return { ...prev, [drag.edgeId]: { ...edge, labelOffset: newOffset } }
+    })
+  }, [clientToCanvasCoords, setCanvasEdges])
+
+  const handleLabelDragUp = useCallback(() => {
+    draggingLabelRef.current = null
+    window.removeEventListener('mousemove', handleLabelDragMove)
+    window.removeEventListener('mouseup', handleLabelDragUp)
+  }, [handleLabelDragMove])
+
+  const handleLabelDragStart = useCallback((e: React.MouseEvent, edgeId: string, currentOffset: Position) => {
+    e.stopPropagation()
+    e.preventDefault()
+    draggingLabelRef.current = {
+      edgeId,
+      startMouse: { x: e.clientX, y: e.clientY },
+      startOffset: { ...currentOffset }
+    }
+    window.addEventListener('mousemove', handleLabelDragMove)
+    window.addEventListener('mouseup', handleLabelDragUp)
+  }, [handleLabelDragMove, handleLabelDragUp])
+
   const handleItemMouseDown = useCallback(
     (event: React.MouseEvent, itemId: string) => {
       const pointer = { x: event.clientX, y: event.clientY }
@@ -2264,7 +2534,7 @@ export default function StoragePage() {
       // 完全阻止页面级别的滚动
       const target = event.target as HTMLElement
 
-      // 只允许在工作流库列表区域滚动
+      // 只允许在AI工作方法库列表区域滚动
       const isInLibraryList = target.closest('.workflow-library-list')
 
       // 只允许在画布区域处理滚轮事件（由 handleWheel 处理）
@@ -2518,13 +2788,30 @@ export default function StoragePage() {
       return // 不能删除根容器
     }
 
+    // 先收集所有要删除的 ID 用于清理 edges
+    const container = getContainer(canvasItems, containerId)
+    if (container) {
+      const allIds = [containerId]
+      const q = [...container.childrenIds]
+      while (q.length > 0) {
+        const id = q.shift()
+        if (!id) continue
+        allIds.push(id)
+        const child = canvasItems[id]
+        if (child && child.type === 'container') {
+          q.push(...(child as ContainerCanvasItem).childrenIds)
+        }
+      }
+      removeEdgesForItems(allIds)
+    }
+
     updateCanvasItems((draft) => {
-      const container = getContainer(draft, containerId)
-      if (!container) return
+      const cont = getContainer(draft, containerId)
+      if (!cont) return
 
       // 删除容器及其所有子项
       const itemsToDelete = [containerId]
-      const queue = [...container.childrenIds]
+      const queue = [...cont.childrenIds]
 
       while (queue.length > 0) {
         const itemId = queue.shift()
@@ -2538,7 +2825,7 @@ export default function StoragePage() {
       }
 
       // 从父容器移除
-      detachFromParent(draft, container.parentId, containerId)
+      detachFromParent(draft, cont.parentId, containerId)
 
       // 删除所有项
       for (const id of itemsToDelete) {
@@ -2546,7 +2833,7 @@ export default function StoragePage() {
       }
 
       // 重新计算父容器大小
-      recalcContainerSizes(draft, [container.parentId])
+      recalcContainerSizes(draft, [cont.parentId])
     })
   }
 
@@ -2928,6 +3215,20 @@ export default function StoragePage() {
     setDeleteConfirmDialog({ visible: true, cardId })
   }
 
+  // 清除与指定 item 相关的所有 edges
+  const removeEdgesForItems = (itemIds: string[]) => {
+    const idSet = new Set(itemIds)
+    setCanvasEdges(prev => {
+      const next: CanvasEdgesMap = {}
+      for (const [edgeId, edge] of Object.entries(prev)) {
+        if (!idSet.has(edge.sourceItemId) && !idSet.has(edge.targetItemId)) {
+          next[edgeId] = edge
+        }
+      }
+      return next
+    })
+  }
+
   // 删除工具卡片
   const handleDeleteToolCard = (cardId: string) => {
     const item = canvasItems[cardId]
@@ -2935,6 +3236,7 @@ export default function StoragePage() {
 
     if (!confirm('确定要删除这个工具卡片吗？')) return
 
+    removeEdgesForItems([cardId])
     updateCanvasItems((draft) => {
       // 从父容器的 childrenIds 中移除
       const parentId = item.parentId || ROOT_CONTAINER_ID
@@ -2959,6 +3261,7 @@ export default function StoragePage() {
 
     if (!confirm('确定要删除这个文章卡片吗？')) return
 
+    removeEdgesForItems([cardId])
     updateCanvasItems((draft) => {
       const parentId = item.parentId || ROOT_CONTAINER_ID
       const parent = draft[parentId]
@@ -2977,6 +3280,7 @@ export default function StoragePage() {
     const item = canvasItems[cardId]
     if (!item) return
 
+    removeEdgesForItems([cardId])
     setCanvasItems(prev => {
       const newItems = { ...prev }
 
@@ -3011,6 +3315,7 @@ export default function StoragePage() {
       handleDeleteContainer(contextMenu.itemId)
     } else {
       // 删除普通卡片
+      removeEdgesForItems([contextMenu.itemId!])
       setCanvasItems(prev => {
         const newItems = { ...prev }
 
@@ -3272,6 +3577,56 @@ export default function StoragePage() {
     }
   }
 
+  // === 连接手柄渲染 ===
+  const renderConnectionHandles = (itemId: string) => {
+    const directions: HandleDirection[] = ['top', 'bottom', 'left', 'right']
+    const item = canvasItems[itemId]
+    if (!item) return null
+    const size = getItemOuterSize(item)
+    const isConnecting = connectionState.mode === 'connecting'
+
+    const handlePositions: Record<HandleDirection, React.CSSProperties> = {
+      top:    { left: size.width / 2 - HANDLE_RADIUS, top: -HANDLE_RADIUS },
+      bottom: { left: size.width / 2 - HANDLE_RADIUS, bottom: -HANDLE_RADIUS },
+      left:   { left: -HANDLE_RADIUS, top: size.height / 2 - HANDLE_RADIUS },
+      right:  { right: -HANDLE_RADIUS, top: size.height / 2 - HANDLE_RADIUS }
+    }
+
+    return directions.map(dir => (
+      <div
+        key={`handle-${itemId}-${dir}`}
+        className={`connection-handle no-pan${isConnecting ? ' connecting-active' : ''}`}
+        data-handle-direction={dir}
+        data-handle-item={itemId}
+        onMouseDown={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          handleConnectionStart(e, itemId, dir)
+        }}
+        onClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          handleConnectionClick(e, itemId, dir)
+        }}
+        style={{
+          position: 'absolute',
+          ...handlePositions[dir],
+          width: HANDLE_RADIUS * 2,
+          height: HANDLE_RADIUS * 2,
+          borderRadius: '50%',
+          background: isConnecting ? '#8b5cf6' : '#94a3b8',
+          border: '2px solid white',
+          cursor: 'crosshair',
+          zIndex: 20,
+          opacity: 0,
+          transition: 'opacity 0.15s, transform 0.15s, background 0.15s',
+          transform: 'scale(0.6)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+        }}
+      />
+    ))
+  }
+
   const renderWorkflowCard = (card: WorkflowCanvasItem) => {
     const workflow = libraryData.find((item) => item.id === card.workflowId)
     const isDragging = draggingItemId === card.id
@@ -3504,6 +3859,7 @@ export default function StoragePage() {
             执行 ▶
           </button>
         </div>
+        {renderConnectionHandles(card.id)}
       </div>
     )
   }
@@ -3672,9 +4028,180 @@ export default function StoragePage() {
         }}>
           {card.name}
         </h3>
+        {renderConnectionHandles(card.id)}
       </div>
     )
   }
+
+  // === 连接线渲染 ===
+  const computedEdgePaths = useMemo(() => {
+    return Object.values(canvasEdges).map(edge => {
+      const sourceItem = canvasItems[edge.sourceItemId]
+      const targetItem = canvasItems[edge.targetItemId]
+      if (!sourceItem || !targetItem) return null
+      const start = getHandleAbsolutePosition(canvasItems, edge.sourceItemId, edge.sourceHandle)
+      const end = getHandleAbsolutePosition(canvasItems, edge.targetItemId, edge.targetHandle)
+      const path = computeBezierPath(start, end, edge.sourceHandle, edge.targetHandle)
+      const mid = bezierMidpoint(start, end, edge.sourceHandle, edge.targetHandle)
+      return { ...edge, path, start, end, mid }
+    }).filter(Boolean)
+  }, [canvasItems, canvasEdges])
+
+  const renderEdges = () => {
+    return computedEdgePaths.map(edgeData => {
+      if (!edgeData) return null
+      const isSelected = selectedEdgeId === edgeData.id
+      const hasLabel = !!edgeData.label?.trim()
+      const labelOff = edgeData.labelOffset || { x: 0, y: 0 }
+      const labelX = edgeData.mid.x + labelOff.x
+      const labelY = edgeData.mid.y + labelOff.y
+      const displayLabel = edgeData.label && edgeData.label.length > 20 ? edgeData.label.slice(0, 20) + '…' : edgeData.label
+      return (
+        <g key={edgeData.id}>
+          {/* 不可见粗 path 用于点击检测 */}
+          <path
+            d={edgeData.path}
+            fill="none"
+            stroke="transparent"
+            strokeWidth={14}
+            style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+            onClick={(e) => { e.stopPropagation(); setSelectedEdgeId(prev => prev === edgeData.id ? null : edgeData.id) }}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              setEditingEdgeLabel({ edgeId: edgeData.id, x: labelX, y: labelY })
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (confirm('删除这条连接线？')) {
+                setCanvasEdges(prev => {
+                  const next = { ...prev }
+                  delete next[edgeData.id]
+                  return next
+                })
+                setSelectedEdgeId(null)
+              }
+            }}
+          />
+          {/* 可见细 path */}
+          <path
+            d={edgeData.path}
+            fill="none"
+            stroke={isSelected ? '#8b5cf6' : '#94a3b8'}
+            strokeWidth={isSelected ? 1.2 : 0.8}
+            markerEnd="url(#canvas-arrowhead)"
+            style={{ pointerEvents: 'none', transition: 'stroke 0.2s, stroke-width 0.2s' }}
+          />
+          {/* 备注标签 - 可拖拽 */}
+          {hasLabel && (
+            <g
+              style={{ pointerEvents: 'all', cursor: 'grab' }}
+              onMouseDown={(e) => handleLabelDragStart(e, edgeData.id, labelOff)}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                setEditingEdgeLabel({ edgeId: edgeData.id, x: labelX, y: labelY })
+              }}
+            >
+              <text
+                x={labelX}
+                y={labelY}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={12}
+                fill={isSelected ? '#7c3aed' : '#6b7280'}
+                fontFamily="system-ui, -apple-system, sans-serif"
+                style={{ userSelect: 'none' }}
+              >
+                {displayLabel}
+              </text>
+              {/* 底部紫色下划线 */}
+              <line
+                x1={labelX - (displayLabel!.length * 6.5) / 2}
+                y1={labelY + 9}
+                x2={labelX + (displayLabel!.length * 6.5) / 2}
+                y2={labelY + 9}
+                stroke={isSelected ? '#8b5cf6' : '#a78bfa'}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
+          {/* 无备注时选中状态显示"双击添加备注"提示 */}
+          {!hasLabel && isSelected && (
+            <text
+              x={edgeData.mid.x}
+              y={edgeData.mid.y - 10}
+              textAnchor="middle"
+              fontSize={10}
+              fill="#a78bfa"
+              fontFamily="system-ui, -apple-system, sans-serif"
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              双击添加备注
+            </text>
+          )}
+        </g>
+      )
+    })
+  }
+
+  const renderDraftConnection = () => {
+    if (connectionState.mode !== 'connecting') return null
+    const sourceItem = canvasItems[connectionState.sourceItemId]
+    if (!sourceItem) return null
+    const start = getHandleAbsolutePosition(canvasItems, connectionState.sourceItemId, connectionState.sourceHandle)
+    const end = connectionState.mousePosition
+    // 猜测最佳目标方向
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    let guessDir: HandleDirection = 'left'
+    if (Math.abs(dx) > Math.abs(dy)) {
+      guessDir = dx > 0 ? 'left' : 'right'
+    } else {
+      guessDir = dy > 0 ? 'top' : 'bottom'
+    }
+    const pathD = computeBezierPath(start, end, connectionState.sourceHandle, guessDir)
+    return (
+      <path
+        d={pathD}
+        fill="none"
+        stroke="#8b5cf6"
+        strokeWidth={0.8}
+        strokeDasharray="4 3"
+        style={{ pointerEvents: 'none' }}
+      />
+    )
+  }
+
+  const renderConnectionsSvg = () => (
+    <svg
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+        overflow: 'visible'
+      }}
+    >
+      <defs>
+        <marker
+          id="canvas-arrowhead"
+          markerWidth="6"
+          markerHeight="4"
+          refX="6"
+          refY="2"
+          orient="auto"
+        >
+          <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
+        </marker>
+      </defs>
+      {renderEdges()}
+      {renderDraftConnection()}
+    </svg>
+  )
 
   const renderChildren = (containerId: string) => {
     const container = getContainer(canvasItems, containerId)
@@ -3705,7 +4232,7 @@ export default function StoragePage() {
 
     return (
       <div
-        className="no-pan"
+        className="article-card no-pan"
         key={card.id}
         onMouseDown={(event) => handleItemMouseDown(event, card.id)}
         onDoubleClick={(e) => {
@@ -3849,6 +4376,7 @@ export default function StoragePage() {
             {card.url}
           </div>
         </div>
+        {renderConnectionHandles(card.id)}
       </div>
     )
   }
@@ -4113,6 +4641,7 @@ export default function StoragePage() {
             </div>
           </div>
         )}
+        {renderConnectionHandles(container.id)}
       </div>
     )
   }
@@ -4132,6 +4661,23 @@ export default function StoragePage() {
         }
         .workflow-library-list::-webkit-scrollbar-thumb:hover {
           background: #9ca3af;
+        }
+        /* 连接手柄 - hover 时显示 */
+        .workflow-card:hover .connection-handle,
+        .tool-link-card:hover .connection-handle,
+        .article-card:hover .connection-handle,
+        .workflow-container:hover > .connection-handle {
+          opacity: 1 !important;
+          transform: scale(1) !important;
+        }
+        .connection-handle:hover {
+          opacity: 1 !important;
+          transform: scale(1.3) !important;
+          background: #8b5cf6 !important;
+        }
+        .connection-handle.connecting-active {
+          opacity: 1 !important;
+          transform: scale(1) !important;
         }
       `}</style>
       <div
@@ -4160,8 +4706,8 @@ export default function StoragePage() {
           touchAction: 'auto'
         }}
         onMouseLeave={(e) => {
-          // 鼠标离开侧边栏区域时，自动收起
-          if (!sidebarCollapsed) {
+          // 鼠标离开侧边栏区域时，自动收起（pinned时不收起）
+          if (!sidebarCollapsed && !sidebarPinned) {
             setSidebarCollapsed(true)
             setIsHoveringEdge(false)
           }
@@ -4186,21 +4732,55 @@ export default function StoragePage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-            padding: '16px',
+            padding: '10px 14px',
             background: 'linear-gradient(135deg, #f8f9fa 0%, #f5f3ff 100%)',
-            borderRadius: '12px',
-            margin: '12px',
+            borderRadius: '10px',
+            margin: '8px 8px 4px',
             boxShadow: '0 2px 8px rgba(139, 92, 246, 0.08)'
           }}
           onWheel={(e) => {
-            // 冻结工作流库标题区域，阻止滚动事件冒泡
+            // 冻结AI工作方法库标题区域，阻止滚动事件冒泡
             e.stopPropagation()
             e.preventDefault()
           }}
         >
           {!sidebarCollapsed && (
-            <div>
-              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>工作流库</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI工作方法库</h2>
+              <button
+                onClick={() => {
+                  if (sidebarPinned) {
+                    setSidebarPinned(false)
+                  } else {
+                    setSidebarPinned(true)
+                  }
+                }}
+                title={sidebarPinned ? '取消固定' : '固定侧边栏'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  backgroundColor: sidebarPinned ? '#f3f0ff' : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => {
+                  if (!sidebarPinned) e.currentTarget.style.backgroundColor = '#f3f4f6'
+                }}
+                onMouseLeave={(e) => {
+                  if (!sidebarPinned) e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+              >
+                {sidebarPinned
+                  ? <Pin size={14} color="#8b5cf6" />
+                  : <PinOff size={14} color="#9ca3af" />
+                }
+              </button>
             </div>
           )}
         </div>
@@ -4459,7 +5039,7 @@ export default function StoragePage() {
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            padding: '0 16px 24px',
+            padding: '0 8px 12px',
             minHeight: 0,
             display: sidebarCollapsed ? 'none' : 'block'
           }}
@@ -4468,8 +5048,8 @@ export default function StoragePage() {
             e.stopPropagation()
           }}
         >
-          {/* 工作流库区域 - 使用新的NavigationSidebar组件 */}
-          <div style={{ marginTop: '18px' }}>
+          {/* AI工作方法库区域 - 使用新的NavigationSidebar组件 */}
+          <div style={{ marginTop: '4px' }}>
             <NavigationSidebar
               onWorkflowDragStart={handleLibraryDragStart}
               onWorkflowDragEnd={handleLibraryDragEnd}
@@ -4525,7 +5105,7 @@ export default function StoragePage() {
               transition: 'all 0.3s ease-in-out',
               backdropFilter: 'blur(8px)'
             }}
-            title="展开工作流库"
+            title="展开AI工作方法库"
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.15)'
               e.currentTarget.style.width = '28px'
@@ -4748,7 +5328,7 @@ export default function StoragePage() {
             minWidth: 0
           }}
           onWheel={(e) => {
-            // 阻止画布区域的滚动事件冒泡到页面，防止影响左侧工作流库
+            // 阻止画布区域的滚动事件冒泡到页面，防止影响左侧AI工作方法库
             e.stopPropagation()
             e.preventDefault()
           }}
@@ -4986,15 +5566,84 @@ export default function StoragePage() {
                     boxSizing: 'border-box'
                   }}
                   onClick={(e) => {
-                    // 只在点击画布空白处时收缩执行面板
-                    // 检查是否点击的是画布本身，而不是其中的子元素
+                    // 只在点击画布空白处时
                     if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-content')) {
                       if (showStepByStepExecution) {
                         setShowStepByStepExecution(false)
                       }
+                      // 取消 edge 选中 & 备注编辑
+                      setSelectedEdgeId(null)
+                      setEditingEdgeLabel(null)
+                      // 取消连接状态
+                      if (connectionStateRef.current.mode === 'connecting') {
+                        window.removeEventListener('mousemove', handleConnectionMouseMove)
+                        setConnectionState({ mode: 'idle' })
+                        connectionStateRef.current = { mode: 'idle' }
+                      }
                     }
                   }}
                 >
+                  {renderConnectionsSvg()}
+                  {/* 连接线备注编辑输入框 */}
+                  {editingEdgeLabel && (
+                    <div
+                      className="no-pan"
+                      style={{
+                        position: 'absolute',
+                        left: editingEdgeLabel.x,
+                        top: editingEdgeLabel.y,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 50,
+                        pointerEvents: 'all'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        autoFocus
+                        className="no-pan"
+                        defaultValue={canvasEdges[editingEdgeLabel.edgeId]?.label || ''}
+                        placeholder="输入备注..."
+                        style={{
+                          width: '140px',
+                          padding: '2px 4px 4px',
+                          fontSize: '12px',
+                          border: 'none',
+                          borderBottom: '2px solid #8b5cf6',
+                          borderRadius: 0,
+                          outline: 'none',
+                          background: 'transparent',
+                          textAlign: 'center',
+                          color: '#374151',
+                          caretColor: '#8b5cf6'
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation()
+                          if (e.key === 'Enter') {
+                            const value = (e.target as HTMLInputElement).value.trim()
+                            const edgeId = editingEdgeLabel.edgeId
+                            setCanvasEdges(prev => {
+                              if (!prev[edgeId]) return prev
+                              return { ...prev, [edgeId]: { ...prev[edgeId], label: value || undefined } }
+                            })
+                            setEditingEdgeLabel(null)
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingEdgeLabel(null)
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value.trim()
+                          const edgeId = editingEdgeLabel.edgeId
+                          setCanvasEdges(prev => {
+                            if (!prev[edgeId]) return prev
+                            return { ...prev, [edgeId]: { ...prev[edgeId], label: value || undefined } }
+                          })
+                          setEditingEdgeLabel(null)
+                        }}
+                      />
+                    </div>
+                  )}
                   {renderChildren(ROOT_CONTAINER_ID)}
                 </div>
               </div>
@@ -5890,7 +6539,7 @@ export default function StoragePage() {
               color: '#6b7280',
               lineHeight: 1.5
             }}>
-              确定要删除这个工作流卡片吗？此操作不会删除工作流本身，您可以随时从工作流库重新添加。
+              确定要删除这个工作流卡片吗？此操作不会删除工作流本身，您可以随时从AI工作方法库重新添加。
             </p>
             <div style={{
               display: 'flex',
