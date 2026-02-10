@@ -2,6 +2,36 @@ import { Request, Response } from 'express';
 import { aiProxyService } from '../services/ai-proxy.service';
 import { getModelsForTier } from '../config/model-pricing';
 import prisma from '../utils/database';
+import { createRetriever } from '../services/workflowRetriever';
+import { buildSystemPrompt } from '../services/promptBuilder';
+
+const retriever = createRetriever();
+
+/**
+ * 为 AI 对话注入动态 system prompt（包含平台工作流上下文）
+ * 替换前端发来的 system message（如有），或在头部插入
+ */
+async function injectSystemPrompt(messages: any[]): Promise<any[]> {
+  try {
+    // 取最后一条用户消息作为检索 query
+    const userQuery = messages
+      .filter((m: any) => m.role === 'user')
+      .pop()?.content || '';
+
+    const workflows = await retriever.retrieve(userQuery);
+    const systemPrompt = buildSystemPrompt(workflows);
+
+    // 移除前端可能发来的旧 system message，替换为动态版本
+    const nonSystemMessages = messages.filter((m: any) => m.role !== 'system');
+    return [
+      { role: 'system', content: systemPrompt },
+      ...nonSystemMessages,
+    ];
+  } catch (error) {
+    console.error('注入动态 system prompt 失败，使用原始 messages:', error);
+    return messages;
+  }
+}
 
 /**
  * 获取可用模型列表
@@ -84,6 +114,9 @@ export const chatStream = async (req: Request, res: Response) => {
       });
     }
 
+    // 注入动态 system prompt（包含平台工作流知识）
+    const processedMessages = await injectSystemPrompt(messages);
+
     // 设置 SSE 响应头
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -94,7 +127,7 @@ export const chatStream = async (req: Request, res: Response) => {
     await aiProxyService.chatStream({
       provider,
       model,
-      messages,
+      messages: processedMessages,
       userId,
       temperature,
       maxTokens,
@@ -151,11 +184,14 @@ export const chat = async (req: Request, res: Response) => {
       });
     }
 
+    // 注入动态 system prompt（包含平台工作流知识）
+    const processedMessages = await injectSystemPrompt(messages);
+
     // 调用 AI 服务
     const response = await aiProxyService.chat({
       provider,
       model,
-      messages,
+      messages: processedMessages,
       userId,
       temperature,
       maxTokens,

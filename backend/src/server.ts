@@ -44,6 +44,7 @@ initializeTools()
 // 启动 BullMQ Worker
 import './workers/workflow.worker'
 import './workers/subscription.worker'
+import './workers/embedding.worker'
 logger.info('🚀 BullMQ Worker 已启动')
 
 const app = express()
@@ -142,7 +143,7 @@ app.use((req, res) => {
   res.status(404).json({ error: '接口不存在' })
 })
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   logger.info('================================')
   logger.info(`🚀 Workflow Platform Backend`)
   logger.info(`================================`)
@@ -151,6 +152,22 @@ const server = app.listen(PORT, () => {
   logger.info(`Health Check: http://localhost:${PORT}/health`)
   logger.info(`Log Level: ${process.env.LOG_LEVEL || 'info'}`)
   logger.info('================================')
+
+  // 启动时检测：如果还没有 embedding 数据，自动触发全量生成
+  try {
+    const { enqueueBulkEmbeddingJob } = await import('./queues/embedding.queue')
+    const prisma = (await import('./utils/database')).default
+    const embeddingCount = await prisma.workflowEmbedding.count()
+    const workflowCount = await prisma.workflow.count({ where: { isPublic: true, isDraft: false } })
+    if (workflowCount > 0 && embeddingCount < workflowCount * 0.5) {
+      logger.info(`Embedding coverage: ${embeddingCount}/${workflowCount}, triggering bulk generation...`)
+      await enqueueBulkEmbeddingJob()
+    } else {
+      logger.info(`Embedding coverage: ${embeddingCount}/${workflowCount}, skip bulk generation`)
+    }
+  } catch (err) {
+    logger.warn('Auto embedding generation check failed (non-blocking):', err)
+  }
 })
 
 // 设置服务器超时时间为 5 分钟（300秒），以支持长时间的 AI 对话

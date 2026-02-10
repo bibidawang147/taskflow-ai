@@ -11,7 +11,18 @@ import { WorkflowExecutionService } from '../services/workflowExecutionService'
 import { contentAnalysisService, ContentType } from '../services/contentAnalysis.service'
 import { fileStorageService } from '../services/fileStorage.service'
 import { addWorkflowJob } from '../queues/workflow.queue'
+import { WORKFLOW_CACHE_KEY, EMBEDDING_HASH_KEY } from '../services/workflowRetriever'
+import { createRedisConnection } from '../queues/redis.config'
+import { enqueueEmbeddingJob } from '../queues/embedding.queue'
 import multer from 'multer'
+
+// 用于清除 AI 助手工作流摘要缓存的 Redis 连接
+const cacheRedis = createRedisConnection()
+
+/** fire-and-forget 清除工作流摘要缓存 */
+const invalidateWorkflowCache = () => {
+  cacheRedis.del(WORKFLOW_CACHE_KEY).catch(() => {})
+}
 
 const router = Router()
 
@@ -383,6 +394,14 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         nodes: true
       }
     })
+
+    // 如果是公开工作流，清除 AI 助手的工作流摘要缓存 + 生成 embedding
+    if (isPublic) {
+      invalidateWorkflowCache()
+      if (!isDraft) {
+        enqueueEmbeddingJob(workflow.id).catch(() => {})
+      }
+    }
 
     res.status(201).json({
       message: '工作流创建成功',
@@ -1558,6 +1577,12 @@ router.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Res
       }
     })
 
+    // 清除 AI 助手的工作流摘要缓存（标题/描述/配置/公开状态变更都可能影响推荐）
+    if (title !== undefined || description !== undefined || config !== undefined || isPublic !== undefined) {
+      invalidateWorkflowCache()
+      enqueueEmbeddingJob(id).catch(() => {})
+    }
+
     res.status(200).json({
       message: '工作流更新成功',
       workflow: updatedWorkflow
@@ -1597,6 +1622,10 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     await prisma.workflow.delete({
       where: { id }
     })
+
+    // 清除 AI 助手的工作流摘要缓存 + 清除 embedding 缓存
+    invalidateWorkflowCache()
+    cacheRedis.hdel(EMBEDDING_HASH_KEY, id).catch(() => {})
 
     res.status(200).json({
       message: '工作流删除成功'
