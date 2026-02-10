@@ -941,6 +941,7 @@ export default function StoragePage() {
   const [showAiDialog, setShowAiDialog] = useState(false)
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [animatingCanvasId, setAnimatingCanvasId] = useState<string | null>(null)
+  const canvasAnimType = 'slide'
 
   const dragStateRef = useRef<DragState>(null)
   const resizeStateRef = useRef<ResizeState>(null)
@@ -5291,7 +5292,13 @@ export default function StoragePage() {
               <div
                 key={tab.id}
                 className={`workspace-tab ${activeTabId === tab.id ? 'workspace-tab--active' : ''}`}
-                onClick={() => setActiveTabId(tab.id)}
+                onClick={() => {
+                  if (tab.id !== activeTabId) {
+                    setActiveTabId(tab.id)
+                    setAnimatingCanvasId(tab.id)
+                    setTimeout(() => setAnimatingCanvasId(null), 350)
+                  }
+                }}
               >
                 <span className="workspace-tab-icon">
                   {tab.type === 'canvas' ? (
@@ -5505,7 +5512,7 @@ export default function StoragePage() {
             }}
           >
             <div
-              className={`workflow-canvas-container${animatingCanvasId === activeTabId ? ' canvas-enter-animation' : ''}`}
+              className={`workflow-canvas-container${animatingCanvasId === activeTabId ? ` canvas-anim-${canvasAnimType}` : ''}`}
           style={{
             flex: 1,
             position: 'relative',
