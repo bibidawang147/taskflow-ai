@@ -36,11 +36,12 @@
 }
 
 /* ========== 工作流卡片 ========== */
+/* Updated: 2026-02-10 */
 .workflow-card {
   background: var(--bg-elevated);
   border-radius: 0;
   padding: var(--spacing-lg);
-  border: 1px solid var(--border-default);
+  border: 0.5px solid #d1d5db !important;
   box-shadow: none;
   transition: all var(--transition-base);
   cursor: pointer;
