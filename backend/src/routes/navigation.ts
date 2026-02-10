@@ -383,15 +383,18 @@ router.get('/sidebar', authenticateToken, async (req: AuthenticatedRequest, res:
       myWorkflows: {
         recent: recentWorkflows.map(w => ({
           ...w,
+          source: 'own',
           lastUsed: w.executions[0]?.startedAt || w.updatedAt,
           useCount: w._count.executions
         })),
         drafts: drafts.map(w => ({
           ...w,
+          source: 'own',
           useCount: w._count.executions
         })),
         published: published.map(w => ({
           ...w,
+          source: 'own',
           lastUsed: w.executions[0]?.startedAt || w.updatedAt,
           useCount: w._count.executions,
           favoriteCount: w._count.favorites

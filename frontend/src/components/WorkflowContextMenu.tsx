@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Workflow } from '../services/navigationService'
 
 interface WorkflowContextMenuProps {
@@ -22,17 +22,24 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
   onAddToFavorites,
   onEdit
 }) => {
+  const menuRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    const handleClickOutside = () => onClose()
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
 
-    document.addEventListener('click', handleClickOutside)
+    // 用 mousedown 而不是 click，避免和菜单项的 onClick 冲突
+    document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
 
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
     }
   }, [onClose])
@@ -68,13 +75,14 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
       label: '删除',
       icon: '🗑️',
       onClick: onDelete,
-      show: workflow.source === 'own' && workflow.isDraft,
+      show: workflow.source === 'own',
       danger: true
     }
   ]
 
   return (
     <div
+      ref={menuRef}
       style={{
         position: 'fixed',
         top: position.y,

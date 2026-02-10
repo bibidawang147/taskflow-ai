@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag } from '../services/navigationService'
 import { authService } from '../services/auth'
+import { deleteWorkflow } from '../services/workflowApi'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, X, Pencil } from 'lucide-react'
 
 // 画布数据类型定义
 interface Position {
@@ -272,9 +273,97 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     workflow: Workflow | null
     position: { x: number; y: number }
   }>({ workflow: null, position: { x: 0, y: 0 } })
+  const contextMenuWorkflowRef = useRef<Workflow | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedWorkflows, setSelectedWorkflows] = useState<Set<string>>(new Set())
   const [localSavedWorkflows, setLocalSavedWorkflows] = useState<any[]>([])
+  const [hoveredSectionId, setHoveredSectionId] = useState<string | null>(null)
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [editingSectionName, setEditingSectionName] = useState('')
+
+  // 轻量确认气泡
+  const [confirmPopup, setConfirmPopup] = useState<{
+    visible: boolean
+    position: { x: number; y: number }
+    message: string
+    onConfirm: () => void
+  }>({ visible: false, position: { x: 0, y: 0 }, message: '', onConfirm: () => {} })
+
+  // 输入气泡（替代 prompt()）
+  const [inputPopup, setInputPopup] = useState<{
+    visible: boolean
+    position: { x: number; y: number }
+    placeholder: string
+    onSubmit: (value: string) => void
+  }>({ visible: false, position: { x: 0, y: 0 }, placeholder: '', onSubmit: () => {} })
+  const [inputPopupValue, setInputPopupValue] = useState('')
+
+  // 自定义分类（按父区域分组存储）
+  type CustomCategory = { id: string; name: string; parent: 'quick-start' | 'my-workflows' }
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
+    try { return JSON.parse(localStorage.getItem('customSidebarCategories') || '[]') } catch { return [] }
+  })
+  const updateCustomCategories = (updater: (prev: CustomCategory[]) => CustomCategory[]) => {
+    setCustomCategories(prev => {
+      const next = updater(prev)
+      localStorage.setItem('customSidebarCategories', JSON.stringify(next))
+      return next
+    })
+  }
+  const addCustomCategory = (parent: 'quick-start' | 'my-workflows', name: string) => {
+    const newCat: CustomCategory = { id: `custom-${Date.now()}`, name, parent }
+    updateCustomCategories(prev => [...prev, newCat])
+    // 自动展开父区域
+    setCollapsedSections(prev => {
+      const next = new Set(prev)
+      next.delete(parent)
+      return next
+    })
+  }
+  const renameCustomCategory = (id: string, newName: string) => {
+    updateCustomCategories(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c))
+  }
+  const deleteCustomCategory = (id: string) => {
+    updateCustomCategories(prev => prev.filter(c => c.id !== id))
+  }
+
+  // 隐藏的系统分类（用户删除的二级分组）
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hiddenSidebarCategories') || '[]')) } catch { return new Set() }
+  })
+  const hideCategory = (categoryId: string) => {
+    setHiddenCategories(prev => {
+      const next = new Set(prev)
+      next.add(categoryId)
+      localStorage.setItem('hiddenSidebarCategories', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
+  // 隐藏的二级分组（快速开始下的 templates/recommended 等）
+  const [hiddenSections, setHiddenSections] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hiddenSidebarSections') || '[]')) } catch { return new Set() }
+  })
+  const hideSection = (sectionId: string) => {
+    setHiddenSections(prev => {
+      const next = new Set(prev)
+      next.add(sectionId)
+      localStorage.setItem('hiddenSidebarSections', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
+  // 重命名的二级分组标题
+  const [renamedSections, setRenamedSections] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('renamedSidebarSections') || '{}') } catch { return {} }
+  })
+  const renameSection = (sectionId: string, newName: string) => {
+    setRenamedSections(prev => {
+      const next = { ...prev, [sectionId]: newName }
+      localStorage.setItem('renamedSidebarSections', JSON.stringify(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     loadSidebarData()
@@ -367,6 +456,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const handleContextMenu = (workflow: Workflow, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    contextMenuWorkflowRef.current = workflow
     setContextMenu({
       workflow,
       position: { x: e.clientX, y: e.clientY }
@@ -374,36 +464,48 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   }
 
   const handleWorkflowOpen = () => {
-    if (contextMenu.workflow) {
-      onWorkflowSelect?.(contextMenu.workflow.id)
+    const wf = contextMenuWorkflowRef.current
+    if (wf) {
+      onWorkflowSelect?.(wf.id)
     }
   }
 
   const handleWorkflowCopy = () => {
-    if (contextMenu.workflow) {
+    const wf = contextMenuWorkflowRef.current
+    if (wf) {
       // TODO: Implement copy workflow logic
-      console.log('Copy workflow:', contextMenu.workflow.id)
+      console.log('Copy workflow:', wf.id)
     }
   }
 
-  const handleWorkflowDelete = () => {
-    if (contextMenu.workflow) {
-      // TODO: Implement delete workflow logic
-      console.log('Delete workflow:', contextMenu.workflow.id)
+  const handleWorkflowDelete = async () => {
+    const workflow = contextMenuWorkflowRef.current
+    if (!workflow) return
+    if (!confirm(`确定要删除"${workflow.title}"吗？此操作不可撤销。`)) return
+    try {
+      await deleteWorkflow(workflow.id)
+      contextMenuWorkflowRef.current = null
+      loadSidebarData()
+      onRefresh?.()
+    } catch (err) {
+      console.error('删除工作流失败:', err)
+      alert('删除失败，请重试')
     }
   }
 
   const handleAddToFavorites = () => {
-    if (contextMenu.workflow) {
+    const wf = contextMenuWorkflowRef.current
+    if (wf) {
       // TODO: Implement add to favorites logic
-      console.log('Add to favorites:', contextMenu.workflow.id)
+      console.log('Add to favorites:', wf.id)
     }
   }
 
   const handleWorkflowEdit = () => {
-    if (contextMenu.workflow) {
+    const wf = contextMenuWorkflowRef.current
+    if (wf) {
       // TODO: Implement edit workflow logic
-      console.log('Edit workflow:', contextMenu.workflow.id)
+      console.log('Edit workflow:', wf.id)
     }
   }
 
@@ -424,13 +526,19 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     setSelectedWorkflows(newSelected)
   }
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedWorkflows.size === 0) return
-    if (confirm(`确定要删除选中的 ${selectedWorkflows.size} 个AI工作方法吗？`)) {
-      console.log('Batch delete:', Array.from(selectedWorkflows))
-      // TODO: Implement batch delete
+    if (!confirm(`确定要删除选中的 ${selectedWorkflows.size} 个AI工作方法吗？此操作不可撤销。`)) return
+    try {
+      await Promise.all(Array.from(selectedWorkflows).map(id => deleteWorkflow(id)))
       setSelectedWorkflows(new Set())
       setBatchMode(false)
+      loadSidebarData()
+      onRefresh?.()
+    } catch (err) {
+      console.error('批量删除失败:', err)
+      alert('部分删除失败，请刷新后重试')
+      loadSidebarData()
     }
   }
 
@@ -446,15 +554,31 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     title: string,
     sectionId: string,
     items: Workflow[],
-    icon?: string
+    icon?: string,
+    actions?: { onRename?: (e: React.MouseEvent) => void; onDelete?: (e: React.MouseEvent) => void }
   ) => {
     const isCollapsed = collapsedSections.has(sectionId)
     const filteredItems = filterWorkflows(items)
+    const isEditing = editingSectionId === sectionId
+    const count = searchQuery ? filteredItems.length : items.length
+    const displayTitle = renamedSections[sectionId] || title
 
     return (
       <div style={{ marginBottom: '2px' }}>
         <div
-          onClick={() => toggleSection(sectionId)}
+          onClick={() => { if (!isEditing) toggleSection(sectionId) }}
+          onMouseEnter={(e) => {
+            setHoveredSectionId(sectionId)
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#5B5B5F'
+          }}
+          onMouseLeave={(e) => {
+            setHoveredSectionId(null)
+            e.currentTarget.style.backgroundColor = 'transparent'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#8E8E93'
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -469,29 +593,41 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             transition: 'background-color 0.2s ease',
             marginBottom: '1px'
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#F5F5F7'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#5B5B5F'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#8E8E93'
-          }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
             {icon && <span>{icon}</span>}
-            <span>{title}</span>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => {
+                  const trimmed = editingSectionName.trim()
+                  if (trimmed && trimmed !== title) {
+                    renameSection(sectionId, trimmed)
+                  }
+                  setEditingSectionId(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.currentTarget.blur() }
+                  if (e.key === 'Escape') setEditingSectionId(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600, color: '#4B5563',
+                  border: 'none', borderBottom: '1.5px solid #8b5cf6', outline: 'none',
+                  background: 'transparent', padding: '0 2px', minWidth: 0
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayTitle}</span>
+                <span style={{ fontSize: '12px', color: '#8E8E93', fontWeight: 400, flexShrink: 0 }}>({count})</span>
+              </>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              fontSize: '12px',
-              color: '#8E8E93',
-              fontWeight: 400
-            }}>
-              ({searchQuery ? filteredItems.length : items.length})
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {actions && renderSectionActions({ sectionId, ...actions })}
             <span
               className="expand-icon"
               style={{
@@ -556,7 +692,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 color: '#9ca3af',
                 textAlign: 'center'
               }}>
-                {searchQuery ? '未找到匹配的AI工作方法' : `暂无${title}`}
+                {searchQuery ? '未找到匹配的AI工作方法' : `暂无${displayTitle}`}
               </div>
             )}
           </div>
@@ -591,14 +727,28 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   // 渲染标签大类
   const renderCategorySection = (category: WorkflowCategory) => {
-    const isCollapsed = collapsedSections.has(`category-${category.id}`)
+    const sectionId = `category-${category.id}`
+    const isCollapsed = collapsedSections.has(sectionId)
     const workflows = getWorkflowsByCategory(category.name)
     const filteredWorkflows = filterWorkflows(workflows)
+    const isEditing = editingSectionId === sectionId
 
     return (
       <div key={category.id} style={{ marginBottom: '2px' }}>
         <div
-          onClick={() => toggleSection(`category-${category.id}`)}
+          onClick={() => { if (!isEditing) toggleSection(sectionId) }}
+          onMouseEnter={(e) => {
+            setHoveredSectionId(sectionId)
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#5B5B5F'
+          }}
+          onMouseLeave={(e) => {
+            setHoveredSectionId(null)
+            e.currentTarget.style.backgroundColor = 'transparent'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#8E8E93'
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -613,28 +763,47 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             transition: 'background-color 0.2s ease',
             marginBottom: '1px'
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#F5F5F7'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#5B5B5F'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#8E8E93'
-          }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{category.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => setEditingSectionId(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditingSectionId(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600, color: '#4B5563',
+                  border: 'none', borderBottom: '1.5px solid #8b5cf6', outline: 'none',
+                  background: 'transparent', padding: '0 2px', minWidth: 0
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{category.name}</span>
+                <span style={{ fontSize: '12px', color: '#8E8E93', fontWeight: 400, flexShrink: 0 }}>({searchQuery ? filteredWorkflows.length : workflows.length})</span>
+              </>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              fontSize: '12px',
-              color: '#8E8E93',
-              fontWeight: 400
-            }}>
-              ({searchQuery ? filteredWorkflows.length : workflows.length})
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {renderSectionActions({
+              sectionId,
+              onRename: (e) => startRenameSection(sectionId, category.name, e),
+              onDelete: (e) => {
+                e.stopPropagation()
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                setConfirmPopup({
+                  visible: true,
+                  position: { x: rect.left - 120, y: rect.bottom + 4 },
+                  message: `删除"${category.name}"？`,
+                  onConfirm: () => { hideCategory(category.id); setConfirmPopup(p => ({ ...p, visible: false })) }
+                })
+              }
+            })}
             <span
               className="expand-icon"
               style={{
@@ -728,11 +897,20 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const renderLocalTagSection = (tag: string, workflows: any[]) => {
     const sectionId = `local-tag-${tag}`
     const isCollapsed = collapsedSections.has(sectionId)
+    const isEditing = editingSectionId === sectionId
 
     return (
       <div key={tag} style={{ marginBottom: '2px' }}>
         <div
-          onClick={() => toggleSection(sectionId)}
+          onClick={() => { if (!isEditing) toggleSection(sectionId) }}
+          onMouseEnter={(e) => {
+            setHoveredSectionId(sectionId)
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+          }}
+          onMouseLeave={(e) => {
+            setHoveredSectionId(null)
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -747,16 +925,38 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             transition: 'background-color 0.2s ease',
             marginBottom: '1px'
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{tag}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => saveRenameLocalTag(tag)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditingSectionId(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600, color: '#4B5563',
+                  border: 'none', borderBottom: '1.5px solid #8b5cf6', outline: 'none',
+                  background: 'transparent', padding: '0 2px', minWidth: 0
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag}</span>
+                <span style={{ fontSize: '12px', color: '#8E8E93', fontWeight: 400, flexShrink: 0 }}>({workflows.length})</span>
+              </>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '14px', color: '#8E8E93', fontWeight: 400 }}>
-              ({workflows.length})
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {renderSectionActions({
+              sectionId,
+              onRename: (e) => startRenameSection(sectionId, tag, e),
+              onDelete: (e) => handleDeleteLocalTag(tag, e)
+            })}
             <span style={{
               color: '#8E8E93', transition: 'all 0.2s ease',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -811,19 +1011,272 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     )
   }
 
+  // 渲染自定义分类（空分类，可拖入工作流）
+  const renderCustomCategorySection = (cat: CustomCategory) => {
+    const sectionId = `custom-cat-${cat.id}`
+    const isCollapsed = collapsedSections.has(sectionId)
+    const isEditing = editingSectionId === sectionId
+
+    return (
+      <div key={cat.id} style={{ marginBottom: '2px' }}>
+        <div
+          onClick={() => { if (!isEditing) toggleSection(sectionId) }}
+          onMouseEnter={(e) => {
+            setHoveredSectionId(sectionId)
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+          }}
+          onMouseLeave={(e) => {
+            setHoveredSectionId(null)
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '5px 16px 5px 30px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#4B5563',
+            cursor: 'pointer',
+            userSelect: 'none',
+            borderRadius: '6px',
+            transition: 'background-color 0.2s ease',
+            marginBottom: '1px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => {
+                  const trimmed = editingSectionName.trim()
+                  if (trimmed && trimmed !== cat.name) renameCustomCategory(cat.id, trimmed)
+                  setEditingSectionId(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditingSectionId(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600, color: '#4B5563',
+                  border: 'none', borderBottom: '1.5px solid #8b5cf6', outline: 'none',
+                  background: 'transparent', padding: '0 2px', minWidth: 0
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
+                <span style={{ fontSize: '12px', color: '#8E8E93', fontWeight: 400, flexShrink: 0 }}>(0)</span>
+              </>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {renderSectionActions({
+              sectionId,
+              onRename: (e) => startRenameSection(sectionId, cat.name, e),
+              onDelete: (e) => {
+                e.stopPropagation()
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                setConfirmPopup({
+                  visible: true,
+                  position: { x: rect.left - 120, y: rect.bottom + 4 },
+                  message: `删除分组"${cat.name}"？`,
+                  onConfirm: () => { deleteCustomCategory(cat.id); setConfirmPopup(p => ({ ...p, visible: false })) }
+                })
+              }
+            })}
+            <span style={{
+              color: '#8E8E93', transition: 'all 0.2s ease',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: '16px', height: '16px', flexShrink: 0,
+              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
+            }}>
+              <ChevronRight size={14} />
+            </span>
+          </div>
+        </div>
+        {!isCollapsed && (
+          <div style={{
+            padding: '8px 16px 8px 38px',
+            fontSize: '12px',
+            color: '#9ca3af',
+            textAlign: 'center'
+          }}>
+            暂无内容，拖入工作流即可
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const handleEditTag = (tag: FavoriteTag, e: React.MouseEvent) => {
     e.stopPropagation()
     setEditingTag(tag)
     setTagModalOpen(true)
   }
 
-  const handleCreateTag = () => {
-    setEditingTag(null)
-    setTagModalOpen(true)
-  }
 
   const handleTagModalSuccess = () => {
     loadSidebarData()
+  }
+
+  // 删除收藏标签
+  const handleDeleteFavoriteTag = (tag: FavoriteTag, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setConfirmPopup({
+      visible: true,
+      position: { x: rect.left - 120, y: rect.bottom + 4 },
+      message: `删除标签"${tag.name}"？`,
+      onConfirm: async () => {
+        setConfirmPopup(p => ({ ...p, visible: false }))
+        try {
+          await favoritesService.deleteTag(tag.id)
+          loadSidebarData()
+        } catch (err) {
+          console.error('Failed to delete tag:', err)
+          alert('删除失败，请重试')
+        }
+      }
+    })
+  }
+
+  // 开始内联重命名
+  const startRenameSection = (sectionId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingSectionId(sectionId)
+    setEditingSectionName(currentName)
+  }
+
+  // 保存重命名（收藏标签）
+  const saveRenameFavoriteTag = async (tagId: string) => {
+    const trimmed = editingSectionName.trim()
+    if (!trimmed) {
+      setEditingSectionId(null)
+      return
+    }
+    try {
+      await favoritesService.updateTag(tagId, { name: trimmed })
+      loadSidebarData()
+    } catch (err) {
+      console.error('Failed to rename tag:', err)
+      alert('重命名失败，请重试')
+    }
+    setEditingSectionId(null)
+  }
+
+  // 保存重命名（本地标签）
+  const saveRenameLocalTag = (oldTag: string) => {
+    const trimmed = editingSectionName.trim()
+    if (!trimmed || trimmed === oldTag) {
+      setEditingSectionId(null)
+      return
+    }
+    const saved = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+    const updated = saved.map((w: any) => ({
+      ...w,
+      tags: (w.tags || []).map((t: string) => t === oldTag ? trimmed : t)
+    }))
+    localStorage.setItem('savedWorkflows', JSON.stringify(updated))
+    setLocalSavedWorkflows(updated)
+    window.dispatchEvent(new Event('savedWorkflowsUpdated'))
+    setEditingSectionId(null)
+  }
+
+  // 删除本地标签
+  const handleDeleteLocalTag = (tag: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const btn = (e.currentTarget as HTMLElement)
+    const rect = btn.getBoundingClientRect()
+    if (tag === '未分类') {
+      // "未分类"是虚拟分组，删除 = 删除所有无标签的工作流
+      setConfirmPopup({
+        visible: true,
+        position: { x: rect.left - 120, y: rect.bottom + 4 },
+        message: `清空"未分类"中的工作流？`,
+        onConfirm: () => {
+          setConfirmPopup(p => ({ ...p, visible: false }))
+          const saved = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+          const updated = saved.filter((w: any) => w.tags && w.tags.length > 0)
+          localStorage.setItem('savedWorkflows', JSON.stringify(updated))
+          setLocalSavedWorkflows(updated)
+          window.dispatchEvent(new Event('savedWorkflowsUpdated'))
+        }
+      })
+    } else {
+      setConfirmPopup({
+        visible: true,
+        position: { x: rect.left - 120, y: rect.bottom + 4 },
+        message: `删除分组"${tag}"？`,
+        onConfirm: () => {
+          setConfirmPopup(p => ({ ...p, visible: false }))
+          const saved = JSON.parse(localStorage.getItem('savedWorkflows') || '[]')
+          const updated = saved.map((w: any) => ({
+            ...w,
+            tags: (w.tags || []).filter((t: string) => t !== tag)
+          }))
+          localStorage.setItem('savedWorkflows', JSON.stringify(updated))
+          setLocalSavedWorkflows(updated)
+          window.dispatchEvent(new Event('savedWorkflowsUpdated'))
+        }
+      })
+    }
+  }
+
+
+  // 渲染二级标题的行内操作按钮
+  // 渲染二级标题的行内操作按钮（只有 重命名 和 删除）
+  const renderSectionActions = (options: {
+    sectionId: string
+    onRename?: (e: React.MouseEvent) => void
+    onDelete?: (e: React.MouseEvent) => void
+  }) => {
+    const isHovered = hoveredSectionId === options.sectionId
+    if (editingSectionId === options.sectionId) return null
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '1px',
+        opacity: isHovered ? 1 : 0,
+        pointerEvents: isHovered ? 'auto' : 'none',
+        transition: 'opacity 0.15s'
+      }}>
+        {options.onRename && (
+          <button
+            onClick={options.onRename}
+            title="重命名"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '20px', height: '20px', border: 'none', borderRadius: '4px',
+              background: 'transparent', cursor: 'pointer', padding: 0,
+              color: '#9CA3AF', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.color = '#6366F1' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
+          >
+            <Pencil size={11} />
+          </button>
+        )}
+        {options.onDelete && (
+          <button
+            onClick={options.onDelete}
+            title="删除"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '20px', height: '20px', border: 'none', borderRadius: '4px',
+              background: 'transparent', cursor: 'pointer', padding: 0,
+              color: '#9CA3AF', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2'; e.currentTarget.style.color = '#EF4444' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+    )
   }
 
   const [draggedTag, setDraggedTag] = React.useState<FavoriteTag | null>(null)
@@ -1116,21 +1569,35 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   }
 
   const renderFavoriteTag = (tag: FavoriteTag, workflows: Workflow[]) => {
-    const isCollapsed = collapsedSections.has(`favorite-tag-${tag.id}`)
+    const sectionId = `favorite-tag-${tag.id}`
+    const isCollapsed = collapsedSections.has(sectionId)
     const filteredWorkflows = filterWorkflows(workflows)
+    const isEditing = editingSectionId === sectionId
 
     return (
       <div
         key={tag.id}
         style={{ marginBottom: '2px' }}
-        draggable
+        draggable={!isEditing}
         onDragStart={(e) => handleTagDragStart(tag, e)}
         onDragOver={(e) => handleTagDragOver(tag, e)}
         onDragLeave={handleTagDragLeave}
         onDrop={(e) => handleTagDrop(tag, e)}
       >
         <div
-          onClick={() => toggleSection(`favorite-tag-${tag.id}`)}
+          onClick={() => { if (!isEditing) toggleSection(sectionId) }}
+          onMouseEnter={(e) => {
+            setHoveredSectionId(sectionId)
+            e.currentTarget.style.backgroundColor = '#F5F5F7'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#5B5B5F'
+          }}
+          onMouseLeave={(e) => {
+            setHoveredSectionId(null)
+            e.currentTarget.style.backgroundColor = 'transparent'
+            const ic = e.currentTarget.querySelector('.expand-icon') as HTMLElement
+            if (ic) ic.style.color = '#8E8E93'
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -1146,28 +1613,38 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             marginBottom: '1px',
             opacity: draggedTag?.id === tag.id ? 0.5 : 1
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#F5F5F7'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#5B5B5F'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            const icon = e.currentTarget.querySelector('.expand-icon') as HTMLElement
-            if (icon) icon.style.color = '#8E8E93'
-          }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{tag.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => saveRenameFavoriteTag(tag.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditingSectionId(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600, color: '#4B5563',
+                  border: 'none', borderBottom: '1.5px solid #8b5cf6', outline: 'none',
+                  background: 'transparent', padding: '0 2px', minWidth: 0
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
+                <span style={{ fontSize: '12px', color: '#8E8E93', fontWeight: 400, flexShrink: 0 }}>({searchQuery ? filteredWorkflows.length : workflows.length})</span>
+              </>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              fontSize: '12px',
-              color: '#8E8E93',
-              fontWeight: 400
-            }}>
-              ({searchQuery ? filteredWorkflows.length : workflows.length})
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            {renderSectionActions({
+              sectionId,
+              onRename: (e) => startRenameSection(sectionId, tag.name, e),
+              onDelete: (e) => handleDeleteFavoriteTag(tag, e)
+            })}
             <span
               className="expand-icon"
               style={{
@@ -1374,24 +1851,75 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               backgroundClip: 'text',
               fontWeight: 700
             }}>快速开始</span>
-            <span style={{
-              color: '#8E8E93',
-              transition: 'all 0.2s ease',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '16px',
-              height: '16px',
-              flexShrink: 0,
-              transform: collapsedSections.has('quick-start') ? 'rotate(0deg)' : 'rotate(90deg)'
-            }}>
-              <ChevronRight size={14} />
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setInputPopupValue('')
+                  setInputPopup({
+                    visible: true,
+                    position: { x: rect.left - 160, y: rect.bottom + 4 },
+                    placeholder: '添加分组',
+                    onSubmit: (name) => { addCustomCategory('quick-start', name); setInputPopup(p => ({ ...p, visible: false })) }
+                  })
+                }}
+                title="新增分类"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '20px', height: '20px', border: 'none', borderRadius: '5px',
+                  background: 'transparent', cursor: 'pointer', padding: 0,
+                  color: '#9CA3AF', transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.color = '#6366F1' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
+              >
+                <Plus size={14} />
+              </button>
+              <span style={{
+                color: '#8E8E93',
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '16px',
+                height: '16px',
+                flexShrink: 0,
+                transform: collapsedSections.has('quick-start') ? 'rotate(0deg)' : 'rotate(90deg)'
+              }}>
+                <ChevronRight size={14} />
+              </span>
+            </div>
           </div>
           {!collapsedSections.has('quick-start') && (
             <>
-              {renderSection('模板AI工作方法', 'templates', sidebarData.quickStart.templates)}
-              {renderSection('推荐AI工作方法', 'recommended', sidebarData.quickStart.recommended)}
+              {!hiddenSections.has('templates') && renderSection('模板AI工作方法', 'templates', sidebarData.quickStart.templates, undefined, {
+                onRename: (e) => startRenameSection('templates', renamedSections['templates'] || '模板AI工作方法', e),
+                onDelete: (e) => {
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setConfirmPopup({
+                    visible: true,
+                    position: { x: rect.left - 120, y: rect.bottom + 4 },
+                    message: `删除"${renamedSections['templates'] || '模板AI工作方法'}"？`,
+                    onConfirm: () => { hideSection('templates'); setConfirmPopup(p => ({ ...p, visible: false })) }
+                  })
+                }
+              })}
+              {!hiddenSections.has('recommended') && renderSection('推荐AI工作方法', 'recommended', sidebarData.quickStart.recommended, undefined, {
+                onRename: (e) => startRenameSection('recommended', renamedSections['recommended'] || '推荐AI工作方法', e),
+                onDelete: (e) => {
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setConfirmPopup({
+                    visible: true,
+                    position: { x: rect.left - 120, y: rect.bottom + 4 },
+                    message: `删除"${renamedSections['recommended'] || '推荐AI工作方法'}"？`,
+                    onConfirm: () => { hideSection('recommended'); setConfirmPopup(p => ({ ...p, visible: false })) }
+                  })
+                }
+              })}
+              {customCategories.filter(c => c.parent === 'quick-start').map(cat => renderCustomCategorySection(cat))}
             </>
           )}
         </div>
@@ -1431,19 +1959,45 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               backgroundClip: 'text',
               fontWeight: 700
             }}>我的AI工作法</span>
-            <span style={{
-              color: '#8E8E93',
-              transition: 'all 0.2s ease',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '16px',
-              height: '16px',
-              flexShrink: 0,
-              transform: collapsedSections.has('my-workflows') ? 'rotate(0deg)' : 'rotate(90deg)'
-            }}>
-              <ChevronRight size={14} />
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setInputPopupValue('')
+                  setInputPopup({
+                    visible: true,
+                    position: { x: rect.left - 160, y: rect.bottom + 4 },
+                    placeholder: '添加分组',
+                    onSubmit: (name) => { addCustomCategory('my-workflows', name); setInputPopup(p => ({ ...p, visible: false })) }
+                  })
+                }}
+                title="新增分类"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '20px', height: '20px', border: 'none', borderRadius: '5px',
+                  background: 'transparent', cursor: 'pointer', padding: 0,
+                  color: '#9CA3AF', transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.color = '#6366F1' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
+              >
+                <Plus size={14} />
+              </button>
+              <span style={{
+                color: '#8E8E93',
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '16px',
+                height: '16px',
+                flexShrink: 0,
+                transform: collapsedSections.has('my-workflows') ? 'rotate(0deg)' : 'rotate(90deg)'
+              }}>
+                <ChevronRight size={14} />
+              </span>
+            </div>
           </div>
           {!collapsedSections.has('my-workflows') && (
             <>
@@ -1452,7 +2006,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 renderLocalTagSection(tag, workflows)
               )}
               {/* 按6个标签大类显示工作流 */}
-              {WORKFLOW_CATEGORIES.map(category => renderCategorySection(category))}
+              {WORKFLOW_CATEGORIES.filter(c => !hiddenCategories.has(c.id)).map(category => renderCategorySection(category))}
+              {/* 自定义分类 */}
+              {customCategories.filter(c => c.parent === 'my-workflows').map(cat => renderCustomCategorySection(cat))}
             </>
           )}
         </div>
@@ -1492,33 +2048,39 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               backgroundClip: 'text',
               fontWeight: 700
             }}>AI工作方法收藏夹</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleCreateTag()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setInputPopupValue('')
+                  setInputPopup({
+                    visible: true,
+                    position: { x: rect.left - 160, y: rect.bottom + 4 },
+                    placeholder: '添加分组',
+                    onSubmit: async (name) => {
+                      setInputPopup(p => ({ ...p, visible: false }))
+                      try {
+                        await favoritesService.createTag({ name })
+                        loadSidebarData()
+                      } catch (err) {
+                        console.error('创建标签失败:', err)
+                        alert('创建失败，请重试')
+                      }
+                    }
+                  })
                 }}
+                title="新增收藏标签"
                 style={{
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  color: '#8b5cf6',
-                  backgroundColor: '#f5f3ff',
-                  border: '1px solid #e9d5ff',
-                  cursor: 'pointer',
-                  borderRadius: '6px',
-                  fontWeight: 500,
-                  transition: 'all 0.2s'
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '20px', height: '20px', border: 'none', borderRadius: '5px',
+                  background: 'transparent', cursor: 'pointer', padding: 0,
+                  color: '#9CA3AF', transition: 'all 0.15s'
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ede9fe'
-                  e.currentTarget.style.borderColor = '#c4b5fd'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f5f3ff'
-                  e.currentTarget.style.borderColor = '#e9d5ff'
-                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.color = '#6366F1' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' }}
               >
-                + 新建
+                <Plus size={14} />
               </button>
               <span style={{
                 color: '#8E8E93',
@@ -1545,11 +2107,25 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 )
               )}
 
-              {sidebarData.favorites.uncategorized.length > 0 &&
+              {sidebarData.favorites.uncategorized.length > 0 && !hiddenSections.has('fav-uncategorized') &&
                 renderSection(
                   '未分类',
-                  'uncategorized',
-                  sidebarData.favorites.uncategorized
+                  'fav-uncategorized',
+                  sidebarData.favorites.uncategorized,
+                  undefined,
+                  {
+                    onRename: (e) => startRenameSection('fav-uncategorized', renamedSections['fav-uncategorized'] || '未分类', e),
+                    onDelete: (e) => {
+                      e.stopPropagation()
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setConfirmPopup({
+                        visible: true,
+                        position: { x: rect.left - 120, y: rect.bottom + 4 },
+                        message: `删除"${renamedSections['fav-uncategorized'] || '未分类'}"？`,
+                        onConfirm: () => { hideSection('fav-uncategorized'); setConfirmPopup(p => ({ ...p, visible: false })) }
+                      })
+                    }
+                  }
                 )}
             </>
           )}
@@ -1580,6 +2156,101 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           onAddToFavorites={handleAddToFavorites}
           onEdit={handleWorkflowEdit}
         />
+      )}
+
+      {/* 确认气泡 */}
+      {confirmPopup.visible && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setConfirmPopup(p => ({ ...p, visible: false }))}
+          />
+          <div style={{
+            position: 'fixed',
+            left: confirmPopup.position.x,
+            top: confirmPopup.position.y,
+            zIndex: 9999,
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '13px',
+            whiteSpace: 'nowrap'
+          }}>
+            <span style={{ color: '#374151' }}>{confirmPopup.message}</span>
+            <button
+              onClick={() => confirmPopup.onConfirm()}
+              style={{
+                padding: '3px 10px', fontSize: '12px', fontWeight: 600,
+                color: 'white', backgroundColor: '#ef4444', border: 'none',
+                borderRadius: '5px', cursor: 'pointer'
+              }}
+            >确定</button>
+            <button
+              onClick={() => setConfirmPopup(p => ({ ...p, visible: false }))}
+              style={{
+                padding: '3px 10px', fontSize: '12px',
+                color: '#6b7280', backgroundColor: '#f3f4f6', border: 'none',
+                borderRadius: '5px', cursor: 'pointer'
+              }}
+            >取消</button>
+          </div>
+        </>
+      )}
+
+      {/* 输入气泡 */}
+      {inputPopup.visible && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setInputPopup(p => ({ ...p, visible: false }))}
+          />
+          <div style={{
+            position: 'fixed',
+            left: inputPopup.position.x,
+            top: inputPopup.position.y,
+            zIndex: 9999,
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '8px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <input
+              autoFocus
+              value={inputPopupValue}
+              onChange={(e) => setInputPopupValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && inputPopupValue.trim()) {
+                  inputPopup.onSubmit(inputPopupValue.trim())
+                }
+                if (e.key === 'Escape') setInputPopup(p => ({ ...p, visible: false }))
+              }}
+              placeholder={inputPopup.placeholder}
+              style={{
+                width: '130px', padding: '4px 8px', fontSize: '13px',
+                border: '1px solid #d1d5db', borderRadius: '5px', outline: 'none'
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = '#8b5cf6' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = '#d1d5db' }}
+            />
+            <button
+              onClick={() => {
+                if (inputPopupValue.trim()) inputPopup.onSubmit(inputPopupValue.trim())
+              }}
+              style={{
+                padding: '4px 10px', fontSize: '12px', fontWeight: 600,
+                color: 'white', backgroundColor: '#8b5cf6', border: 'none',
+                borderRadius: '5px', cursor: 'pointer', whiteSpace: 'nowrap'
+              }}
+            >添加</button>
+          </div>
+        </>
       )}
     </div>
   </>
