@@ -31,6 +31,7 @@ const CACHE_TTL = 3600 // 1小时
 const TOKEN_BUDGET = 8000
 const EMBEDDING_HASH_KEY = 'embedding:workflows'
 const TOP_K = 12
+const VECTOR_MIN_THRESHOLD = 50 // 工作流少于此数量时用全量，多于时用向量检索
 
 // ========== Token 估算 ==========
 
@@ -205,11 +206,7 @@ class VectorRetriever implements WorkflowRetriever {
 
   async retrieve(query: string): Promise<WorkflowSummary[]> {
     try {
-      // 1. 为用户 query 生成 embedding
-      const queryResult = await generateEmbedding(query)
-      const queryEmbedding = queryResult.embedding
-
-      // 2. 从 Redis Hash 加载所有工作流 embedding
+      // 工作流数量少时直接全量（AI 看到全貌推荐更好）
       const allEmbeddings = await this.redis.hgetall(EMBEDDING_HASH_KEY)
       const entries = Object.entries(allEmbeddings)
 
@@ -217,6 +214,15 @@ class VectorRetriever implements WorkflowRetriever {
         logger.warn('No embeddings in Redis, falling back to SimpleRetriever')
         return this.fallback.retrieve(query)
       }
+
+      if (entries.length < VECTOR_MIN_THRESHOLD) {
+        logger.debug(`Workflow count (${entries.length}) < ${VECTOR_MIN_THRESHOLD}, using full list`)
+        return this.fallback.retrieve(query)
+      }
+
+      // 1. 为用户 query 生成 embedding
+      const queryResult = await generateEmbedding(query)
+      const queryEmbedding = queryResult.embedding
 
       // 3. 计算余弦相似度
       const scored: { workflowId: string; score: number }[] = []
