@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Check, Sparkles, X, Loader2, Tag } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { authService } from '../services/auth';
 import { api } from '../services/api';
 import '../styles/membership.css';
 
@@ -48,7 +48,7 @@ const TIER_LABELS: Record<string, string> = {
 }
 
 export function MembershipPage() {
-  const { user, isAuthenticated } = useAuth();
+  const isAuthenticated = authService.isAuthenticated();
   const [pricing, setPricing] = useState<PricingInfo | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(true);
@@ -65,7 +65,7 @@ export function MembershipPage() {
   useEffect(() => {
     fetchPricing();
     if (isAuthenticated) fetchSubscription();
-  }, [isAuthenticated]);
+  }, []);
 
   const fetchPricing = async () => {
     try {
@@ -89,7 +89,7 @@ export function MembershipPage() {
 
   // 购买 Pro
   const handlePurchase = async () => {
-    if (!user) {
+    if (!isAuthenticated) {
       alert('请先登录');
       return;
     }
@@ -114,13 +114,10 @@ export function MembershipPage() {
     }
   };
 
-  // 计算显示价格（考虑续费和优惠码后的提示）
+  // 主价格始终显示当前阶段基础价（如早鸟¥199），续费价单独展示
   const getDisplayPrice = () => {
     if (!pricing) return null;
     const base = pricing.currentPrice;
-    if (pricing.renewal?.canRenew && pricing.renewal.renewalPrice) {
-      return { price: pricing.renewal.renewalPrice, label: '续费优惠价', isDiscount: true };
-    }
     return { price: base, label: TIER_LABELS[pricing.currentTier], isDiscount: pricing.currentTier !== 'standard' };
   };
 
@@ -171,7 +168,6 @@ export function MembershipPage() {
           <p className="membership-subtitle">解锁更多功能，提升工作效率</p>
           <div style={{ marginTop: 20 }}>
             <span className="membership-current-badge">
-              <Sparkles />
               当前等级：{isPro ? '专业版' : userRole === 'creator' ? '创作者' : '免费版'}
             </span>
           </div>
@@ -277,7 +273,7 @@ export function MembershipPage() {
             </ul>
 
             {/* 优惠码输入 */}
-            {!isPro && user && (
+            {!isPro && isAuthenticated && (
               <div className="membership-promo">
                 <div className="membership-promo-input">
                   <Tag size={14} />
@@ -309,7 +305,7 @@ export function MembershipPage() {
               ) : (
                 <button
                   className="membership-btn membership-btn--upgrade"
-                  onClick={user ? handlePurchase : () => alert('请先登录')}
+                  onClick={isAuthenticated ? handlePurchase : () => alert('请先登录')}
                   disabled={purchasing}
                 >
                   {purchasing ? <><Loader2 size={16} className="spin" /> 处理中...</> : '立即升级'}
