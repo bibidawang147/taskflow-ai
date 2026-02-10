@@ -489,78 +489,135 @@ router.delete('/:id/favorite', authenticateToken, async (req: AuthenticatedReque
 // 克隆工作流到用户账户（需要认证）
 router.post('/:id/clone', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const { createId } = require('@paralleldrive/cuid2')
     const userId = req.user!.id
     const { id: workflowId } = req.params
-    const { customTitle } = req.body || {} // 可选：自定义标题
+    const { customTitle } = req.body || {}
 
-    // 1. 获取原工作流的完整信息
+    // 1. 获取原工作流完整信息
     const originalWorkflow = await prisma.workflow.findUnique({
       where: { id: workflowId },
       include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true
-          }
-        }
+        author: { select: { id: true, name: true, avatar: true } },
+        nodes: { include: { stepDetail: true } },
+        preparations: { orderBy: { order: 'asc' } }
       }
     })
 
     if (!originalWorkflow) {
-      return res.status(404).json({
-        error: '工作流不存在'
-      })
+      return res.status(404).json({ error: '工作流不存在' })
     }
 
-    // 2. 检查用户是否已经克隆过（避免重复克隆相同工作流）
-    const existingClone = await prisma.workflow.findFirst({
-      where: {
-        authorId: userId,
-        title: {
-          contains: originalWorkflow.title
-        },
-        createdAt: {
-          gte: new Date(Date.now() - 60000) // 1分钟内
-        }
-      }
-    })
-
-    if (existingClone) {
-      // 如果最近已克隆过，直接返回已有的克隆
-      return res.status(200).json({
-        message: '工作流已存在',
-        workflow: existingClone,
-        isExisting: true
-      })
-    }
-
-    // 3. 生成新的标题
     const clonedTitle = customTitle || `${originalWorkflow.title} (我的副本)`
 
-    // 4. 创建工作流副本
-    const clonedWorkflow = await prisma.workflow.create({
-      data: {
-        title: clonedTitle,
-        description: originalWorkflow.description,
-        thumbnail: originalWorkflow.thumbnail,
-        category: originalWorkflow.category,
-        tags: originalWorkflow.tags,
-        version: '1.0.0', // 重置版本号
-        config: JSON.parse(JSON.stringify(originalWorkflow.config)), // 深拷贝配置
-        isPublic: false, // 克隆的工作流默认为私有
-        isTemplate: false,
-        authorId: userId, // 设置为当前用户
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true
+    // 2. 构建 旧ID → 新ID 映射表
+    const idMap: Record<string, string> = {}
+    for (const node of originalWorkflow.nodes) {
+      idMap[node.id] = createId()
+    }
+
+    // 3. 用新 ID 重写 config（edges 里的 source/target 引用节点 ID）
+    const originalConfig = JSON.parse(JSON.stringify(originalWorkflow.config)) as any
+    if (originalConfig) {
+      // 重映射 edges
+      if (Array.isArray(originalConfig.edges)) {
+        originalConfig.edges = originalConfig.edges.map((edge: any) => ({
+          ...edge,
+          id: createId(),
+          source: idMap[edge.source] || edge.source,
+          target: idMap[edge.target] || edge.target,
+        }))
+      }
+      // 重映射 config.nodes（如果存在）
+      if (Array.isArray(originalConfig.nodes)) {
+        originalConfig.nodes = originalConfig.nodes.map((n: any) => ({
+          ...n,
+          id: idMap[n.id] || n.id,
+        }))
+      }
+    }
+
+    // 4. 事务：创建工作流 + 节点 + 步骤详情 + 前置准备
+    const clonedWorkflow = await prisma.$transaction(async (tx) => {
+      // 4a. 创建工作流主体
+      const wf = await tx.workflow.create({
+        data: {
+          title: clonedTitle,
+          description: originalWorkflow.description,
+          thumbnail: originalWorkflow.thumbnail,
+          category: originalWorkflow.category,
+          tags: originalWorkflow.tags,
+          version: '1.0.0',
+          config: originalConfig,
+          isPublic: false,
+          isTemplate: false,
+          isDraft: false,
+          authorId: userId,
+          difficultyLevel: originalWorkflow.difficultyLevel,
+          matchKeywords: originalWorkflow.matchKeywords,
+          useScenarios: originalWorkflow.useScenarios,
+          platformTypes: originalWorkflow.platformTypes,
+          contentTypes: originalWorkflow.contentTypes,
+          sourceType: originalWorkflow.sourceType,
+          sourceUrl: originalWorkflow.sourceUrl,
+          sourceTitle: originalWorkflow.sourceTitle,
+          exampleInput: originalWorkflow.exampleInput as any,
+          exampleOutput: originalWorkflow.exampleOutput as any,
+        }
+      })
+
+      // 4b. 创建节点 + 步骤详情
+      for (const node of originalWorkflow.nodes) {
+        const newNodeId = idMap[node.id]
+        await tx.workflowNode.create({
+          data: {
+            id: newNodeId,
+            workflowId: wf.id,
+            type: node.type,
+            label: node.label,
+            position: JSON.parse(JSON.stringify(node.position)),
+            config: JSON.parse(JSON.stringify(node.config)),
           }
+        })
+
+        if (node.stepDetail) {
+          await tx.workflowStepDetail.create({
+            data: {
+              nodeId: newNodeId,
+              stepDescription: node.stepDetail.stepDescription,
+              expectedResult: node.stepDetail.expectedResult,
+              tools: node.stepDetail.tools,
+              promptTemplate: node.stepDetail.promptTemplate,
+              guideBlocks: node.stepDetail.guideBlocks,
+              demonstrationMedia: node.stepDetail.demonstrationMedia,
+              relatedResources: node.stepDetail.relatedResources,
+              referencedWorkflowId: node.stepDetail.referencedWorkflowId,
+              nextStepConfig: node.stepDetail.nextStepConfig,
+            }
+          })
         }
       }
+
+      // 4c. 创建前置准备
+      for (const prep of originalWorkflow.preparations) {
+        await tx.workflowPreparation.create({
+          data: {
+            workflowId: wf.id,
+            name: prep.name,
+            description: prep.description,
+            link: prep.link,
+            order: prep.order,
+          }
+        })
+      }
+
+      // 4d. 返回完整数据
+      return tx.workflow.findUnique({
+        where: { id: wf.id },
+        include: {
+          author: { select: { id: true, name: true, avatar: true } }
+        }
+      })
     })
 
     res.status(201).json({

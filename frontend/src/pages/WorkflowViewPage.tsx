@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ChevronRight, RotateCcw, CheckCircle2, Loader2, Play, Edit3 } from 'lucide-react'
-import { getFullWorkflow } from '../services/workflowApi'
+import { ChevronRight, RotateCcw, CheckCircle2, Loader2, Play, Edit3, Plus } from 'lucide-react'
+import { getFullWorkflow, cloneWorkflow } from '../services/workflowApi'
+import { authService } from '../services/auth'
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowStepDetail, WorkflowPreparation } from '../types/workflow'
 import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
 import WorkflowOverviewChart from '../components/workflow-viewer/WorkflowOverviewChart'
@@ -44,6 +45,32 @@ export default function WorkflowViewPage() {
 
   // 卡片引用，用于滚动定位
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  // 添加到工作台状态
+  const [cloning, setCloning] = useState(false)
+  const [cloneSuccess, setCloneSuccess] = useState(false)
+
+  const handleAddToWorkspace = async () => {
+    if (!id || cloneSuccess) return
+    if (!authService.isAuthenticated()) {
+      navigate('/login')
+      return
+    }
+    try {
+      setCloning(true)
+      const result = await cloneWorkflow(id)
+      setCloneSuccess(true)
+      // 设置标记，StoragePage 会读取并自动将卡片添加到画布
+      localStorage.setItem('newlyClonedWorkflowId', result.workflow.id)
+      // 跳转到工作台
+      setTimeout(() => navigate('/workspace'), 600)
+    } catch (err: any) {
+      console.error('添加到工作台失败:', err)
+      alert(err?.response?.data?.error || '添加失败，请稍后重试')
+    } finally {
+      setCloning(false)
+    }
+  }
 
   // 加载工作流数据
   useEffect(() => {
@@ -265,6 +292,16 @@ export default function WorkflowViewPage() {
                   完成当前步骤
                 </button>
               )}
+              <button
+                onClick={handleAddToWorkspace}
+                className="btn-outline"
+                disabled={cloning || cloneSuccess}
+                title="添加到我的工作台"
+                style={cloneSuccess ? { borderColor: '#10b981', color: '#10b981', background: '#ecfdf5' } : undefined}
+              >
+                <Plus className="w-4 h-4" />
+                {cloning ? '添加中...' : cloneSuccess ? '已添加' : '添加到工作台'}
+              </button>
               <button
                 onClick={execution.resetProgress}
                 className="btn-outline"
