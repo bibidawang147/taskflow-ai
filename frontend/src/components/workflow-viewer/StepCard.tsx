@@ -257,7 +257,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
         <div className="step-card-actions">
           {!isCompleted && (
             <button
-              className="step-card-complete-btn"
+              className="btn-primary"
               onClick={(e) => {
                 e.stopPropagation()
                 onComplete()
