@@ -4,6 +4,7 @@ import { authService } from '../services/auth'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 
 // 画布数据类型定义
 interface Position {
@@ -65,6 +66,7 @@ interface NavigationSidebarProps {
   canvasItems?: CanvasItemsMap
   libraryData?: any[]
   embedded?: boolean // 是否嵌入到其他容器中使用（不显示外层容器样式）
+  externalSearchQuery?: string // 外部传入的搜索词
 }
 
 // 独立的WorkflowItem组件，避免Hooks规则违反
@@ -102,7 +104,7 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
       onClick={onClick}
       onContextMenu={onContextMenu}
       style={{
-        padding: '4px 16px',
+        padding: '3px 16px 3px 38px',
         fontSize: '13px',
         color: '#374151',
         cursor: batchMode ? 'pointer' : 'grab',
@@ -243,7 +245,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   onWorkflowDragEnd,
   canvasItems = {},
   libraryData = [],
-  embedded = false
+  embedded = false,
+  externalSearchQuery
 }) => {
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -251,14 +254,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   // 默认所有section都是折叠的（页面刷新时）
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     new Set([
-      'quick-start', 'my-workflows', 'canvas-structure',
+      'quick-start', 'my-workflows', 'canvas-structure', 'favorites',
       'templates', 'recommended', 'uncategorized',
       // 6个标签大类默认折叠
       ...WORKFLOW_CATEGORIES.map(c => `category-${c.id}`)
     ])
   )
   const [isInitialLoad, setIsInitialLoad] = useState(true) // 标记是否首次加载
-  const [searchQuery, setSearchQuery] = useState('')
+  const [internalSearchQuery, setInternalSearchQuery] = useState('')
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery
+  const setSearchQuery = setInternalSearchQuery
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [editingTag, setEditingTag] = useState<FavoriteTag | null>(null)
   const [contextMenu, setContextMenu] = useState<{
@@ -302,7 +307,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       // 只在首次加载时设置默认折叠状态
       if (isInitialLoad) {
         const defaultCollapsed = new Set([
-          'templates', 'recommended', 'recent', 'drafts', 'published', 'uncategorized',
+          'templates', 'recommended', 'recent', 'drafts', 'published', 'uncategorized', 'favorites',
           // 6个标签大类默认折叠
           ...WORKFLOW_CATEGORIES.map(c => `category-${c.id}`)
         ])
@@ -445,22 +450,22 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     const filteredItems = filterWorkflows(items)
 
     return (
-      <div style={{ marginBottom: '0.5rem' }}>
+      <div style={{ marginBottom: '2px' }}>
         <div
           onClick={() => toggleSection(sectionId)}
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#1A1A1A',
+            padding: '5px 16px 5px 30px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#4B5563',
             cursor: 'pointer',
             userSelect: 'none',
             borderRadius: '6px',
             transition: 'background-color 0.2s ease',
-            marginBottom: '4px'
+            marginBottom: '1px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#F5F5F7'
@@ -479,7 +484,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
-              fontSize: '14px',
+              fontSize: '12px',
               color: '#8E8E93',
               fontWeight: 400
             }}>
@@ -488,25 +493,24 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             <span
               className="expand-icon"
               style={{
-                fontSize: '18px',
                 color: '#8E8E93',
-                transition: 'color 0.2s ease',
+                transition: 'all 0.2s ease',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '18px',
-                height: '18px',
+                width: '16px',
+                height: '16px',
                 flexShrink: 0,
-                fontWeight: 300
+                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
               }}
             >
-              {isCollapsed ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
         </div>
         {!isCollapsed && (
           <div style={{
-            marginTop: '0.25rem',
+            marginTop: '1px',
             animation: 'fadeIn 0.2s ease-in'
           }}>
             {filteredItems.length > 0 ? (
@@ -545,8 +549,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               ))
             ) : (
               <div style={{
-                padding: '1rem',
-                fontSize: '13px',
+                padding: '0.5rem 1rem',
+                fontSize: '12px',
                 color: '#9ca3af',
                 textAlign: 'center'
               }}>
@@ -590,22 +594,22 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     const filteredWorkflows = filterWorkflows(workflows)
 
     return (
-      <div key={category.id} style={{ marginBottom: '0.5rem' }}>
+      <div key={category.id} style={{ marginBottom: '2px' }}>
         <div
           onClick={() => toggleSection(`category-${category.id}`)}
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#1A1A1A',
+            padding: '5px 16px 5px 30px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#4B5563',
             cursor: 'pointer',
             userSelect: 'none',
             borderRadius: '6px',
             transition: 'background-color 0.2s ease',
-            marginBottom: '4px'
+            marginBottom: '1px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#F5F5F7'
@@ -623,7 +627,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
-              fontSize: '14px',
+              fontSize: '12px',
               color: '#8E8E93',
               fontWeight: 400
             }}>
@@ -632,25 +636,24 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             <span
               className="expand-icon"
               style={{
-                fontSize: '18px',
                 color: '#8E8E93',
-                transition: 'color 0.2s ease',
+                transition: 'all 0.2s ease',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '18px',
-                height: '18px',
+                width: '16px',
+                height: '16px',
                 flexShrink: 0,
-                fontWeight: 300
+                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
               }}
             >
-              {isCollapsed ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
         </div>
         {!isCollapsed && (
           <div style={{
-            marginTop: '0.25rem',
+            marginTop: '1px',
             animation: 'fadeIn 0.2s ease-in'
           }}>
             {filteredWorkflows.length > 0 ? (
@@ -689,8 +692,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               ))
             ) : (
               <div style={{
-                padding: '1rem',
-                fontSize: '13px',
+                padding: '0.5rem 1rem',
+                fontSize: '12px',
                 color: '#9ca3af',
                 textAlign: 'center'
               }}>
@@ -725,22 +728,22 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     const isCollapsed = collapsedSections.has(sectionId)
 
     return (
-      <div key={tag} style={{ marginBottom: '0.5rem' }}>
+      <div key={tag} style={{ marginBottom: '2px' }}>
         <div
           onClick={() => toggleSection(sectionId)}
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#1A1A1A',
+            padding: '5px 16px 5px 30px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#4B5563',
             cursor: 'pointer',
             userSelect: 'none',
             borderRadius: '6px',
             transition: 'background-color 0.2s ease',
-            marginBottom: '4px'
+            marginBottom: '1px'
           }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
@@ -753,11 +756,12 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               ({workflows.length})
             </span>
             <span style={{
-              fontSize: '18px', color: '#8E8E93', fontWeight: 300,
+              color: '#8E8E93', transition: 'all 0.2s ease',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: '18px', height: '18px', flexShrink: 0
+              width: '16px', height: '16px', flexShrink: 0,
+              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
             }}>
-              {isCollapsed ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
         </div>
@@ -769,9 +773,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '10px 16px 10px 24px',
-                  fontSize: '14px',
+                  gap: '8px',
+                  padding: '4px 16px 4px 38px',
+                  fontSize: '13px',
                   color: '#3C3C43',
                   cursor: 'pointer',
                   borderRadius: '6px',
@@ -936,11 +940,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               </span>
             </div>
             <span style={{
-              fontSize: '14px',
               color: '#8E8E93',
-              transition: 'transform 0.2s ease'
+              transition: 'all 0.2s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              transform: isContainerCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
             }}>
-              {isContainerCollapsed ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
 
@@ -992,16 +998,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     const rootWorkflows = workflows.filter(w => w.parentId === ROOT_CONTAINER_ID)
 
     return (
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '0.5rem' }}>
         <div
           onClick={() => toggleSection('canvas-structure')}
           style={{
-            padding: '0.75rem 1rem',
-            fontSize: '15px',
+            padding: '0.25rem 1rem 0.4rem 1rem',
+            fontSize: '14px',
             fontWeight: 700,
             color: '#1A1A1A',
-            marginBottom: '0.75rem',
-            marginTop: '32px',
+            marginBottom: '0.25rem',
+            marginTop: '12px',
             borderBottom: 'none',
             letterSpacing: '0.02em',
             cursor: 'pointer',
@@ -1027,18 +1033,17 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             fontWeight: 700
           }}>画布结构</span>
           <span style={{
-            fontSize: '18px',
             color: '#8E8E93',
-            transition: 'color 0.2s ease',
+            transition: 'all 0.2s ease',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '18px',
-            height: '18px',
+            width: '16px',
+            height: '16px',
             flexShrink: 0,
-            fontWeight: 300
+            transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
           }}>
-            {isCollapsed ? '›' : '⌄'}
+            <ChevronRight size={14} />
           </span>
         </div>
 
@@ -1046,8 +1051,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           <div>
             {rootContainers.length === 0 && rootWorkflows.length === 0 ? (
               <div style={{
-                padding: '1rem',
-                fontSize: '13px',
+                padding: '0.5rem 1rem',
+                fontSize: '12px',
                 color: '#9ca3af',
                 textAlign: 'center'
               }}>
@@ -1101,7 +1106,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     return (
       <div
         key={tag.id}
-        style={{ marginBottom: '0.5rem' }}
+        style={{ marginBottom: '2px' }}
         draggable
         onDragStart={(e) => handleTagDragStart(tag, e)}
         onDragOver={(e) => handleTagDragOver(tag, e)}
@@ -1114,15 +1119,15 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#1A1A1A',
+            padding: '5px 16px 5px 30px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#4B5563',
             cursor: 'pointer',
             userSelect: 'none',
             borderRadius: '6px',
             transition: 'background-color 0.2s ease',
-            marginBottom: '4px',
+            marginBottom: '1px',
             opacity: draggedTag?.id === tag.id ? 0.5 : 1
           }}
           onMouseEnter={(e) => {
@@ -1141,7 +1146,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
-              fontSize: '14px',
+              fontSize: '12px',
               color: '#8E8E93',
               fontWeight: 400
             }}>
@@ -1150,19 +1155,18 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             <span
               className="expand-icon"
               style={{
-                fontSize: '18px',
                 color: '#8E8E93',
-                transition: 'color 0.2s ease',
+                transition: 'all 0.2s ease',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '18px',
-                height: '18px',
+                width: '16px',
+                height: '16px',
                 flexShrink: 0,
-                fontWeight: 300
+                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)'
               }}
             >
-              {isCollapsed ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
         </div>
@@ -1317,18 +1321,18 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '1rem 0.5rem'
+        padding: '0.5rem'
       }}>
         {/* Quick Start Section */}
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '0.5rem' }}>
           <div
             onClick={() => toggleSection('quick-start')}
             style={{
-              padding: '0.25rem 1rem 0.75rem 1rem',
-              fontSize: '15px',
+              padding: '0.25rem 1rem 0.4rem 1rem',
+              fontSize: '14px',
               fontWeight: 700,
               color: '#1A1A1A',
-              marginBottom: '0.75rem',
+              marginBottom: '0.25rem',
               marginTop: '0px',
               borderBottom: 'none',
               letterSpacing: '0.02em',
@@ -1355,18 +1359,17 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               fontWeight: 700
             }}>快速开始</span>
             <span style={{
-              fontSize: '18px',
               color: '#8E8E93',
-              transition: 'color 0.2s ease',
+              transition: 'all 0.2s ease',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '18px',
-              height: '18px',
+              width: '16px',
+              height: '16px',
               flexShrink: 0,
-              fontWeight: 300
+              transform: collapsedSections.has('quick-start') ? 'rotate(0deg)' : 'rotate(90deg)'
             }}>
-              {collapsedSections.has('quick-start') ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
           {!collapsedSections.has('quick-start') && (
@@ -1378,16 +1381,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         </div>
 
         {/* My Workflows Section */}
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '0.5rem' }}>
           <div
             onClick={() => toggleSection('my-workflows')}
             style={{
-              padding: '0.5rem 1rem',
-              fontSize: '15px',
+              padding: '0.25rem 1rem 0.4rem 1rem',
+              fontSize: '14px',
               fontWeight: 700,
               color: '#1A1A1A',
               marginBottom: '0.25rem',
-              marginTop: '32px',
+              marginTop: '12px',
               borderBottom: 'none',
               letterSpacing: '0.02em',
               cursor: 'pointer',
@@ -1413,18 +1416,17 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               fontWeight: 700
             }}>我的AI工作法</span>
             <span style={{
-              fontSize: '18px',
               color: '#8E8E93',
-              transition: 'color 0.2s ease',
+              transition: 'all 0.2s ease',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '18px',
-              height: '18px',
+              width: '16px',
+              height: '16px',
               flexShrink: 0,
-              fontWeight: 300
+              transform: collapsedSections.has('my-workflows') ? 'rotate(0deg)' : 'rotate(90deg)'
             }}>
-              {collapsedSections.has('my-workflows') ? '›' : '⌄'}
+              <ChevronRight size={14} />
             </span>
           </div>
           {!collapsedSections.has('my-workflows') && (
@@ -1440,20 +1442,33 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         </div>
 
         {/* Favorites Section */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{
-            padding: '0.75rem 1rem',
-            fontSize: '15px',
-            fontWeight: 700,
-            color: '#1A1A1A',
-            marginBottom: '0.75rem',
-            marginTop: '32px',
-            borderBottom: 'none',
-            letterSpacing: '0.02em',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <div
+            onClick={() => toggleSection('favorites')}
+            style={{
+              padding: '0.25rem 1rem 0.4rem 1rem',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: '#1A1A1A',
+              marginBottom: '0.25rem',
+              marginTop: '12px',
+              borderBottom: 'none',
+              letterSpacing: '0.02em',
+              cursor: 'pointer',
+              userSelect: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#F5F5F7'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
             <span style={{
               background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
               WebkitBackgroundClip: 'text',
@@ -1461,45 +1476,67 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               backgroundClip: 'text',
               fontWeight: 700
             }}>AI工作方法收藏夹</span>
-            <button
-              onClick={handleCreateTag}
-              style={{
-                padding: '6px 12px',
-                fontSize: '12px',
-                color: '#8b5cf6',
-                backgroundColor: '#f5f3ff',
-                border: '1px solid #e9d5ff',
-                cursor: 'pointer',
-                borderRadius: '6px',
-                fontWeight: 500,
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#ede9fe'
-                e.currentTarget.style.borderColor = '#c4b5fd'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#f5f3ff'
-                e.currentTarget.style.borderColor = '#e9d5ff'
-              }}
-            >
-              + 新建标签
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleCreateTag()
+                }}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  color: '#8b5cf6',
+                  backgroundColor: '#f5f3ff',
+                  border: '1px solid #e9d5ff',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ede9fe'
+                  e.currentTarget.style.borderColor = '#c4b5fd'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f5f3ff'
+                  e.currentTarget.style.borderColor = '#e9d5ff'
+                }}
+              >
+                + 新建
+              </button>
+              <span style={{
+                color: '#8E8E93',
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '16px',
+                height: '16px',
+                flexShrink: 0,
+                transform: collapsedSections.has('favorites') ? 'rotate(0deg)' : 'rotate(90deg)'
+              }}>
+                <ChevronRight size={14} />
+              </span>
+            </div>
           </div>
 
-          {sidebarData.favorites.tags.map((tag) =>
-            renderFavoriteTag(
-              tag,
-              sidebarData.favorites.workflows[tag.id] || []
-            )
-          )}
+          {!collapsedSections.has('favorites') && (
+            <>
+              {sidebarData.favorites.tags.map((tag) =>
+                renderFavoriteTag(
+                  tag,
+                  sidebarData.favorites.workflows[tag.id] || []
+                )
+              )}
 
-          {sidebarData.favorites.uncategorized.length > 0 &&
-            renderSection(
-              '未分类',
-              'uncategorized',
-              sidebarData.favorites.uncategorized
-            )}
+              {sidebarData.favorites.uncategorized.length > 0 &&
+                renderSection(
+                  '未分类',
+                  'uncategorized',
+                  sidebarData.favorites.uncategorized
+                )}
+            </>
+          )}
         </div>
 
         {/* Canvas Structure Section */}

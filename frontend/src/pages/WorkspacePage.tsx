@@ -276,9 +276,19 @@ export default function WorkspacePage() {
   const [connectingFrom, setConnectingFrom] = useState<{ jobRoleId: string; nodeId: string } | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
 
+  // 跨卡片连接
+  type CrossCardConnection = {
+    fromCard: string
+    fromNode: string
+    toCard: string
+    toNode: string
+  }
+  const [crossConnections, setCrossConnections] = useState<CrossCardConnection[]>([])
+  // 跨卡片鼠标跟随位置（画布坐标系）
+  const [crossMousePosition, setCrossMousePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+
   // 节点拖拽状态
   const [draggingNode, setDraggingNode] = useState<{ jobRoleId: string; nodeId: string } | null>(null)
-  const [nodeDragOffset, setNodeDragOffset] = useState({ x: 0, y: 0 })
 
   // 选中的节点（用于编辑配置）
   const [selectedNode, setSelectedNode] = useState<{ jobRoleId: string; nodeId: string } | null>(null)
@@ -289,6 +299,14 @@ export default function WorkspacePage() {
 
   // 工作流操作菜单状态（记录哪个卡片的哪个工具显示菜单）
   const [workflowActionMenu, setWorkflowActionMenu] = useState<{ cardId: string; toolId: number } | null>(null)
+
+  // 卡片重命名状态
+  const [renamingCardId, setRenamingCardId] = useState<string | null>(null)
+  const [renamingValue, setRenamingValue] = useState('')
+
+  // 通用重命名状态（画布标题、工作流标题等）
+  const [renamingTarget, setRenamingTarget] = useState<{ type: 'module' | 'workflow'; id: string; moduleId?: string } | null>(null)
+  const [renamingTargetValue, setRenamingTargetValue] = useState('')
 
   // 记录卡片收起前的尺寸，用于恢复
   const [previousCardSizes, setPreviousCardSizes] = useState<Map<string, { width: number; height: number }>>(new Map())
@@ -551,6 +569,76 @@ export default function WorkspacePage() {
 
       return newSet
     })
+  }
+
+  // 双击标题进入重命名模式
+  const handleStartRename = (cardId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    // 如果卡片未展开，先展开再进入重命名
+    if (!expandedCards.has(cardId)) {
+      handleCardDoubleClick(cardId)
+      // 延迟进入重命名，等展开动画完成
+      setTimeout(() => {
+        setRenamingCardId(cardId)
+        setRenamingValue(currentName)
+      }, 350)
+    } else {
+      setRenamingCardId(cardId)
+      setRenamingValue(currentName)
+    }
+  }
+
+  // 确认重命名
+  const handleConfirmRename = () => {
+    if (renamingCardId && renamingValue.trim()) {
+      setJobRoles(prev => prev.map(role =>
+        role.id === renamingCardId ? { ...role, name: renamingValue.trim() } : role
+      ))
+    }
+    setRenamingCardId(null)
+    setRenamingValue('')
+  }
+
+  // 取消重命名
+  const handleCancelRename = () => {
+    setRenamingCardId(null)
+    setRenamingValue('')
+  }
+
+  // 开始重命名（画布标题 / 工作流标题）
+  const handleStartTargetRename = (type: 'module' | 'workflow', id: string, currentName: string, moduleId?: string) => {
+    setRenamingTarget({ type, id, moduleId })
+    setRenamingTargetValue(currentName)
+  }
+
+  // 确认重命名（画布标题 / 工作流标题）
+  const handleConfirmTargetRename = () => {
+    if (renamingTarget && renamingTargetValue.trim()) {
+      if (renamingTarget.type === 'module') {
+        setModuleCategories(prev => prev.map(m =>
+          m.id === renamingTarget.id ? { ...m, name: renamingTargetValue.trim() } : m
+        ))
+      } else if (renamingTarget.type === 'workflow' && renamingTarget.moduleId) {
+        setWorkItems(prev => {
+          const items = prev[renamingTarget.moduleId!] || []
+          return {
+            ...prev,
+            [renamingTarget.moduleId!]: items.map(item =>
+              String(item.id) === renamingTarget.id ? { ...item, name: renamingTargetValue.trim() } : item
+            )
+          }
+        })
+      }
+    }
+    setRenamingTarget(null)
+    setRenamingTargetValue('')
+  }
+
+  // 取消重命名（画布标题 / 工作流标题）
+  const handleCancelTargetRename = () => {
+    setRenamingTarget(null)
+    setRenamingTargetValue('')
   }
 
   // 点击工作模块，在当前卡片中展开工作流列表
@@ -1050,26 +1138,57 @@ export default function WorkspacePage() {
       newMap.set(jobRoleId, nodes.filter(n => n.id !== nodeId))
       return newMap
     })
+    // 清理与该节点相关的所有连接
+    setNodeConnections(prev => {
+      const newMap = new Map(prev)
+      const connections = newMap.get(jobRoleId) || []
+      const filtered = connections.filter(c => c.from !== nodeId && c.to !== nodeId)
+      newMap.set(jobRoleId, filtered)
+      return newMap
+    })
+    // 清理与该节点相关的跨卡片连接
+    setCrossConnections(prev => prev.filter(c =>
+      !(c.fromCard === jobRoleId && c.fromNode === nodeId) &&
+      !(c.toCard === jobRoleId && c.toNode === nodeId)
+    ))
+    // 如果正在从该节点创建连接，取消连接模式
+    if (connectingFrom?.nodeId === nodeId) {
+      setConnectingFrom(null)
+    }
     if (selectedNode?.nodeId === nodeId) {
       setSelectedNode(null)
     }
   }
 
+  // 节点拖拽：记录画布容器元素和鼠标在节点内的偏移
+  const nodeDragCanvasRef = useRef<HTMLElement | null>(null)
+  const nodeDragMouseOffset = useRef({ x: 0, y: 0 })
+
   // 节点拖拽开始
   const handleNodeMouseDown = (e: React.MouseEvent, jobRoleId: string, nodeId: string, nodePos: { x: number; y: number }) => {
     e.stopPropagation()
+    // 找到最近的节点画布容器
+    const canvasEl = (e.currentTarget as HTMLElement).closest('[data-node-canvas]') as HTMLElement
+    nodeDragCanvasRef.current = canvasEl
+    if (canvasEl) {
+      const rect = canvasEl.getBoundingClientRect()
+      // 鼠标相对于节点左上角的偏移
+      nodeDragMouseOffset.current = {
+        x: e.clientX - rect.left - nodePos.x,
+        y: e.clientY - rect.top - nodePos.y
+      }
+    }
     setDraggingNode({ jobRoleId, nodeId })
-    setNodeDragOffset({
-      x: e.clientX - nodePos.x,
-      y: e.clientY - nodePos.y
-    })
   }
 
   // 全局鼠标移动
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (draggingNode) {
+      if (draggingNode && nodeDragCanvasRef.current) {
         const { jobRoleId, nodeId } = draggingNode
+        const rect = nodeDragCanvasRef.current.getBoundingClientRect()
+        const newX = Math.max(0, e.clientX - rect.left - nodeDragMouseOffset.current.x)
+        const newY = Math.max(0, e.clientY - rect.top - nodeDragMouseOffset.current.y)
         setWorkflowNodes(prev => {
           const newMap = new Map(prev)
           const nodes = newMap.get(jobRoleId) || []
@@ -1077,10 +1196,7 @@ export default function WorkspacePage() {
             if (node.id === nodeId) {
               return {
                 ...node,
-                position: {
-                  x: e.clientX - nodeDragOffset.x,
-                  y: e.clientY - nodeDragOffset.y
-                }
+                position: { x: newX, y: newY }
               }
             }
             return node
@@ -1093,6 +1209,7 @@ export default function WorkspacePage() {
 
     const handleMouseUp = () => {
       setDraggingNode(null)
+      nodeDragCanvasRef.current = null
     }
 
     if (draggingNode) {
@@ -1104,7 +1221,7 @@ export default function WorkspacePage() {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [draggingNode, nodeDragOffset])
+  }, [draggingNode])
 
   // 更新节点标签
   const handleUpdateNodeLabel = (jobRoleId: string, nodeId: string, label: string) => {
@@ -1171,6 +1288,39 @@ export default function WorkspacePage() {
       newMap.set(jobRoleId, connections.filter(c => !(c.from === from && c.to === to)))
       return newMap
     })
+  }
+
+  // 删除跨卡片连接
+  const handleDeleteCrossConnection = (index: number) => {
+    setCrossConnections(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // 获取节点在主画布坐标系中的中心位置
+  const getNodeGlobalCenter = (cardId: string, nodeId: string): { x: number; y: number } | null => {
+    if (!canvasRef.current) return null
+    const nodeEl = canvasRef.current.querySelector(`[data-global-node="${cardId}:${nodeId}"]`) as HTMLElement
+    if (!nodeEl) return null
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const nodeRect = nodeEl.getBoundingClientRect()
+    return {
+      x: (nodeRect.left + nodeRect.width / 2 - canvasRect.left) / zoom,
+      y: (nodeRect.top + nodeRect.height / 2 - canvasRect.top) / zoom
+    }
+  }
+
+  // 获取节点在主画布坐标系中的底部/顶部端口位置
+  const getNodeGlobalPort = (cardId: string, nodeId: string, port: 'top' | 'bottom'): { x: number; y: number } | null => {
+    if (!canvasRef.current) return null
+    const nodeEl = canvasRef.current.querySelector(`[data-global-node="${cardId}:${nodeId}"]`) as HTMLElement
+    if (!nodeEl) return null
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const nodeRect = nodeEl.getBoundingClientRect()
+    return {
+      x: (nodeRect.left + nodeRect.width / 2 - canvasRect.left) / zoom,
+      y: port === 'bottom'
+        ? (nodeRect.bottom - canvasRect.top) / zoom
+        : (nodeRect.top - canvasRect.top) / zoom
+    }
   }
 
   // 点击外部关闭工具选择器
@@ -1280,7 +1430,7 @@ export default function WorkspacePage() {
     }, 250) // 250ms 内的点击视为双击
   }
 
-  // 处理工作流库卡片的双击
+  // 处理AI工作方法库卡片的双击
   const handleWorkflowLibraryDoubleClick = (workflow: typeof myWorkflows[0], e: React.MouseEvent) => {
     e.stopPropagation()
     if (workflowLibraryClickTimerRef.current) {
@@ -1293,14 +1443,14 @@ export default function WorkspacePage() {
       clickTimerRef.current = null
     }
     clickCountRef.current = 0
-    console.log('✅ 双击工作流库卡片 - 打开介绍页:', workflow.id, workflow.name)
+    console.log('✅ 双击AI工作方法库卡片 - 打开介绍页:', workflow.id, workflow.name)
     window.open(`/workflow-intro/${workflow.id}`, '_blank')
   }
 
-  // 处理工作流库卡片的单击
+  // 处理AI工作方法库卡片的单击
   const handleWorkflowLibraryClick = (workflow: typeof myWorkflows[0], e: React.MouseEvent) => {
     e.stopPropagation()
-    console.log('🔥 工作流库卡片被点击了!', workflow.name)
+    console.log('🔥 AI工作方法库卡片被点击了!', workflow.name)
     // 关闭右键菜单
     setContextMenu({ visible: false, x: 0, y: 0, workflow: null })
     // 延时处理单击，避免双击时触发单击逻辑
@@ -2984,7 +3134,7 @@ export default function WorkspacePage() {
 
       return true
     })
-    console.log('🔍 工作流库过滤结果:', {
+    console.log('🔍 AI工作方法库过滤结果:', {
       total: myWorkflows.length,
       filtered: filtered.length,
       filterStatus: workflowFilterStatus,
@@ -3412,6 +3562,7 @@ export default function WorkspacePage() {
         </div>
 
         <div
+          ref={canvasRef}
           style={{
             position: 'relative',
             width: '100%',
@@ -3420,8 +3571,24 @@ export default function WorkspacePage() {
             transformOrigin: 'top left',
             transition: 'transform 0.2s ease'
           }}
+          onMouseMove={(e) => {
+            // 跨卡片连接模式下追踪鼠标位置
+            if (connectingFrom && canvasRef.current) {
+              const rect = canvasRef.current.getBoundingClientRect()
+              setCrossMousePosition({
+                x: (e.clientX - rect.left) / zoom,
+                y: (e.clientY - rect.top) / zoom
+              })
+            }
+          }}
           onDrop={handleCanvasDrop}
           onDragOver={handleCanvasDragOver}
+          onClick={(e) => {
+            // 点击画布空白处取消连接模式
+            if (e.target === e.currentTarget && connectingFrom) {
+              setConnectingFrom(null)
+            }
+          }}
         >
         {/* 渲染画布元素（容器和卡片） */}
         {(cards || []).map((cardConfig) => {
@@ -3504,6 +3671,9 @@ export default function WorkspacePage() {
               key={cardConfig.id}
               onMouseDown={(e) => handleCardMouseDown(cardConfig.id, e)}
               onDoubleClick={(e) => {
+                // 如果双击的是标题文字区域，不触发展开/收缩
+                const target = e.target as HTMLElement
+                if (target.closest('[data-card-title]')) return
                 // 最小状态时：双击整个卡片展开
                 if (!isExpanded) {
                   e.stopPropagation()
@@ -3547,6 +3717,10 @@ export default function WorkspacePage() {
               {/* 标题栏区域 */}
               <div
                 onDoubleClick={(e) => {
+                  // 如果正在重命名或双击的是标题文字，不触发展开/收缩
+                  if (renamingCardId === cardConfig.id) return
+                  const target = e.target as HTMLElement
+                  if (target.closest('[data-card-title]')) return
                   e.stopPropagation()
                   handleCardDoubleClick(cardConfig.id)
                 }}
@@ -3578,13 +3752,45 @@ export default function WorkspacePage() {
                       }}>
                         {jobRole.icon}
                       </div>
-                      <div style={{
+                      <div data-card-title style={{
                         flex: 1,
                         fontWeight: 600,
                         color: '#111827',
                         fontSize: '1.5rem'
                       }}>
-                        {jobRole.name}
+                        {renamingCardId === cardConfig.id ? (
+                          <input
+                            autoFocus
+                            value={renamingValue}
+                            onChange={(e) => setRenamingValue(e.target.value)}
+                            onBlur={handleConfirmRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleConfirmRename()
+                              if (e.key === 'Escape') handleCancelRename()
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                            style={{
+                              width: '100%',
+                              fontSize: 'inherit',
+                              fontWeight: 'inherit',
+                              color: 'inherit',
+                              border: 'none',
+                              borderBottom: `2px solid ${jobRole.color}`,
+                              outline: 'none',
+                              backgroundColor: 'transparent',
+                              padding: '0 0 2px 0'
+                            }}
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={(e) => handleStartRename(cardConfig.id, jobRole.name, e)}
+                            style={{ cursor: 'text' }}
+                          >
+                            {jobRole.name}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -3664,8 +3870,40 @@ export default function WorkspacePage() {
                         <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: jobRole.color }}></div>
                       </div>
                     )}
-                    <div style={{ flex: 1, fontWeight: 600, color: '#111827', fontSize: isExpanded ? '1.9rem' : '1.5rem' }}>
-                      {jobRole.name}
+                    <div data-card-title style={{ flex: 1, fontWeight: 600, color: '#111827', fontSize: isExpanded ? '1.9rem' : '1.5rem' }}>
+                      {renamingCardId === cardConfig.id ? (
+                        <input
+                          autoFocus
+                          value={renamingValue}
+                          onChange={(e) => setRenamingValue(e.target.value)}
+                          onBlur={handleConfirmRename}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmRename()
+                            if (e.key === 'Escape') handleCancelRename()
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                          style={{
+                            width: '100%',
+                            fontSize: 'inherit',
+                            fontWeight: 'inherit',
+                            color: 'inherit',
+                            border: 'none',
+                            borderBottom: `2px solid ${jobRole.color}`,
+                            outline: 'none',
+                            backgroundColor: 'transparent',
+                            padding: '0 0 2px 0'
+                          }}
+                        />
+                      ) : (
+                        <span
+                          onDoubleClick={(e) => handleStartRename(cardConfig.id, jobRole.name, e)}
+                          style={{ cursor: 'text' }}
+                        >
+                          {jobRole.name}
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
@@ -3939,11 +4177,18 @@ export default function WorkspacePage() {
                               }}>
                               {/* 左侧：节点画布 */}
                               <div
+                                data-node-canvas
                                 onDoubleClick={(e) => {
                                   // 双击画布空白处收缩
                                   if (e.target === e.currentTarget) {
                                     e.stopPropagation()
                                     handleCardDoubleClick(cardConfig.id)
+                                  }
+                                }}
+                                onClick={(e) => {
+                                  // 点击画布空白处取消连接模式
+                                  if (e.target === e.currentTarget && connectingFrom && connectingFrom.jobRoleId === cardConfig.id) {
+                                    setConnectingFrom(null)
                                   }
                                 }}
                                 style={{
@@ -3960,7 +4205,7 @@ export default function WorkspacePage() {
 
                                   return (
                                     <>
-                                      {/* SVG连线层 */}
+                                      {/* SVG连线层 - 连接线已移至全局SVG，此处仅保留交互区域 */}
                                       <svg
                                         style={{
                                           position: 'absolute',
@@ -3968,54 +4213,14 @@ export default function WorkspacePage() {
                                           left: 0,
                                           width: '100%',
                                           height: '100%',
-                                          pointerEvents: connectingFrom && connectingFrom.jobRoleId === cardConfig.id ? 'all' : 'none',
+                                          pointerEvents: 'none',
                                           zIndex: 0
                                         }}
-                                        onMouseMove={(e) => {
-                                          if (connectingFrom && connectingFrom.jobRoleId === cardConfig.id) {
-                                            const svg = e.currentTarget
-                                            const pt = svg.createSVGPoint()
-                                            pt.x = e.clientX
-                                            pt.y = e.clientY
-                                            const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse())
-                                            setMousePosition({ x: svgP.x, y: svgP.y })
-                                          }
-                                        }}
                                       >
-                                        {connections.map((conn, index) => {
-                                          const fromNode = nodes.find(n => n.id === conn.from)
-                                          const toNode = nodes.find(n => n.id === conn.to)
-                                          if (!fromNode || !toNode) return null
-
-                                          const startX = fromNode.position.x + 90
-                                          const startY = fromNode.position.y + 60
-                                          const endX = toNode.position.x + 90
-                                          const endY = toNode.position.y + 20
-
-                                          return (
-                                            <g key={`${conn.from}-${conn.to}-${index}`}>
-                                              <line
-                                                x1={startX}
-                                                y1={startY}
-                                                x2={endX}
-                                                y2={endY}
-                                                stroke="#9ca3af"
-                                                strokeWidth="2"
-                                                strokeDasharray="5,5"
-                                              />
-                                              {/* 箭头 */}
-                                              <polygon
-                                                points={`${endX},${endY-8} ${endX-6},${endY-2} ${endX+6},${endY-2}`}
-                                                fill="#9ca3af"
-                                              />
-                                            </g>
-                                          )
-                                        })}
-
-                                        {/* 连接模式时的鼠标跟随线 */}
+                                        {/* 连接模式时的卡片内鼠标跟随线（备用） */}
                                         {connectingFrom && connectingFrom.jobRoleId === cardConfig.id && (() => {
                                           const fromNode = nodes.find(n => n.id === connectingFrom.nodeId)
-                                          if (!fromNode || mousePosition.x === 0 || mousePosition.y === 0) return null
+                                          if (!fromNode) return null
 
                                           const startX = fromNode.position.x + 90
                                           const startY = fromNode.position.y + 40
@@ -4050,11 +4255,14 @@ export default function WorkspacePage() {
                                         const isSelected = selectedNode?.nodeId === node.id
                                         const isDragging = draggingNode?.nodeId === node.id
                                         const isConnecting = connectingFrom?.nodeId === node.id
-                                        const isConnectTarget = connectingFrom && connectingFrom.jobRoleId === cardConfig.id && connectingFrom.nodeId !== node.id
+                                        const isSameCardTarget = connectingFrom && connectingFrom.jobRoleId === cardConfig.id && connectingFrom.nodeId !== node.id
+                                        const isCrossCardTarget = connectingFrom && connectingFrom.jobRoleId !== cardConfig.id
+                                        const isConnectTarget = isSameCardTarget || isCrossCardTarget
 
                                         return (
                                           <div
                                             key={node.id}
+                                            data-global-node={`${cardConfig.id}:${node.id}`}
                                             onMouseDown={(e) => {
                                               if (!isConnectTarget) {
                                                 handleNodeMouseDown(e, cardConfig.id, node.id, node.position)
@@ -4063,7 +4271,24 @@ export default function WorkspacePage() {
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               if (connectingFrom && connectingFrom.jobRoleId === cardConfig.id) {
+                                                // 同一卡片内，完成连接
                                                 handleCompleteConnection(cardConfig.id, node.id)
+                                              } else if (connectingFrom && connectingFrom.jobRoleId !== cardConfig.id) {
+                                                // 跨卡片连接
+                                                const newConn: CrossCardConnection = {
+                                                  fromCard: connectingFrom.jobRoleId,
+                                                  fromNode: connectingFrom.nodeId,
+                                                  toCard: cardConfig.id,
+                                                  toNode: node.id
+                                                }
+                                                const exists = crossConnections.some(c =>
+                                                  c.fromCard === newConn.fromCard && c.fromNode === newConn.fromNode &&
+                                                  c.toCard === newConn.toCard && c.toNode === newConn.toNode
+                                                )
+                                                if (!exists) {
+                                                  setCrossConnections(prev => [...prev, newConn])
+                                                }
+                                                setConnectingFrom(null)
                                               } else {
                                                 setSelectedNode({ jobRoleId: cardConfig.id, nodeId: node.id })
                                               }
@@ -5474,6 +5699,118 @@ export default function WorkspacePage() {
           </div>
           )
         })}
+
+        {/* 全局连接线 SVG 层（所有连接线统一在此渲染，确保不被容器遮挡） */}
+        <svg
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 9999
+          }}
+        >
+          {/* 同卡片内连接线（提升到全局层渲染） */}
+          {Array.from(nodeConnections.entries()).map(([cardId, connections]) =>
+            connections.map((conn, index) => {
+              const fromPos = getNodeGlobalPort(cardId, conn.from, 'bottom')
+              const toPos = getNodeGlobalPort(cardId, conn.to, 'top')
+              if (!fromPos || !toPos) return null
+
+              const dy = Math.abs(toPos.y - fromPos.y)
+              const cpOffset = Math.max(30, dy * 0.4)
+
+              return (
+                <g key={`same-${cardId}-${conn.from}-${conn.to}-${index}`}>
+                  <path
+                    d={`M ${fromPos.x} ${fromPos.y} C ${fromPos.x} ${fromPos.y + cpOffset}, ${toPos.x} ${toPos.y - cpOffset}, ${toPos.x} ${toPos.y}`}
+                    stroke="#8b5cf6"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeDasharray="5,5"
+                  />
+                  {/* 箭头 */}
+                  <polygon
+                    points={`${toPos.x},${toPos.y} ${toPos.x - 5},${toPos.y - 9} ${toPos.x + 5},${toPos.y - 9}`}
+                    fill="#8b5cf6"
+                  />
+                </g>
+              )
+            })
+          )}
+
+          {/* 跨卡片连接线 */}
+          {crossConnections.map((conn, index) => {
+            const fromPos = getNodeGlobalPort(conn.fromCard, conn.fromNode, 'bottom')
+            const toPos = getNodeGlobalPort(conn.toCard, conn.toNode, 'top')
+            if (!fromPos || !toPos) return null
+
+            const midX = (fromPos.x + toPos.x) / 2
+            const midY = (fromPos.y + toPos.y) / 2
+            // 贝塞尔曲线控制点
+            const dy = Math.abs(toPos.y - fromPos.y)
+            const cpOffset = Math.max(40, dy * 0.4)
+
+            return (
+              <g key={`cross-${index}`}>
+                <path
+                  d={`M ${fromPos.x} ${fromPos.y} C ${fromPos.x} ${fromPos.y + cpOffset}, ${toPos.x} ${toPos.y - cpOffset}, ${toPos.x} ${toPos.y}`}
+                  stroke="#8b5cf6"
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeDasharray="6,4"
+                  opacity="0.8"
+                />
+                {/* 箭头 */}
+                <polygon
+                  points={`${toPos.x},${toPos.y} ${toPos.x - 6},${toPos.y - 10} ${toPos.x + 6},${toPos.y - 10}`}
+                  fill="#8b5cf6"
+                  opacity="0.8"
+                />
+                {/* 删除按钮 */}
+                <g
+                  style={{ pointerEvents: 'all', cursor: 'pointer' }}
+                  onClick={() => handleDeleteCrossConnection(index)}
+                >
+                  <circle cx={midX} cy={midY} r="10" fill="white" stroke="#ef4444" strokeWidth="2" />
+                  <text x={midX} y={midY + 1} textAnchor="middle" dominantBaseline="middle" fontSize="12" fill="#ef4444" fontWeight="bold">×</text>
+                </g>
+              </g>
+            )
+          })}
+
+          {/* 跨卡片连接模式鼠标跟随线 */}
+          {connectingFrom && (() => {
+            const fromPos = getNodeGlobalPort(connectingFrom.jobRoleId, connectingFrom.nodeId, 'bottom')
+            if (!fromPos || crossMousePosition.x === 0 && crossMousePosition.y === 0) return null
+
+            const dy = Math.abs(crossMousePosition.y - fromPos.y)
+            const cpOffset = Math.max(30, dy * 0.3)
+
+            return (
+              <g>
+                <path
+                  d={`M ${fromPos.x} ${fromPos.y} C ${fromPos.x} ${fromPos.y + cpOffset}, ${crossMousePosition.x} ${crossMousePosition.y - cpOffset}, ${crossMousePosition.x} ${crossMousePosition.y}`}
+                  stroke="#f59e0b"
+                  strokeWidth="3"
+                  fill="none"
+                  strokeDasharray="8,4"
+                  opacity="0.7"
+                />
+                <circle
+                  cx={crossMousePosition.x}
+                  cy={crossMousePosition.y}
+                  r="5"
+                  fill="#f59e0b"
+                  opacity="0.7"
+                />
+              </g>
+            )
+          })()}
+        </svg>
+
         </div>
       </div>
     </div>
@@ -6510,7 +6847,7 @@ export default function WorkspacePage() {
                 color: '#111827',
                 margin: '0 0 0.25rem'
               }}>
-                【✅已更新】工作流库
+                【✅已更新】AI工作方法库
               </h2>
               <p style={{
                 margin: 0,
@@ -6806,7 +7143,39 @@ export default function WorkspacePage() {
                 fontWeight: 600,
                 color: '#111827'
               }}>
-                {moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.name || '工作流画布'}
+                {renamingTarget?.type === 'module' && renamingTarget.id === activeWorkflow.moduleId ? (
+                  <input
+                    autoFocus
+                    value={renamingTargetValue}
+                    onChange={(e) => setRenamingTargetValue(e.target.value)}
+                    onBlur={handleConfirmTargetRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmTargetRename()
+                      if (e.key === 'Escape') handleCancelTargetRename()
+                    }}
+                    style={{
+                      fontSize: 'inherit',
+                      fontWeight: 'inherit',
+                      color: 'inherit',
+                      border: 'none',
+                      borderBottom: '2px solid #8b5cf6',
+                      outline: 'none',
+                      backgroundColor: 'transparent',
+                      padding: '0 0 2px 0',
+                      width: '200px'
+                    }}
+                  />
+                ) : (
+                  <span
+                    onDoubleClick={() => {
+                      const mod = moduleCategories.find(m => m.id === activeWorkflow.moduleId)
+                      if (mod) handleStartTargetRename('module', mod.id, mod.name)
+                    }}
+                    style={{ cursor: 'text' }}
+                  >
+                    {moduleCategories.find(m => m.id === activeWorkflow.moduleId)?.name || '工作流画布'}
+                  </span>
+                )}
               </h2>
               <p style={{
                 margin: 0,
@@ -6937,7 +7306,42 @@ export default function WorkspacePage() {
                       whiteSpace: 'nowrap',
                       lineHeight: 1.4
                     }}>
-                      {item.name}
+                      {renamingTarget?.type === 'workflow' && renamingTarget.id === String(item.id) ? (
+                        <input
+                          autoFocus
+                          value={renamingTargetValue}
+                          onChange={(e) => setRenamingTargetValue(e.target.value)}
+                          onBlur={handleConfirmTargetRename}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmTargetRename()
+                            if (e.key === 'Escape') handleCancelTargetRename()
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                          style={{
+                            width: '100%',
+                            fontSize: 'inherit',
+                            fontWeight: 'inherit',
+                            color: 'inherit',
+                            border: 'none',
+                            borderBottom: '2px solid #7C3AED',
+                            outline: 'none',
+                            backgroundColor: 'transparent',
+                            padding: '0 0 2px 0'
+                          }}
+                        />
+                      ) : (
+                        <span
+                          onDoubleClick={(e) => {
+                            e.stopPropagation()
+                            handleStartTargetRename('workflow', String(item.id), item.name, activeWorkflow.moduleId)
+                          }}
+                          style={{ cursor: 'text' }}
+                        >
+                          {item.name}
+                        </span>
+                      )}
                     </h4>
 
                     {/* 状态标签 */}
