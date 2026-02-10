@@ -244,7 +244,7 @@ type ConnectionState =
   | { mode: 'idle' }
   | { mode: 'connecting'; sourceItemId: string; sourceHandle: HandleDirection; mousePosition: Position }
 
-const HANDLE_RADIUS = 5
+const HANDLE_RADIUS = 3.5
 const HANDLE_HIT_RADIUS = 12
 
 // AI工作方法库数据现在完全从API获取，不再使用硬编码数据
@@ -3614,8 +3614,8 @@ export default function StoragePage() {
           width: HANDLE_RADIUS * 2,
           height: HANDLE_RADIUS * 2,
           borderRadius: '50%',
-          background: isConnecting ? '#8b5cf6' : '#94a3b8',
-          border: '2px solid white',
+          background: isConnecting ? '#7c3aed' : '#a78bfa',
+          border: '1.5px solid white',
           cursor: 'crosshair',
           zIndex: 20,
           opacity: 0,
@@ -4087,7 +4087,7 @@ export default function StoragePage() {
           <path
             d={edgeData.path}
             fill="none"
-            stroke={isSelected ? '#8b5cf6' : '#94a3b8'}
+            stroke={isSelected ? '#7c3aed' : '#a78bfa'}
             strokeWidth={isSelected ? 1.2 : 0.8}
             markerEnd="url(#canvas-arrowhead)"
             style={{ pointerEvents: 'none', transition: 'stroke 0.2s, stroke-width 0.2s' }}
@@ -4189,13 +4189,13 @@ export default function StoragePage() {
       <defs>
         <marker
           id="canvas-arrowhead"
-          markerWidth="6"
-          markerHeight="4"
-          refX="6"
-          refY="2"
+          markerWidth="12"
+          markerHeight="8"
+          refX="11"
+          refY="4"
           orient="auto"
         >
-          <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
+          <polygon points="0 0.5, 10 4, 0 7.5" fill="#a78bfa" />
         </marker>
       </defs>
       {renderEdges()}
@@ -4672,8 +4672,8 @@ export default function StoragePage() {
         }
         .connection-handle:hover {
           opacity: 1 !important;
-          transform: scale(1.3) !important;
-          background: #8b5cf6 !important;
+          transform: scale(1.4) !important;
+          background: #7c3aed !important;
         }
         .connection-handle.connecting-active {
           opacity: 1 !important;
