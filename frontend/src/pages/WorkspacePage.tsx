@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, type CSSProperties, KeyboardEvent, FocusEvent } from 'react'
+import { useEffect, useState, useRef, useCallback, type CSSProperties, KeyboardEvent, FocusEvent } from 'react'
+import { createPortal } from 'react-dom'
 
 import { useNavigate } from 'react-router-dom'
 import {
@@ -17,6 +18,7 @@ import {
 import api from '../services/api'
 
 export default function WorkspacePage() {
+  alert('代码已更新 - 如果看到这个弹窗说明加载正确')
   const navigate = useNavigate()
   const [inputMessage, setInputMessage] = useState('')
   const [activeModule, setActiveModule] = useState('all')
@@ -207,7 +209,11 @@ export default function WorkspacePage() {
   }
 
   // 侧边栏状态
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarOpen, _setIsSidebarOpen] = useState(false)
+  const setIsSidebarOpen = (val: boolean) => {
+    console.trace('🔍 setIsSidebarOpen called with:', val)
+    _setIsSidebarOpen(val)
+  }
 
   // 对话历史
   type ChatMessage = {
@@ -348,7 +354,7 @@ export default function WorkspacePage() {
       }
       setChatHistory(prev => [newMessage, ...prev])
 
-      navigate('/search', { state: { query: inputMessage } })
+      setIsSidebarOpen(true)
       setInputMessage('')
     }
   }
@@ -3569,7 +3575,9 @@ export default function WorkspacePage() {
             height: '1100px',
             transform: `scale(${zoom})`,
             transformOrigin: 'top left',
-            transition: 'transform 0.2s ease'
+            transition: 'transform 0.2s ease',
+            border: '5px solid red',
+            backgroundColor: 'rgba(255,0,0,0.1)'
           }}
           onMouseMove={(e) => {
             // 跨卡片连接模式下追踪鼠标位置
@@ -5700,6 +5708,10 @@ export default function WorkspacePage() {
           )
         })}
 
+        {/* DEBUG: HTML div 测试 */}
+        <div style={{ position: 'absolute', top: 20, left: 20, width: 400, height: 60, backgroundColor: 'blue', zIndex: 99999, color: 'white', fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          如果你能看到蓝色条，说明绝对定位正常
+        </div>
         {/* 全局连接线 SVG 层（所有连接线统一在此渲染，确保不被容器遮挡） */}
         <svg
           style={{
@@ -5712,6 +5724,8 @@ export default function WorkspacePage() {
             zIndex: 9999
           }}
         >
+          {/* DEBUG: 测试SVG是否可见 */}
+          <rect x="0" y="0" width="9999" height="9999" fill="red" opacity="0.5" />
           {/* 同卡片内连接线（提升到全局层渲染） */}
           {Array.from(nodeConnections.entries()).map(([cardId, connections]) =>
             connections.map((conn, index) => {
@@ -7608,90 +7622,122 @@ export default function WorkspacePage() {
       </button>
     </div>
 
-    {/* 悬浮按钮 (FAB) - 科技感设计 */}
-    <button
-      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+    {/* 悬浮AI输入框 */}
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: '5rem',
         right: '2rem',
-        padding: '0.75rem 1.5rem',
-        borderRadius: '16px',
-        background: 'white',
-        color: '#8b5cf6',
-        border: '2px solid #8b5cf6',
-        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.15)',
-        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
+        background: 'white',
+        border: '2px solid #e5e7eb',
+        borderRadius: '16px',
+        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.15)',
         zIndex: 1000,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        fontSize: '14px',
-        fontWeight: 600,
         backdropFilter: 'blur(10px)',
         overflow: 'hidden',
-        whiteSpace: 'nowrap'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateX(-4px) scale(1.05)'
-        e.currentTarget.style.background = 'linear-gradient(135deg, #f3f0ff 0%, #ede9fe 100%)'
-        e.currentTarget.style.boxShadow = '0 8px 20px rgba(139, 92, 246, 0.25)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'scale(1)'
-        e.currentTarget.style.background = 'white'
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.15)'
+        width: '320px'
       }}
     >
-      {/* 背景光晕效果 */}
-      <div style={{
-        position: 'absolute',
-        top: '-50%',
-        right: '-50%',
-        width: '100%',
-        height: '100%',
-        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)',
-        borderRadius: '50%',
-        animation: 'pulse 2s ease-in-out infinite'
-      }} />
-
-      {/* 图标 */}
+      {/* 搜索图标 */}
       <svg
-        width="20"
-        height="20"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="currentColor"
+        stroke="#9ca3af"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ position: 'relative', zIndex: 1 }}
+        style={{ marginLeft: '14px', flexShrink: 0 }}
       >
         <circle cx="11" cy="11" r="8"></circle>
         <path d="m21 21-4.35-4.35"></path>
       </svg>
 
-      {/* 文字 */}
-      <span style={{ position: 'relative', zIndex: 1 }}>更多AI工作方法</span>
+      {/* 输入框 */}
+      <input
+        type="text"
+        value={inputMessage}
+        onChange={(event) => setInputMessage(event.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="输入您的任务或问题..."
+        style={{
+          flex: 1,
+          padding: '10px 12px',
+          fontSize: '14px',
+          border: 'none',
+          outline: 'none',
+          backgroundColor: 'transparent',
+          color: '#1f2937'
+        }}
+        onFocus={(e) => {
+          const wrapper = e.currentTarget.parentElement
+          if (wrapper) {
+            wrapper.style.borderColor = '#8b5cf6'
+            wrapper.style.boxShadow = '0 4px 16px rgba(139, 92, 246, 0.25)'
+          }
+        }}
+        onBlur={(e) => {
+          const wrapper = e.currentTarget.parentElement
+          if (wrapper) {
+            wrapper.style.borderColor = '#e5e7eb'
+            wrapper.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.15)'
+          }
+        }}
+      />
 
-      {/* 未读消息提示点（可选） */}
-      {chatHistory.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '8px',
-          right: '8px',
-          width: '10px',
-          height: '10px',
-          borderRadius: '50%',
-          backgroundColor: '#ef4444',
-          border: '2px solid white',
-          boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
-          animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite'
-        }} />
-      )}
-    </button>
+      {/* 发送按钮 */}
+      <button
+        onClick={handleSend}
+        disabled={!inputMessage.trim()}
+        style={{
+          width: '36px',
+          height: '36px',
+          margin: '3px',
+          backgroundColor: inputMessage.trim() ? '#8b5cf6' : '#f3f4f6',
+          color: inputMessage.trim() ? 'white' : '#9ca3af',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: inputMessage.trim() ? 'pointer' : 'not-allowed',
+          transition: 'all 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}
+        onMouseEnter={(e) => {
+          if (inputMessage.trim()) {
+            e.currentTarget.style.backgroundColor = '#7c3aed'
+            e.currentTarget.style.transform = 'scale(1.05)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (inputMessage.trim()) {
+            e.currentTarget.style.backgroundColor = '#8b5cf6'
+            e.currentTarget.style.transform = 'scale(1)'
+          }
+        }}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
 
     {/* CSS动画（添加到页面） */}
     <style>{`
@@ -7803,17 +7849,32 @@ export default function WorkspacePage() {
         gap: '0.75rem',
         alignItems: 'flex-start'
       }}>
-        {/* 对话输入框 */}
+        {/* 对话输入框 - 与画布输入框样式一致 */}
         <div style={{
           flex: 1,
           display: 'flex',
           alignItems: 'center',
           backgroundColor: 'white',
           border: '2px solid #e5e7eb',
-          borderRadius: '12px',
+          borderRadius: '16px',
           overflow: 'hidden',
           transition: 'all 0.2s'
         }}>
+          {/* 搜索图标 */}
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#9ca3af"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginLeft: '14px', flexShrink: 0 }}
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
           <input
             type="text"
             value={inputMessage}
@@ -7822,7 +7883,7 @@ export default function WorkspacePage() {
             placeholder="输入您的任务或问题..."
             style={{
               flex: 1,
-              padding: '12px 16px',
+              padding: '10px 12px',
               fontSize: '14px',
               border: 'none',
               outline: 'none',
@@ -7831,24 +7892,30 @@ export default function WorkspacePage() {
             }}
             onFocus={(e) => {
               const wrapper = e.currentTarget.parentElement
-              if (wrapper) wrapper.style.borderColor = '#8b5cf6'
+              if (wrapper) {
+                wrapper.style.borderColor = '#8b5cf6'
+                wrapper.style.boxShadow = '0 4px 16px rgba(139, 92, 246, 0.25)'
+              }
             }}
             onBlur={(e) => {
               const wrapper = e.currentTarget.parentElement
-              if (wrapper) wrapper.style.borderColor = '#e5e7eb'
+              if (wrapper) {
+                wrapper.style.borderColor = '#e5e7eb'
+                wrapper.style.boxShadow = 'none'
+              }
             }}
           />
           <button
             onClick={handleSend}
             disabled={!inputMessage.trim()}
             style={{
-              width: '40px',
-              height: '40px',
-              margin: '4px',
+              width: '36px',
+              height: '36px',
+              margin: '3px',
               backgroundColor: inputMessage.trim() ? '#8b5cf6' : '#f3f4f6',
               color: inputMessage.trim() ? 'white' : '#9ca3af',
               border: 'none',
-              borderRadius: '8px',
+              borderRadius: '12px',
               cursor: inputMessage.trim() ? 'pointer' : 'not-allowed',
               transition: 'all 0.2s',
               display: 'flex',
@@ -7870,8 +7937,8 @@ export default function WorkspacePage() {
             }}
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"

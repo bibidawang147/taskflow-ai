@@ -17,8 +17,12 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String
-  password  String
+  password  String?
   avatar    String?
+
+  // 微信登录
+  wechatOpenId  String?  @unique
+  wechatUnionId String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, MessageCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [wechatLoading, setWechatLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -21,6 +23,20 @@ export default function LoginPage() {
 
       // 保存 token
       authService.setToken(response.token);
+
+      // 如果填了邀请码，登录成功后自动兑换
+      if (inviteCode.trim()) {
+        try {
+          await fetch('http://localhost:3000/api/promo/redeem', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${response.token}`,
+            },
+            body: JSON.stringify({ code: inviteCode.trim() }),
+          });
+        } catch { /* 兑换失败不阻塞登录 */ }
+      }
 
       // 直接跳转到首页（使用 window.location.href 完全刷新页面）
       // 如果在iframe内，跳转整个顶层窗口
@@ -191,6 +207,40 @@ export default function LoginPage() {
               />
             </div>
 
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label
+                htmlFor="inviteCode"
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '6px',
+                }}
+              >
+                邀请码 <span style={{ color: '#9ca3af', fontWeight: '400' }}>(选填)</span>
+              </label>
+              <input
+                id="inviteCode"
+                name="inviteCode"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="请输入邀请码"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#8b5cf6')}
+                onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+              />
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -213,6 +263,58 @@ export default function LoginPage() {
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading ? '登录中...' : '登录'}
+            </button>
+
+            {/* 分隔线 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              margin: '0.5rem 0',
+            }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e5e7eb' }} />
+              <span style={{ fontSize: '12px', color: '#9ca3af', whiteSpace: 'nowrap' }}>其他登录方式</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#e5e7eb' }} />
+            </div>
+
+            {/* 微信登录按钮 */}
+            <button
+              type="button"
+              disabled={wechatLoading}
+              onClick={async () => {
+                setWechatLoading(true);
+                setError('');
+                try {
+                  const { url } = await authService.getWechatAuthUrl();
+                  window.location.href = url;
+                } catch (err: any) {
+                  setError(err.response?.data?.error || '获取微信授权链接失败');
+                  setWechatLoading(false);
+                }
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: '#07c160',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: wechatLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                opacity: wechatLoading ? 0.7 : 1,
+              }}
+            >
+              {wechatLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <MessageCircle size={16} />
+              )}
+              {wechatLoading ? '跳转中...' : '微信扫码登录'}
             </button>
 
           </form>

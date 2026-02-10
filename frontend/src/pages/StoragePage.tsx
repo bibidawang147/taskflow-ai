@@ -946,6 +946,7 @@ export default function StoragePage() {
   const dragStateRef = useRef<DragState>(null)
   const resizeStateRef = useRef<ResizeState>(null)
   const transformRef = useRef<ReactZoomPanPinchRef | null>(null)
+  const chatIframeRef = useRef<HTMLIFrameElement>(null)
   const transformStateRef = useRef({
     scale: 1,
     positionX: INITIAL_POSITION_X,
@@ -1886,9 +1887,6 @@ export default function StoragePage() {
       const draggedWorkflowId = libraryDraggingId || event.dataTransfer.getData('workflow-library-id')
       if (!draggedWorkflowId) return
 
-      const workflow = libraryData.find((item) => item.id === draggedWorkflowId)
-      if (!workflow) return
-
       const wrapperElement = transformRef.current?.instance.wrapperComponent
       if (!wrapperElement) return
       const wrapperRect = wrapperElement.getBoundingClientRect()
@@ -1923,7 +1921,7 @@ export default function StoragePage() {
         draft[cardId] = {
           id: cardId,
           type: 'workflow',
-          workflowId: workflow.id,
+          workflowId: draggedWorkflowId,
           parentId: dropTarget,
           position: relativePosition
         }
@@ -1939,7 +1937,7 @@ export default function StoragePage() {
 
       setLibraryDraggingId(null)
     },
-    [attachToParent, libraryData, libraryDraggingId, updateCanvasItems]
+    [attachToParent, libraryDraggingId, updateCanvasItems]
   )
 
   const handleCanvasDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -4190,7 +4188,7 @@ export default function StoragePage() {
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
-        zIndex: 0,
+        zIndex: 9,
         overflow: 'visible'
       }}
     >
@@ -5452,11 +5450,18 @@ export default function StoragePage() {
                 value={aiInputMessage}
                 onChange={(e) => setAiInputMessage(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && aiInputMessage.trim()) {
+                    const msg = aiInputMessage.trim()
                     setShowChatPanel(true)
+                    setAiInputMessage('')
+                    setTimeout(() => {
+                      chatIframeRef.current?.contentWindow?.postMessage({
+                        type: 'SEND_CHAT_MESSAGE',
+                        message: msg
+                      }, '*')
+                    }, 150)
                   }
                 }}
-                onFocus={() => setShowChatPanel(true)}
                 style={{
                   flex: 1,
                   background: 'transparent',
@@ -5469,7 +5474,19 @@ export default function StoragePage() {
                 }}
               />
               <div
-                onClick={() => setShowChatPanel(true)}
+                onClick={() => {
+                  setShowChatPanel(true)
+                  if (aiInputMessage.trim()) {
+                    const msg = aiInputMessage.trim()
+                    setAiInputMessage('')
+                    setTimeout(() => {
+                      chatIframeRef.current?.contentWindow?.postMessage({
+                        type: 'SEND_CHAT_MESSAGE',
+                        message: msg
+                      }, '*')
+                    }, 150)
+                  }
+                }}
                 style={{
                   width: '28px',
                   height: '28px',
@@ -5528,6 +5545,7 @@ export default function StoragePage() {
             e.stopPropagation()
             e.preventDefault()
           }}
+          onClick={() => { if (showChatPanel) setShowChatPanel(false) }}
           onDragOver={handleCanvasDragOver}
           onDrop={handleCanvasDrop}
           onTouchStart={handleCanvasTouch}
@@ -6798,6 +6816,7 @@ export default function StoragePage() {
 
       {/* AI Chat 对话框面板 */}
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
           right: '1rem',
@@ -6806,11 +6825,11 @@ export default function StoragePage() {
           height: 'calc(100% - 80px)',
           transform: showChatPanel ? 'translateX(0)' : 'translateX(calc(100% + 1rem))',
           transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          background: 'rgb(255, 255, 255)',
-          border: '1px solid rgb(229, 231, 235)',
+          background: 'linear-gradient(135deg, rgb(26, 26, 46) 0%, rgb(15, 15, 26) 100%)',
+          border: '1.5px solid rgba(168, 85, 247, 0.4)',
           borderRadius: '16px',
           zIndex: 1002,
-          boxShadow: showChatPanel ? '0 10px 40px rgba(0, 0, 0, 0.15)' : 'none',
+          boxShadow: showChatPanel ? '0 10px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(168, 85, 247, 0.15)' : 'none',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
@@ -6833,6 +6852,7 @@ export default function StoragePage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               title="对话历史"
+              onClick={() => chatIframeRef.current?.contentWindow?.postMessage({ type: 'TOGGLE_HISTORY' }, '*')}
               style={{
                 width: '28px',
                 height: '28px',
@@ -6856,6 +6876,7 @@ export default function StoragePage() {
             </button>
             <button
               title="新建对话"
+              onClick={() => chatIframeRef.current?.contentWindow?.postMessage({ type: 'NEW_CHAT' }, '*')}
               style={{
                 width: '28px',
                 height: '28px',
@@ -6909,11 +6930,12 @@ export default function StoragePage() {
           style={{
             flex: 1,
             overflow: 'hidden',
-            background: 'rgb(255, 255, 255)',
+            background: 'transparent',
             borderRadius: '0px 0px 14px 14px'
           }}
         >
           <iframe
+            ref={chatIframeRef}
             src="/ai-chat?embedded=1"
             title="AI 对话"
             style={{

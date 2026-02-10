@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Settings, HelpCircle, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard } from 'lucide-react';
+import { User, Settings, HelpCircle, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket } from 'lucide-react';
 import { authService } from '../services/auth';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -39,7 +39,26 @@ export default function Layout() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [idCopied, setIdCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 从 JWT token 解析 userId
+  const userId = useMemo(() => {
+    try {
+      const token = authService.getToken();
+      if (!token) return null;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.userId || payload.id || payload.sub || null;
+    } catch { return null; }
+  }, [isAuthenticated]);
+
+  const handleCopyId = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!userId) return;
+    navigator.clipboard.writeText(userId);
+    setIdCopied(true);
+    setTimeout(() => setIdCopied(false), 2000);
+  };
 
   const isActive = (path: string) => {
     if (path === '/ai-chat' || path === '/storage' || path === '/explore') {
@@ -140,6 +159,7 @@ export default function Layout() {
   const menuItems = [
     { icon: Package, label: '会员中心', path: '/membership' },
     ...(isAdmin ? [
+      { icon: Ticket, label: '优惠码管理', path: '/admin/promo' },
       { icon: ShieldCheck, label: '订单管理', path: '/admin/orders' },
       { icon: CreditCard, label: '定价管理', path: '/admin/pricing' },
     ] : []),
@@ -255,43 +275,44 @@ export default function Layout() {
                   <div
                     style={{
                       position: 'absolute',
-                      top: 'calc(100% + 8px)',
+                      top: 'calc(100% + 6px)',
                       right: 0,
-                      width: '230px',
+                      width: '260px',
                       background: '#FFFFFF',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                      borderRadius: '14px',
+                      border: '1px solid rgba(0,0,0,0.06)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.04)',
                       zIndex: 1001,
                       overflow: 'hidden',
-                      animation: 'dropdownFadeIn 0.15s ease',
+                      animation: 'dropdownFadeIn 0.18s ease',
                     }}
                   >
-                    {/* 用户信息区 + 会员标签 */}
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 700, color: '#111' }}>用户</span>
+                    {/* 用户信息区 */}
+                    <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #F0F1F3' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#111827' }}>用户</span>
                         {subscription && subscription.role !== 'free' && (
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '3px',
-                            padding: '1px 8px',
+                            padding: '1px 6px',
                             borderRadius: '4px',
-                            fontSize: '11px',
+                            fontSize: '10px',
                             fontWeight: 600,
                             backgroundColor: ROLE_COLORS[subscription.role]?.bg || '#F3F4F6',
                             color: ROLE_COLORS[subscription.role]?.text || '#6B7280',
                           }}>
-                            <Crown size={11} />
+                            <Crown size={10} />
                             {ROLE_LABELS[subscription.role] || subscription.role}
                           </span>
                         )}
                       </div>
                       {subscription && subscription.role !== 'free' && subscription.daysRemaining > 0 ? (
                         <div style={{
-                          fontSize: '12px',
+                          fontSize: '11px',
                           color: subscription.daysRemaining <= 7 ? '#EF4444' : '#9CA3AF',
-                          marginTop: '4px',
+                          marginTop: '2px',
                           fontWeight: subscription.daysRemaining <= 7 ? 500 : 400,
                         }}>
                           {subscription.daysRemaining <= 7
@@ -300,12 +321,35 @@ export default function Layout() {
                           }
                         </div>
                       ) : (
-                        <div style={{ fontSize: '13px', color: '#9CA3AF', marginTop: '4px' }}>欢迎使用瓴积AI</div>
+                        <div style={{ fontSize: '11px', color: '#B0B7C3', marginTop: '2px' }}>欢迎使用瓴积AI</div>
+                      )}
+                      {userId && (
+                        <div
+                          onClick={handleCopyId}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            marginTop: '6px',
+                            padding: '2px 7px',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            background: idCopied ? '#ECFDF5' : '#F9FAFB',
+                            color: idCopied ? '#059669' : '#9CA3AF',
+                            transition: 'all 0.2s',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title="点击复制 ID"
+                        >
+                          <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.01em' }}>ID: {userId}</span>
+                          {idCopied ? <Check size={10} /> : <Copy size={10} />}
+                        </div>
                       )}
                     </div>
 
                     {/* 菜单项 */}
-                    <div style={{ padding: '6px 0' }}>
+                    <div style={{ padding: '3px 0' }}>
                       {menuItems.map((item) => (
                         <button
                           key={item.path}
@@ -316,82 +360,90 @@ export default function Layout() {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '12px',
+                            gap: '8px',
                             width: '100%',
-                            height: '48px',
-                            padding: '0 20px',
+                            height: '34px',
+                            padding: '0 14px',
                             border: 'none',
                             background: 'transparent',
                             cursor: 'pointer',
-                            transition: 'background-color 0.15s ease',
-                            fontSize: '14px',
-                            color: '#333',
+                            transition: 'all 0.12s ease',
+                            fontSize: '12.5px',
+                            fontWeight: 500,
+                            color: '#374151',
                             textAlign: 'left',
+                            borderRadius: 0,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#F3F4F6';
+                            e.currentTarget.style.backgroundColor = '#F5F3FF';
+                            e.currentTarget.style.color = '#7C3AED';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#374151';
                           }}
                         >
-                          <item.icon size={20} color="#6B7280" />
+                          <item.icon size={15} color="currentColor" style={{ opacity: 0.6 }} />
                           <span>{item.label}</span>
                         </button>
                       ))}
                     </div>
 
-                    {/* 填写邀请码 */}
-                    <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <Gift size={16} color="#8b5cf6" />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>填写邀请码</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* 填写邀请码 - 单行布局 */}
+                    <div style={{ borderTop: '1px solid #F0F1F3', padding: '7px 14px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Gift size={13} color="#8b5cf6" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563', flexShrink: 0 }}>邀请码</span>
                         <input
                           type="text"
                           value={inviteCode}
                           onChange={(e) => { setInviteCode(e.target.value); setInviteResult(null); }}
-                          placeholder="请输入邀请码"
+                          placeholder="输入兑换码"
                           onClick={(e) => e.stopPropagation()}
                           style={{
-                            flex: 1,
-                            padding: '6px 10px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '13px',
+                            width: '90px',
+                            flex: '0 1 90px',
+                            padding: '3px 7px',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: '5px',
+                            fontSize: '11px',
                             outline: 'none',
                             boxSizing: 'border-box',
+                            transition: 'border-color 0.2s, flex 0.2s',
                           }}
-                          onFocus={(e) => (e.target.style.borderColor = '#8b5cf6')}
-                          onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+                          onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; e.target.style.flex = '1 1 90px'; }}
+                          onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; if (!inviteCode) e.target.style.flex = '0 1 90px'; }}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleInviteSubmit(); }}
                         />
                         <button
                           onClick={(e) => { e.stopPropagation(); handleInviteSubmit(); }}
                           disabled={inviteLoading || !inviteCode.trim()}
                           style={{
-                            padding: '6px 12px',
-                            backgroundColor: inviteLoading || !inviteCode.trim() ? '#d1d5db' : '#8b5cf6',
-                            color: 'white',
+                            padding: '3px 8px',
+                            backgroundColor: inviteLoading || !inviteCode.trim() ? '#E5E7EB' : '#8b5cf6',
+                            color: inviteLoading || !inviteCode.trim() ? '#9CA3AF' : 'white',
                             border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '13px',
+                            borderRadius: '5px',
+                            fontSize: '11px',
+                            fontWeight: 500,
                             cursor: inviteLoading || !inviteCode.trim() ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '4px',
+                            gap: '2px',
                             whiteSpace: 'nowrap',
+                            transition: 'all 0.15s',
+                            flexShrink: 0,
                           }}
                         >
-                          {inviteLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          {inviteLoading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
                           兑换
                         </button>
                       </div>
                       {inviteResult && (
                         <div style={{
-                          fontSize: '12px',
-                          marginTop: '6px',
+                          fontSize: '10.5px',
+                          marginTop: '3px',
+                          paddingLeft: '19px',
                           color: inviteResult.type === 'success' ? '#059669' : '#dc2626',
                         }}>
                           {inviteResult.msg}
@@ -400,21 +452,22 @@ export default function Layout() {
                     </div>
 
                     {/* 退出登录 */}
-                    <div style={{ borderTop: '1px solid #E5E7EB' }}>
+                    <div style={{ borderTop: '1px solid #F0F1F3' }}>
                       <button
                         onClick={handleLogout}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '12px',
+                          gap: '8px',
                           width: '100%',
-                          height: '48px',
-                          padding: '0 20px',
+                          height: '34px',
+                          padding: '0 14px',
                           border: 'none',
                           background: 'transparent',
                           cursor: 'pointer',
-                          transition: 'background-color 0.15s ease',
-                          fontSize: '14px',
+                          transition: 'all 0.12s ease',
+                          fontSize: '12.5px',
+                          fontWeight: 500,
                           color: '#EF4444',
                           textAlign: 'left',
                         }}
@@ -425,7 +478,7 @@ export default function Layout() {
                           e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       >
-                        <LogOut size={20} color="#EF4444" />
+                        <LogOut size={15} color="#EF4444" style={{ opacity: 0.7 }} />
                         <span>退出登录</span>
                       </button>
                     </div>

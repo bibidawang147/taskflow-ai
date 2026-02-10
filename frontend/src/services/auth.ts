@@ -63,5 +63,17 @@ export const authService = {
   // 存储令牌
   setToken: (token: string): void => {
     localStorage.setItem('token', token)
+  },
+
+  // 获取微信授权链接
+  getWechatAuthUrl: async (): Promise<{ url: string; state: string }> => {
+    const response = await api.get('/api/auth/wechat/url')
+    return response.data
+  },
+
+  // 微信登录回调（用 code 换 JWT）
+  wechatLogin: async (code: string): Promise<AuthResponse> => {
+    const response = await api.get(`/api/auth/wechat/callback?code=${encodeURIComponent(code)}`)
+    return response.data
   }
 }

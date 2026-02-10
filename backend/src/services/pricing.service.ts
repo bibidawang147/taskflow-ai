@@ -21,7 +21,7 @@ export async function getPricingConfig() {
         earlyBirdLimit: 500,
         earlyBirdSold: 0,
         renewalDiscount: 0.7,
-        renewalWindowDays: 30,
+        renewalWindowDays: 60,
         growthStartAt: new Date('2026-09-01T00:00:00Z'),
         standardStartAt: new Date('2027-03-01T00:00:00Z'),
       }
@@ -92,8 +92,9 @@ export async function getPricingInfo(userId?: string) {
   // 已登录用户：计算续费资格
   if (userId) {
     const now = new Date()
+    // 续费优惠仅限真正付费过的用户，邀请码/赠送等体验用户不享受
     const activeSubscription = await prisma.subscription.findFirst({
-      where: { userId, status: 'active', expiresAt: { gt: now } },
+      where: { userId, status: 'active', source: 'purchase', expiresAt: { gt: now } },
       orderBy: { expiresAt: 'desc' }
     })
 
@@ -101,16 +102,14 @@ export async function getPricingInfo(userId?: string) {
       const daysUntilExpiry = Math.ceil(
         (activeSubscription.expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
       )
-      const canRenew = daysUntilExpiry <= config.renewalWindowDays
-      const renewalPrice = canRenew
-        ? Math.round(currentPrice * config.renewalDiscount)
-        : null
-
-      result.renewal = {
-        canRenew,
-        daysUntilExpiry,
-        renewalPrice,
-        currentSubscriptionExpiresAt: activeSubscription.expiresAt.toISOString(),
+      // 续费优惠仅在到期前 renewalWindowDays（默认30天）内展示
+      if (daysUntilExpiry <= config.renewalWindowDays && daysUntilExpiry >= 0) {
+        result.renewal = {
+          canRenew: true,
+          daysUntilExpiry,
+          renewalPrice: Math.round(currentPrice * config.renewalDiscount),
+          currentSubscriptionExpiresAt: activeSubscription.expiresAt.toISOString(),
+        }
       }
     }
   }
@@ -146,9 +145,9 @@ export async function purchaseSubscription(params: {
 
   const now = new Date()
 
-  // 计算续费资格
+  // 计算续费资格：仅限真正付费过的用户
   const activeSubscription = await prisma.subscription.findFirst({
-    where: { userId, status: 'active', expiresAt: { gt: now } },
+    where: { userId, status: 'active', source: 'purchase', expiresAt: { gt: now } },
     orderBy: { expiresAt: 'desc' }
   })
 
@@ -160,7 +159,7 @@ export async function purchaseSubscription(params: {
     const daysUntilExpiry = Math.ceil(
       (activeSubscription.expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
     )
-    if (daysUntilExpiry <= config.renewalWindowDays) {
+    if (daysUntilExpiry <= config.renewalWindowDays && daysUntilExpiry >= 0) {
       isRenewal = true
       renewalDiscountRate = config.renewalDiscount
       renewalPrice = Math.round(currentPrice * config.renewalDiscount)
@@ -205,16 +204,12 @@ export async function purchaseSubscription(params: {
 
   // 事务：创建订单 + 早鸟配额
   const subscription = await prisma.$transaction(async (tx) => {
-    // 早鸟配额检查 & 递增
+    // 早鸟配额检查（仅检查，确认支付时才递增）
     if (effectiveTier === 'early_bird') {
       const freshConfig = await tx.pricingConfig.findUnique({ where: { id: 'singleton' } })
       if (freshConfig && freshConfig.earlyBirdSold >= freshConfig.earlyBirdLimit) {
         throw new Error('早鸟名额已售罄')
       }
-      await tx.pricingConfig.update({
-        where: { id: 'singleton' },
-        data: { earlyBirdSold: { increment: 1 } }
-      })
     }
 
     // 计算订阅时段
@@ -299,7 +294,15 @@ export async function activateSubscription(subscriptionId: string, adminUserId: 
       data: { status: 'active' }
     })
 
-    // 2. 更新用户角色（只升不降，admin 不动）
+    // 2. 早鸟配额递增（确认支付时才计数）
+    if (sub.priceTier === 'early_bird') {
+      await tx.pricingConfig.update({
+        where: { id: 'singleton' },
+        data: { earlyBirdSold: { increment: 1 } }
+      })
+    }
+
+    // 3. 更新用户角色（只升不降，admin 不动）
     const currentLevel = ROLE_LEVEL[sub.user.role] ?? 0
     const newLevel = ROLE_LEVEL[sub.plan] ?? 0
 

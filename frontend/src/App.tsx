@@ -34,6 +34,7 @@ import WorkflowViewPage from './pages/WorkflowViewPage'
 import AdminPromoPage from './pages/AdminPromoPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminPricingPage from './pages/AdminPricingPage'
+import WechatCallbackPage from './pages/WechatCallbackPage'
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
       <Route path="/ai-recommendation-test" element={<AIRecommendationTestPage />} />
       <Route path="/grid-drag-demo" element={<GridDragDemoPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/wechat/callback" element={<WechatCallbackPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>

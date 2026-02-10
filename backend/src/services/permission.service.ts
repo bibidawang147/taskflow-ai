@@ -15,7 +15,7 @@ const TIER_CONFIG = {
     canBecomeCreator: false,
   },
   pro: {
-    maxCanvases: 5,
+    maxCanvases: 10,
     canViewFreeContent: true,     // 可查看免费方法完整步骤
     canViewMemberContent: true,   // 可查看会员方法完整步骤
     canCopyFreeWorkflow: true,

@@ -559,14 +559,34 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
     return () => clearTimeout(timer)
   }, [messages, currentSessionId, isSavingChat])
 
-  const handleSend = async () => {
+  // 监听父窗口 postMessage（嵌入模式下接收输入框内容）
+  const handleSendRef = useRef<(msg?: string) => void>(null)
+
+  useEffect(() => {
+    if (!isEmbeddedMode) return
+    const handleParentMessage = (event: MessageEvent) => {
+      const { type, message } = event.data || {}
+      if (type === 'SEND_CHAT_MESSAGE' && message) {
+        handleSendRef.current?.(message)
+      } else if (type === 'TOGGLE_HISTORY') {
+        setShowSessionList((prev) => !prev)
+      } else if (type === 'NEW_CHAT') {
+        handleCreateNewChat()
+      }
+    }
+    window.addEventListener('message', handleParentMessage)
+    return () => window.removeEventListener('message', handleParentMessage)
+  }, [isEmbeddedMode])
+
+  const handleSend = async (overrideMessage?: string) => {
+    const messageText = overrideMessage || inputValue.trim()
     // 防止重复发送：检查是否正在加载或输入为空
-    if (!inputValue.trim() || loading) {
+    if (!messageText || loading) {
       return
     }
 
     // 用户界面显示原始输入
-    const userMessage: ChatMessage = { role: 'user', content: inputValue.trim() }
+    const userMessage: ChatMessage = { role: 'user', content: messageText }
     setMessages((prev) => [...prev, userMessage])
     setInputValue('')
     setUploadedFiles([]) // 清空上传的文件
@@ -758,6 +778,9 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
       setLoading(false)
     }
   }
+
+  // 保持 ref 与最新 handleSend 同步
+  handleSendRef.current = handleSend
 
   // 辅助函数：根据 AI 回复和用户输入，智能推荐AI工作方法
   const analyzeAndRecommendWorkflows = (aiResponse: string, userInput: string): RecommendationCard[] => {
@@ -1187,7 +1210,28 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
 
   if (isEmbeddedMode) {
     return (
-      <div className="flex h-screen flex-col bg-gradient-to-br from-white via-violet-50/30 to-white">
+      <div className="flex h-screen flex-col" style={{ background: 'linear-gradient(180deg, rgb(20, 20, 36) 0%, rgb(12, 12, 22) 100%)' }}>
+        <style>{`
+          .neon-chat-input::placeholder {
+            color: rgba(240, 234, 255, 0.85);
+          }
+          .neon-chat-input:focus::placeholder {
+            color: rgba(168, 132, 252, 0.3);
+          }
+          .dark-chat-scroll::-webkit-scrollbar {
+            width: 5px;
+          }
+          .dark-chat-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .dark-chat-scroll::-webkit-scrollbar-thumb {
+            background: rgba(168, 85, 247, 0.3);
+            border-radius: 3px;
+          }
+          .dark-chat-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(168, 85, 247, 0.5);
+          }
+        `}</style>
         {/* 历史记录侧边栏 */}
         {showSessionList && createPortal(
           <div
@@ -1195,7 +1239,8 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
             onClick={() => setShowSessionList(false)}
           >
             <div
-              className="w-[320px] bg-white shadow-2xl"
+              className="w-[320px] shadow-2xl"
+              style={{ background: 'linear-gradient(180deg, rgb(26, 26, 46), rgb(15, 15, 26))' }}
               onClick={(e) => e.stopPropagation()}
             >
               <ChatHistorySidebar
@@ -1212,103 +1257,57 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
           document.body
         )}
 
-        {/* 顶部标题栏和按钮 */}
-        <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50/50 px-4 py-3 flex-shrink-0">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">AI 对话</h2>
-            <p className="text-[11px] text-slate-600 font-medium mt-0.5">智能推荐AI工作方法</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                console.log('🔘 [Embedded] 历史记录按钮被点击')
-                setShowSessionList((prev) => !prev)
-              }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
-              title="对话历史"
-            >
-              <History className="h-5 w-5 stroke-2" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                console.log('🔘 [Embedded] 新建对话按钮被点击')
-                handleCreateNewChat()
-              }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-violet-600 hover:bg-violet-50 hover:scale-110 transition-all duration-200"
-              title="创建新对话"
-            >
-              <Plus className="h-5 w-5 stroke-2" />
-            </button>
-          </div>
-        </header>
-
         {/* 对话消息区域 */}
         <div
           className={cn(
-            'flex-1 overflow-y-auto px-4 py-4',
+            'flex-1 overflow-y-auto px-4 py-4 dark-chat-scroll',
             messages.length === 0 ? 'flex items-center justify-center' : 'space-y-4'
           )}
         >
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center w-full max-w-md mx-auto">
-              <div className="rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 p-4 shadow-xl mb-6">
-                <Bot className="h-10 w-10 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-3">AI 工作方法助手</h3>
-              <p className="text-sm leading-relaxed text-slate-600 mb-6">
-                描述你想完成的任务，我会为你推荐并生成合适的AI工作方法
-              </p>
-              <div className="flex items-center gap-2 text-xs text-violet-600 font-semibold bg-violet-50 px-4 py-2 rounded-full border border-violet-100">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>智能推荐 · 快速生成</span>
-              </div>
-            </div>
+            null
           ) : (
             <div className="space-y-3 max-w-3xl mx-auto pb-4">
               {messages.map((message, idx) => (
                 <div key={idx} className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <div
-                      className={cn(
-                        'rounded-full p-1.5 shadow-sm',
-                        message.role === 'user'
-                          ? 'bg-violet-100 text-violet-600'
-                          : 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
-                      )}
+                      className="rounded-full p-1.5"
+                      style={message.role === 'user'
+                        ? { background: 'rgba(168, 85, 247, 0.2)', color: '#f5f2ff' }
+                        : { background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(99, 50, 200, 0.4))', color: 'white' }
+                      }
                     >
                       {message.role === 'user' ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
                     </div>
-                    <span className="text-xs font-semibold text-slate-600">
-                      {message.role === 'user' ? '你' : 'AI 助手'}
+                    <span className="text-xs font-semibold" style={{ color: '#eeeaff' }}>
+                      {message.role === 'user' ? '你' : '小积'}
                     </span>
                   </div>
                   <div
-                    className={cn(
-                      'rounded-2xl px-4 py-3 shadow-sm',
-                      message.role === 'user'
-                        ? 'bg-violet-50 border border-violet-100 ml-8'
-                        : 'bg-white border border-slate-200'
-                    )}
+                    className="rounded-2xl px-4 py-3 ml-8"
+                    style={message.role === 'user'
+                      ? { background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.25)' }
+                      : { background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(168, 85, 247, 0.15)' }
+                    }
                   >
                     {message.role === 'user' ? (
-                      <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{message.content}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium" style={{ color: '#ffffff' }}>{message.content}</p>
                     ) : (
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          p: ({ node, ...props }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed text-slate-800" {...props} />,
+                          p: ({ node, ...props }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed font-medium" style={{ color: '#ffffff' }} {...props} />,
                           code: ({ node, ...props }) => {
                             const inline = (props as any).inline
                             return inline ? (
-                              <code className="px-1.5 py-0.5 rounded bg-violet-50 text-xs font-mono text-violet-700" {...props} />
+                              <code className="px-1.5 py-0.5 rounded text-xs font-mono font-medium" style={{ background: 'rgba(168, 85, 247, 0.25)', color: '#ffffff' }} {...props} />
                             ) : (
-                              <code className="block p-3 my-2 rounded-lg bg-slate-50 text-xs font-mono overflow-x-auto" {...props} />
+                              <code className="block p-3 my-2 rounded-lg text-xs font-mono font-medium overflow-x-auto" style={{ background: 'rgba(0, 0, 0, 0.3)', color: '#ffffff' }} {...props} />
                             )
                           },
-                          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-1 space-y-1 text-sm text-slate-700" {...props} />,
-                          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-1 space-y-1 text-sm text-slate-700" {...props} />
+                          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-1 space-y-1 text-sm font-medium" style={{ color: '#ffffff' }} {...props} />,
+                          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-1 space-y-1 text-sm font-medium" style={{ color: '#ffffff' }} {...props} />
                         }}
                       >
                         {message.content}
@@ -1360,62 +1359,92 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
           )}
         </div>
 
-        {/* 输入区域 - 固定在底部 */}
-        <div className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-lg">
+        {/* 输入区域 - 固定在底部，深色霓虹风格 */}
+        <div style={{
+          flexShrink: 0,
+          padding: '12px 16px',
+          background: 'linear-gradient(135deg, rgb(26, 26, 46) 0%, rgb(15, 15, 26) 100%)',
+          borderTop: '1px solid rgba(168, 85, 247, 0.3)'
+        }}>
           {/* 错误提示 */}
           {error && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600 max-w-3xl mx-auto">
+            <div className="mb-3 flex items-center gap-2 rounded-xl px-3 py-2 text-xs max-w-3xl mx-auto" style={{ background: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.3)', color: 'rgb(252, 165, 165)' }}>
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="flex items-end gap-2 max-w-3xl mx-auto">
-            <textarea
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '6px 6px 6px 16px',
+            background: 'rgba(168, 85, 247, 0.08)',
+            border: '1.5px solid rgb(168, 85, 247)',
+            borderRadius: '12px',
+            boxShadow: 'rgba(168, 85, 247, 0.4) 0px 0px 10px, rgba(168, 85, 247, 0.2) 0px 0px 20px'
+          }}>
+            <input
+              type="text"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter') {
                   e.preventDefault()
                   handleSend()
                 }
               }}
-              rows={2}
               placeholder="输入你的需求，按 Enter 发送..."
+              className="neon-chat-input"
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="flex-1 resize-none rounded-xl border bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 shadow-sm transition-all focus:ring-2 focus:outline-none"
-              style={{ borderColor: '#e2e8f0' }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = THEME_COLORS.primary
-                e.currentTarget.style.boxShadow = `0 0 0 3px ${THEME_COLORS.bg.light}`
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#e2e8f0'
-                e.currentTarget.style.boxShadow = ''
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: '#fbfaff',
+                fontSize: '13px',
+                fontWeight: 500,
+                padding: '6px 0'
               }}
             />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={loading || !inputValue.trim()}
-              className="inline-flex h-[52px] w-12 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-md transition-all hover:shadow-lg hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-              style={{ background: THEME_COLORS.gradient.primary }}
+            <div
+              onClick={() => handleSend()}
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                background: loading || !inputValue.trim()
+                  ? 'rgba(168, 85, 247, 0.3)'
+                  : 'linear-gradient(135deg, rgb(168, 85, 247) 0%, rgb(124, 58, 237) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: 'rgba(168, 85, 247, 0.5) 0px 0px 10px',
+                cursor: loading || !inputValue.trim() ? 'not-allowed' : 'pointer',
+                transition: '0.2s',
+                transform: 'scale(1)'
+              }}
               onMouseEnter={(e) => {
                 if (!loading && inputValue.trim()) {
-                  e.currentTarget.style.background = `linear-gradient(135deg, ${THEME_COLORS.primaryDark} 0%, #6d28d9 100%)`
+                  e.currentTarget.style.transform = 'scale(1.05)'
+                  e.currentTarget.style.boxShadow = 'rgba(168, 85, 247, 0.7) 0px 0px 15px'
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && inputValue.trim()) {
-                  e.currentTarget.style.background = THEME_COLORS.gradient.primary
-                }
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = 'rgba(168, 85, 247, 0.5) 0px 0px 10px'
               }}
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </button>
+              {loading
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: '#f5f2ff' }} />
+                : <Send className="h-3.5 w-3.5" style={{ color: 'rgb(255, 255, 255)', transform: 'rotate(-135deg)' }} />
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -1956,7 +1985,7 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
 
               <button
                 type="button"
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={loading || !inputValue.trim()}
                 className="inline-flex h-[90px] w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 transition-all hover:from-violet-700 hover:to-indigo-700 hover:shadow-xl hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >

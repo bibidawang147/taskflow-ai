@@ -54,8 +54,6 @@
   padding: 32px 0 64px;
   color: var(--color-text-primary);
   line-height: var(--line-relaxed);
-  background: linear-gradient(to bottom right, #f0ecff 0%, #e8e0ff 50%, #f0ecff 100%);
-  min-height: 100vh;
 }
 
 .explore-page.explore-embedded {
@@ -1191,7 +1189,7 @@
 
 @media (prefers-color-scheme: dark) {
   .explore-page {
-    background: linear-gradient(180deg, rgba(17, 24, 39, 0.92) 0%, rgba(15, 23, 42, 0.96) 100%);
+    background: transparent;
     color: #e2e8f0;
   }
 

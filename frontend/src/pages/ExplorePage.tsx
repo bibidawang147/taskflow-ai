@@ -29,6 +29,18 @@ interface Workflow {
 
 // 分类标签
 const categoryTags = ['全部', '副业专区', '内容创作', '视频制作', '数据分析', '图文设计', '效率工具']
+const siteCategories = categoryTags.slice(1) // 去掉"全部"
+
+// 将任意分类映射到站内分类标签
+const mapToSiteCategory = (category: string): string => {
+  if (siteCategories.includes(category)) return category
+  if (category.includes('副业') || category.includes('赚钱') || category.includes('变现')) return '副业专区'
+  if (category.includes('内容') || category.includes('写作') || category.includes('文案') || category.includes('文章')) return '内容创作'
+  if (category.includes('视频') || category.includes('剪辑') || category.includes('剪映')) return '视频制作'
+  if (category.includes('数据') || category.includes('分析') || category.includes('报表')) return '数据分析'
+  if (category.includes('设计') || category.includes('图文') || category.includes('图片') || category.includes('海报')) return '图文设计'
+  return '效率工具'
+}
 
 // 分类颜色映射
 const getCategoryType = (category: string): string => {
@@ -104,7 +116,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
     if (selectedCategory === '全部') {
       return workflows
     }
-    return workflows.filter(w => w.category === selectedCategory)
+    return workflows.filter(w => mapToSiteCategory(w.category) === selectedCategory)
   }, [workflows, selectedCategory])
 
   // 切换分类时重置显示数量
@@ -167,8 +179,8 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
                     {/* 第一行：标题 + 类型标签 */}
                     <div className="workflow-card__header">
                       <h3 className="workflow-card__title">{workflow.title}</h3>
-                      <span className={`workflow-card__category workflow-card__category--${getCategoryType(workflow.category)}`}>
-                        {workflow.category}
+                      <span className={`workflow-card__category workflow-card__category--${getCategoryType(mapToSiteCategory(workflow.category))}`}>
+                        {mapToSiteCategory(workflow.category)}
                       </span>
                     </div>
 
@@ -201,7 +213,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
 
                     {/* 优势标签 */}
                     <div className="workflow-card__advantage-tags">
-                      {getAdvantageTags(workflow.category).map((tag, index) => (
+                      {getAdvantageTags(mapToSiteCategory(workflow.category)).map((tag, index) => (
                         <span key={index} className="workflow-card__advantage-tag">{tag}</span>
                       ))}
                     </div>

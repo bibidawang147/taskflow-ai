@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { body } from 'express-validator'
-import { register, login, getProfile } from '../controllers/authController'
+import { register, login, getProfile, getWechatAuthUrl, wechatCallback } from '../controllers/authController'
 import { authenticateToken } from '../middleware/auth'
 
 const router = Router()
@@ -41,5 +41,9 @@ router.post('/login', loginValidation, login)
 
 // 获取用户信息
 router.get('/profile', authenticateToken, getProfile)
+
+// 微信扫码登录
+router.get('/wechat/url', getWechatAuthUrl)
+router.get('/wechat/callback', wechatCallback)
 
 export default router

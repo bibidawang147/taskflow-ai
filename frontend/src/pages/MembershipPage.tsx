@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, Sparkles, X, Loader2, Tag } from 'lucide-react';
+import { Check, Sparkles, X, Loader2 } from 'lucide-react';
 import { authService } from '../services/auth';
 import { api } from '../services/api';
 import '../styles/membership.css';
@@ -39,6 +39,12 @@ interface SubscriptionInfo {
   role: string
   roleExpiresAt: string | null
   daysRemaining: number
+  activeSubscription: {
+    plan: string
+    source: string
+    startedAt: string
+    expiresAt: string
+  } | null
 }
 
 const TIER_LABELS: Record<string, string> = {
@@ -53,9 +59,9 @@ export function MembershipPage() {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(true);
   const [showQrCode, setShowQrCode] = useState(false);
+  const [showContactQr, setShowContactQr] = useState(false);
 
   // 购买流程状态
-  const [promoCode, setPromoCode] = useState('');
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult | null>(null);
   const [purchaseError, setPurchaseError] = useState('');
@@ -98,7 +104,6 @@ export function MembershipPage() {
     try {
       const res = await api.post('/api/pricing/purchase', {
         plan: 'pro',
-        promoCode: promoCode.trim() || undefined,
       });
       if (res.data.success) {
         setPurchaseResult(res.data.data);
@@ -122,8 +127,18 @@ export function MembershipPage() {
   };
 
   const userRole = subscription?.role || 'free';
-  const isPro = userRole === 'pro' || userRole === 'creator' || userRole === 'admin';
+  const subscriptionSource = subscription?.activeSubscription?.source;
+  // 体验用户：通过邀请码/赠送获得的会员，不算真正付费
+  const isTrial = isPaidRole(userRole) && subscriptionSource !== 'purchase';
+  // 真正付费过的会员
+  const isPaidPro = isPaidRole(userRole) && subscriptionSource === 'purchase';
+  // 角色上是 pro 及以上（包含体验用户）
+  const isPro = isPaidRole(userRole);
   const displayPrice = getDisplayPrice();
+
+  function isPaidRole(role: string) {
+    return role === 'pro' || role === 'creator' || role === 'admin';
+  }
 
   const compareRows = [
     { label: '画布数量', free: '1 个', pro: '10 个', enterprise: '无限制' },
@@ -165,10 +180,15 @@ export function MembershipPage() {
         {/* 头部 */}
         <div className="membership-header">
           <h1 className="membership-title">选择适合你的方案</h1>
-          <p className="membership-subtitle">解锁更多功能，提升工作效率</p>
           <div style={{ marginTop: 20 }}>
             <span className="membership-current-badge">
-              当前等级：{isPro ? '专业版' : userRole === 'creator' ? '创作者' : '免费版'}
+              当前等级：{isTrial
+                ? `PRO会员体验中（剩余 ${subscription?.daysRemaining ?? 0} 天）`
+                : isPaidPro
+                  ? 'PRO会员'
+                  : userRole === 'creator'
+                    ? '创作者'
+                    : '免费版'}
             </span>
           </div>
         </div>
@@ -222,34 +242,34 @@ export function MembershipPage() {
             </div>
           </div>
 
-          {/* 专业版 */}
+          {/* PRO会员 */}
           <div className={`membership-card membership-card--popular${isPro ? ' membership-card--current' : ''}`}>
             <span className="membership-badge membership-badge--popular">推荐</span>
-            {isPro && (
+            {isPaidPro && (
               <span className="membership-badge membership-badge--current">当前</span>
             )}
             <div className="membership-card-header">
-              <h3 className="membership-card-name">专业版</h3>
-              {pricing && pricing.currentTier !== 'standard' && (
-                <span className="membership-tier-label">{TIER_LABELS[pricing.currentTier]}</span>
-              )}
+              <h3 className="membership-card-name">PRO会员</h3>
             </div>
             <div className="membership-price">
               <div className="membership-price-amount">
+                {pricing && pricing.currentTier !== 'standard' && (
+                  <span className="membership-tier-label">{TIER_LABELS[pricing.currentTier]}</span>
+                )}
                 <span className="membership-price-currency">¥</span>
                 <span className="membership-price-number">
                   {displayPrice ? displayPrice.price : pricing?.currentPrice || 499}
                 </span>
                 <span className="membership-price-unit">/ 年</span>
+                {/* 即将恢复原价提示，和价格同行 */}
+                {pricing && displayPrice?.isDiscount && (
+                  <span className="membership-price-original-inline">
+                    即将恢复原价 ¥{pricing.originalPrice}/年
+                  </span>
+                )}
               </div>
-              {/* 原价划线 */}
-              {pricing && displayPrice?.isDiscount && (
-                <div className="membership-price-original">
-                  原价 ¥{pricing.originalPrice}/年
-                </div>
-              )}
-              {/* 续费提示 */}
-              {pricing?.renewal?.canRenew && pricing.renewal.renewalPrice && (
+              {/* 续费提示：仅真正付费会员 + 到期前60天内展示 */}
+              {isPaidPro && pricing?.renewal?.canRenew && pricing.renewal.renewalPrice && (
                 <div className="membership-price-renewal">
                   续费优惠 {Math.round(pricing.renewalDiscount * 100)}% · 到期前 {pricing.renewal.daysUntilExpiry} 天
                 </div>
@@ -272,24 +292,10 @@ export function MembershipPage() {
               ))}
             </ul>
 
-            {/* 优惠码输入 */}
-            {!isPro && isAuthenticated && (
-              <div className="membership-promo">
-                <div className="membership-promo-input">
-                  <Tag size={14} />
-                  <input
-                    type="text"
-                    placeholder="输入优惠码（可选）"
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="membership-card-action">
-              {isPro ? (
-                pricing?.renewal?.canRenew ? (
+              {isPaidPro ? (
+                pricing?.renewal?.canRenew && pricing.renewal.renewalPrice ? (
                   <button
                     className="membership-btn membership-btn--upgrade"
                     onClick={handlePurchase}
@@ -366,7 +372,7 @@ export function MembershipPage() {
                 <tr>
                   <th>功能</th>
                   <th>免费版</th>
-                  <th className="membership-th--pro">专业版</th>
+                  <th className="membership-th--pro">PRO会员</th>
                   <th className="membership-th--enterprise">企业版</th>
                 </tr>
               </thead>
@@ -435,7 +441,7 @@ export function MembershipPage() {
             <div className="membership-order-summary">
               <div className="membership-order-row">
                 <span>方案</span>
-                <span>专业版 · 年度</span>
+                <span>PRO会员 · 年度</span>
               </div>
               <div className="membership-order-row">
                 <span>定价阶段</span>
@@ -473,7 +479,15 @@ export function MembershipPage() {
               <div className="membership-modal-qrcode-wrapper">
                 <img src="/wechat-qrcode.png" alt="微信支付" className="membership-modal-qrcode" />
               </div>
-              <p className="membership-modal-hint">转账后请备注你的用户名</p>
+              <p className="membership-modal-hint">转账时请务必备注你的用户名</p>
+              <p className="membership-modal-hint">
+                有任何问题请<span className="membership-modal-contact" onClick={() => setShowContactQr(!showContactQr)}>联系我</span>
+              </p>
+              {showContactQr && (
+                <div className="membership-modal-qrcode-wrapper" style={{ marginTop: 12 }}>
+                  <img src="/wechat-qrcode.png" alt="联系微信" className="membership-modal-qrcode" />
+                </div>
+              )}
             </div>
           </div>
         </div>
