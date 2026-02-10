@@ -918,7 +918,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           <div
             onClick={() => toggleSection(`canvas-container-${container.id}`)}
             style={{
-              paddingLeft: `${depth * 16 + 16}px`,
+              paddingLeft: `${depth * 16 + 36}px`,
               paddingRight: '16px',
               paddingTop: '8px',
               paddingBottom: '8px',
@@ -937,7 +937,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '14px' }}>📁</span>
+
               <span>{container.name}</span>
               <span style={{ fontSize: '12px', color: '#9ca3af' }}>
                 ({containerWorkflows.length + childContainers.length})
@@ -960,7 +960,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 const workflowData = libraryData.find(w => w.id === workflow.workflowId)
                 return (
                   <div key={workflow.id} style={{
-                    paddingLeft: `${(depth + 1) * 16 + 16}px`, paddingRight: '16px',
+                    paddingLeft: `${(depth + 1) * 16 + 36}px`, paddingRight: '16px',
                     paddingTop: '6px', paddingBottom: '6px', fontSize: '13px', color: '#6b7280',
                     borderRadius: '6px', transition: 'background-color 0.2s ease',
                     display: 'flex', alignItems: 'center', gap: '6px'
@@ -968,7 +968,6 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                   >
-                    <span style={{ fontSize: '12px' }}>📄</span>
                     <span>{workflowData?.name || '未命名工作流'}</span>
                   </div>
                 )
@@ -986,14 +985,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           const workflowData = libraryData.find(w => w.id === workflow.workflowId)
           return (
             <div key={workflow.id} style={{
-              paddingLeft: '16px', paddingRight: '16px', paddingTop: '6px', paddingBottom: '6px',
+              paddingLeft: '36px', paddingRight: '16px', paddingTop: '6px', paddingBottom: '6px',
               fontSize: '13px', color: '#6b7280', borderRadius: '6px',
               transition: 'background-color 0.2s ease', display: 'flex', alignItems: 'center', gap: '6px'
             }}
               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
             >
-              <span style={{ fontSize: '12px' }}>📄</span>
               <span>{workflowData?.name || '未命名工作流'}</span>
             </div>
           )
@@ -1076,7 +1074,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '5px 16px 5px 30px',
+                      padding: '5px 16px 5px 23px',
                       fontSize: '13px',
                       fontWeight: 600,
                       color: '#4B5563',
@@ -1089,8 +1087,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F5F5F7' }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '13px' }}>🎨</span>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
                       <span>{canvasData.title}</span>
                     </div>
                     <span style={{
@@ -1105,7 +1102,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   </div>
                   {/* 该画布的内容 */}
                   {!isTabCollapsed && (
-                    <div style={{ paddingLeft: '8px' }}>
+                    <div>
                       {renderSingleCanvasContent(canvasData.items)}
                     </div>
                   )}
