@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { RecommendationCard } from './RecommendationCard'
 import './AIRecommendationPanel.css'
 
@@ -46,15 +47,14 @@ export const ExploreChatRecommendationPanel: React.FC<Props> = ({
 }) => {
   const [expanded, setExpanded] = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const navigate = useNavigate()
 
   const handleViewDetail = (workflowId: string) => {
-    // 导航到工作流详情页
-    window.location.href = `/workflow-intro/${workflowId}`
+    navigate(`/workflow-intro/${workflowId}`)
   }
 
   const handleTryNow = (workflowId: string) => {
-    // 跳转到工作流编辑器
-    window.location.href = `/workflow/edit/${workflowId}`
+    navigate(`/workflow/edit/${workflowId}`)
   }
 
   const handleImport = async (workflowId: string) => {
@@ -62,7 +62,7 @@ export const ExploreChatRecommendationPanel: React.FC<Props> = ({
       const token = localStorage.getItem('token')
       if (!token) {
         alert('请先登录')
-        window.location.href = '/login'
+        navigate('/login')
         return
       }
 

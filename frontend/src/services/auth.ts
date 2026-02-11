@@ -49,10 +49,20 @@ export const authService = {
     localStorage.removeItem('token')
   },
 
-  // 检查是否已登录
+  // 检查是否已登录（含 token 过期检测）
   isAuthenticated: (): boolean => {
     const token = localStorage.getItem('token')
-    return !!token
+    if (!token) return false
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('token')
+        return false
+      }
+      return true
+    } catch {
+      return true // token 格式异常时不阻断，交由后端校验
+    }
   },
 
   // 获取存储的令牌

@@ -8,125 +8,14 @@ const quickLinks = [
   { icon: '🔍', label: '发现更多', path: '/explore' }
 ] as const
 
-// 模拟对话历史数据（用户输入的问题）
-const workflowHistory = [
-  {
-    id: '1',
-    title: '帮我写一篇关于人工智能发展趋势的科技文章',
-    createdAt: '2小时前',
-    icon: '💬',
-    color: '#8b5cf6'
-  },
-  {
-    id: '2',
-    title: '为我的淘宝店铺新品生成吸引人的产品描述',
-    createdAt: '5小时前',
-    icon: '💬',
-    color: '#10b981'
-  },
-  {
-    id: '3',
-    title: '创建一个适合小红书的美妆教程内容',
-    createdAt: '昨天',
-    icon: '💬',
-    color: '#f59e0b'
-  },
-  {
-    id: '4',
-    title: '写一个3分钟的产品介绍视频脚本',
-    createdAt: '2天前',
-    icon: '💬',
-    color: '#3b82f6'
-  },
-  {
-    id: '5',
-    title: '生成一封促销活动的营销邮件',
-    createdAt: '3天前',
-    icon: '💬',
-    color: '#ec4899'
-  }
+// 快捷示例提示，引导新用户
+const examplePrompts = [
+  '帮我写一篇关于人工智能发展趋势的科技文章',
+  '为我的淘宝店铺新品生成吸引人的产品描述',
+  '创建一个适合小红书的美妆教程内容',
+  '写一个3分钟的产品介绍视频脚本',
+  '生成一封促销活动的营销邮件'
 ]
-
-// 对话消息类型
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
-}
-
-// 模拟对话数据
-const conversationData: Record<string, { messages: Message[] }> = {
-  '1': {
-    messages: [
-      {
-        role: 'user',
-        content: '帮我写一篇关于人工智能发展趋势的科技文章',
-        timestamp: '14:30'
-      },
-      {
-        role: 'assistant',
-        content: '好的，我将为您创建一个AI文章生成工作流。这个工作流包含以下步骤：\n\n1. 需求分析 - 分析您的文章主题和目标受众\n2. 内容生成 - 根据分析结果生成文章内容\n3. SEO优化 - 优化文章的搜索引擎友好度\n4. 质量检测 - 检查文章的质量和可读性\n\n工作流已创建完成，您可以在工作空间查看详情。',
-        timestamp: '14:31'
-      }
-    ]
-  },
-  '2': {
-    messages: [
-      {
-        role: 'user',
-        content: '为我的淘宝店铺新品生成吸引人的产品描述',
-        timestamp: '11:20'
-      },
-      {
-        role: 'assistant',
-        content: '我为您创建了一个电商产品描述生成工作流，可以帮助您快速生成专业的产品描述。工作流包含：\n\n1. 产品特点提取\n2. 卖点文案生成\n3. SEO关键词优化\n4. 情感化描述润色',
-        timestamp: '11:21'
-      }
-    ]
-  },
-  '3': {
-    messages: [
-      {
-        role: 'user',
-        content: '创建一个适合小红书的美妆教程内容',
-        timestamp: '昨天 15:20'
-      },
-      {
-        role: 'assistant',
-        content: '已为您创建小红书美妆内容生成工作流！包含标题优化、正文撰写、标签生成等功能。',
-        timestamp: '昨天 15:21'
-      }
-    ]
-  },
-  '4': {
-    messages: [
-      {
-        role: 'user',
-        content: '写一个3分钟的产品介绍视频脚本',
-        timestamp: '2天前 10:15'
-      },
-      {
-        role: 'assistant',
-        content: '视频脚本工作流已创建，包含开场、产品介绍、使用演示、总结等环节。',
-        timestamp: '2天前 10:16'
-      }
-    ]
-  },
-  '5': {
-    messages: [
-      {
-        role: 'user',
-        content: '生成一封促销活动的营销邮件',
-        timestamp: '3天前 09:30'
-      },
-      {
-        role: 'assistant',
-        content: '营销邮件工作流已创建，包含标题撰写、正文生成、CTA优化等步骤。',
-        timestamp: '3天前 09:31'
-      }
-    ]
-  }
-}
 
 export default function HomePage() {
   const [inputMessage, setInputMessage] = useState('')
@@ -328,7 +217,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 对话历史 */}
+        {/* 示例提示 */}
         <div style={{
           maxWidth: '980px',
           margin: '0 auto'
@@ -340,21 +229,23 @@ export default function HomePage() {
             marginBottom: '14px',
             letterSpacing: '0.3px'
           }}>
-            最近对话
+            试试这些
           </div>
 
           <div style={{
             display: 'grid',
             gap: '6px'
           }}>
-            {workflowHistory.map((workflow) => (
+            {examplePrompts.map((prompt, index) => (
               <button
-                key={workflow.id}
-                onClick={() => navigate('/search', { state: { conversationId: workflow.id } })}
+                key={index}
+                onClick={() => {
+                  setInputMessage(prompt)
+                  navigate('/search', { state: { query: prompt } })
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
                   gap: '16px',
                   padding: '14px 18px',
                   backgroundColor: 'white',
@@ -385,16 +276,7 @@ export default function HomePage() {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  {workflow.title}
-                </div>
-                <div style={{
-                  fontSize: '12px',
-                  color: '#94a3b8',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  fontWeight: '500'
-                }}>
-                  {workflow.createdAt}
+                  {prompt}
                 </div>
               </button>
             ))}

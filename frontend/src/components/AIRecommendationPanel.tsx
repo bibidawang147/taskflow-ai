@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { RecommendationCard } from './RecommendationCard'
 import api from '../services/api'
 import './AIRecommendationPanel.css'
@@ -39,6 +40,7 @@ export const AIRecommendationPanel: React.FC<Props> = ({
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   // 当意图更新时,获取推荐（实时更新）
   useEffect(() => {
@@ -90,8 +92,7 @@ export const AIRecommendationPanel: React.FC<Props> = ({
 
   const handleTryNow = (workflowId: string) => {
     trackAction(workflowId, 'clicked')
-    // 跳转到工作流编辑器,加载示例数据
-    window.location.href = `/workflow/editor/${workflowId}?mode=demo`
+    navigate(`/workflow/editor/${workflowId}?mode=demo`)
   }
 
   const handleImport = async (workflowId: string) => {

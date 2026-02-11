@@ -1,191 +1,65 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import api from '../services/api'
 
 const PAGE_BACKGROUND =
   'linear-gradient(to bottom right, #f8fafc 0%, rgba(245, 243, 255, 0.3) 45%, #f8fafc 100%)'
 const THEME_COLOR = '#8b5cf6'
 const SURFACE_COLOR = 'rgba(255, 255, 255, 0.9)'
 
-// 对话历史数据
-const conversationData: Record<string, { messages: Array<{ role: string; content: string; timestamp: string }> }> = {
-  '1': {
-    messages: [
-      {
-        role: 'user',
-        content: '帮我写一篇关于人工智能发展趋势的科技文章',
-        timestamp: '14:30'
-      },
-      {
-        role: 'assistant',
-        content:
-          '好的，我将为您创建一个AI文章生成工作流。这个工作流包含以下步骤：\n\n1. 需求分析 - 分析您的文章主题和目标受众\n2. 内容生成 - 根据分析结果生成文章内容\n3. SEO优化 - 优化文章的搜索引擎友好度\n4. 质量检测 - 检查文章的质量和可读性\n\n工作流已创建完成，您可以在工作空间查看详情。',
-        timestamp: '14:31'
-      }
-    ]
-  },
-  '2': {
-    messages: [
-      {
-        role: 'user',
-        content: '为我的淘宝店铺新品生成吸引人的产品描述',
-        timestamp: '11:20'
-      },
-      {
-        role: 'assistant',
-        content:
-          '我为您创建了一个电商产品描述生成工作流，可以帮助您快速生成专业的产品描述。工作流包含：\n\n1. 产品特点提取\n2. 卖点文案生成\n3. SEO关键词优化\n4. 情感化描述润色',
-        timestamp: '11:21'
-      }
-    ]
-  },
-  '3': {
-    messages: [
-      {
-        role: 'user',
-        content: '创建一个适合小红书的美妆教程内容',
-        timestamp: '昨天 15:20'
-      },
-      {
-        role: 'assistant',
-        content: '已为您创建小红书美妆内容生成工作流！包含标题优化、正文撰写、标签生成等功能。',
-        timestamp: '昨天 15:21'
-      }
-    ]
-  },
-  '4': {
-    messages: [
-      {
-        role: 'user',
-        content: '写一个3分钟的产品介绍视频脚本',
-        timestamp: '2天前 10:15'
-      },
-      {
-        role: 'assistant',
-        content: '视频脚本工作流已创建，包含开场、产品介绍、使用演示、总结等环节。',
-        timestamp: '2天前 10:16'
-      }
-    ]
-  },
-  '5': {
-    messages: [
-      {
-        role: 'user',
-        content: '生成一封促销活动的营销邮件',
-        timestamp: '3天前 09:30'
-      },
-      {
-        role: 'assistant',
-        content: '营销邮件工作流已创建，包含标题撰写、正文生成、CTA优化等步骤。',
-        timestamp: '3天前 09:31'
-      }
-    ]
-  }
-}
 
 export default function SearchResultPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const conversationId = location.state?.conversationId
-  const searchQuery =
-    conversationId && conversationData[conversationId]
-      ? conversationData[conversationId].messages[0].content
-      : location.state?.query || ''
+  const searchQuery = location.state?.query || ''
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const recommendedWorkflows = [
+  const [needsConfirmed, setNeedsConfirmed] = useState(false)
+  const [searchedWorkflows, setSearchedWorkflows] = useState<any[]>([])
+
+  // 搜索工作流
+  const searchWorkflows = async (query: string) => {
+    try {
+      const response = await api.get('/api/workflows/search', {
+        params: { query, limit: 4, source: 'public' }
+      })
+      const workflows = (response.data?.workflows || []).map((w: any) => ({
+        id: w.id,
+        name: w.title,
+        type: '工作流',
+        description: w.description || '',
+        steps: (w.config?.nodes || []).map((n: any) => n.label || n.config?.goal || '').filter(Boolean),
+        difficulty: w.difficultyLevel || '简单',
+        rating: w.rating ? Math.round(w.rating) : 4,
+        estimatedTime: `${(w.config?.nodes?.length || 3) * 3}分钟`,
+        icon: '📝',
+        color: '#8b5cf6',
+        category: w.category || '通用'
+      }))
+      setSearchedWorkflows(workflows)
+      return workflows
+    } catch {
+      setSearchedWorkflows([])
+      return []
+    }
+  }
+
+  const [messages, setMessages] = useState(() => [
     {
       id: 1,
-      name: 'AI文章生成工作流',
-      type: '工作流',
-      description: '使用GPT-4自动生成高质量文章内容,支持多种文体和风格',
-      steps: ['需求分析', '内容生成', 'SEO优化', '质量检测'],
-      difficulty: '简单',
-      rating: 5,
-      estimatedTime: '10分钟',
-      icon: '📝',
-      color: '#3b82f6',
-      category: '文字处理'
+      type: 'user' as const,
+      content: searchQuery,
+      timestamp: new Date()
     },
     {
       id: 2,
-      name: '内容优化助手',
-      type: 'AI工具',
-      description: '智能优化文章结构、语法和可读性,提升内容质量',
-      steps: ['文本分析', '语法检查', '结构优化', '导出结果'],
-      difficulty: '简单',
-      rating: 4,
-      estimatedTime: '5分钟',
-      icon: '✨',
-      color: '#10b981',
-      category: '文字处理'
-    },
-    {
-      id: 3,
-      name: 'SEO关键词工具',
-      type: '软件',
-      description: '分析和优化文章SEO关键词,提高搜索引擎排名',
-      steps: ['关键词提取', '密度分析', '优化建议', '应用修改'],
-      difficulty: '中等',
-      rating: 3,
-      estimatedTime: '15分钟',
-      icon: '🔍',
-      color: '#f59e0b',
-      category: '营销模块'
-    },
-    {
-      id: 4,
-      name: '多语言翻译流程',
-      type: '工作流',
-      description: '将文章翻译成多种语言,保持原意和格式',
-      steps: ['语言检测', 'AI翻译', '人工校对', '格式调整'],
-      difficulty: '中等',
-      rating: 4,
-      estimatedTime: '20分钟',
-      icon: '🌐',
-      color: '#8b5cf6',
-      category: '文字处理'
+      type: 'ai' as const,
+      content: searchQuery
+        ? `我理解您想要"${searchQuery}"。为了给您推荐最合适的工作流，我需要了解更多信息：\n\n1. 这个任务的具体目标是什么？\n2. 您希望最终得到什么样的结果？\n3. 有没有特殊的要求或偏好？\n\n请告诉我更多细节，或者如果以上描述已经很清楚，直接回复"需求明确"即可开始搜索。`
+        : '您好！请告诉我您想要完成什么任务，我来帮您推荐合适的工作流。',
+      timestamp: new Date()
     }
-  ]
-
-  const [needsConfirmed, setNeedsConfirmed] = useState(false)
-
-  const [messages, setMessages] = useState(() => {
-    if (conversationId && conversationData[conversationId]) {
-      const historyMessages = conversationData[conversationId].messages
-      setNeedsConfirmed(true)
-      return [
-        {
-          id: 1,
-          type: historyMessages[0].role as 'user' | 'ai',
-          content: historyMessages[0].content,
-          timestamp: new Date()
-        },
-        {
-          id: 2,
-          type: historyMessages[1].role === 'user' ? 'user' : 'ai',
-          content: historyMessages[1].content,
-          timestamp: new Date(),
-          workflows: recommendedWorkflows,
-          showCustomWorkflow: true
-        }
-      ]
-    }
-
-    return [
-      {
-        id: 1,
-        type: 'user' as const,
-        content: searchQuery,
-        timestamp: new Date()
-      },
-      {
-        id: 2,
-        type: 'ai' as const,
-        content: `我理解您想要"${searchQuery}"。为了给您推荐最合适的工作流，我需要了解更多信息：\n\n1. 这个任务的具体目标是什么？\n2. 您希望最终得到什么样的结果？\n3. 有没有特殊的要求或偏好？\n\n请告诉我更多细节，或者如果以上描述已经很清楚，直接回复"需求明确"即可开始搜索。`,
-        timestamp: new Date()
-      }
-    ]
-  })
+  ])
 
   const [inputValue, setInputValue] = useState('')
 
@@ -221,14 +95,30 @@ export default function SearchResultPage() {
 
     if (!needsConfirmed && isConfirming) {
       setNeedsConfirmed(true)
-      newAIMessage = {
+      // 搜索真实工作流
+      const loadingMessage = {
         id: messages.length + 2,
         type: 'ai' as const,
-        content: '好的，我已经理解您的需求。根据您的描述，我为您找到了以下适合的工作流和工具：',
-        timestamp: new Date(),
-        workflows: recommendedWorkflows,
-        showCustomWorkflow: true
+        content: '正在为您搜索合适的工作流...',
+        timestamp: new Date()
       }
+      setMessages([...messages, newUserMessage, loadingMessage])
+      setInputValue('')
+      searchWorkflows(searchQuery || inputValue).then((workflows) => {
+        setMessages(prev => prev.map(m =>
+          m.id === loadingMessage.id
+            ? {
+                ...m,
+                content: workflows.length > 0
+                  ? '好的，我已经理解您的需求。根据您的描述，我为您找到了以下适合的工作流：'
+                  : '暂未找到完全匹配的工作流，您可以尝试创建一个专属工作流。',
+                workflows: workflows,
+                showCustomWorkflow: true
+              }
+            : m
+        ))
+      })
+      return
     } else if (!needsConfirmed) {
       newAIMessage = {
         id: messages.length + 2,

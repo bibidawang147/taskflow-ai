@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom'
-import { FileText } from 'lucide-react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { FileText, ChevronDown, ChevronRight } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
 import { popularWorkPackages } from '../data/popularWorkPackages'
@@ -114,6 +114,12 @@ const AI_MODELS: Record<string, string[]> = {
   'Google': ['Gemini-Pro', 'Gemini-Ultra'],
   'Alibaba': ['Qwen-Max', 'Qwen-Plus', 'Qwen-Turbo']
 }
+
+// AI 内部生成用模型配置（描述生成、文章转换等内部功能）
+const INTERNAL_AI_CONFIG = {
+  provider: 'doubao',
+  model: 'doubao-1-5-pro-32k-250115',
+} as const
 
 // 场景分类（一级Tab -> 二级胶囊标签）
 const SCENARIO_CATEGORIES = [
@@ -257,6 +263,9 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   const [convertingArticle, setConvertingArticle] = useState(false)
   const articlePopoverRef = useRef<HTMLDivElement>(null)
   const articleBtnRef = useRef<HTMLButtonElement>(null)
+
+  // 前置准备折叠状态（默认折叠）
+  const [prepsExpanded, setPrepsExpanded] = useState(false)
 
   // 资源卡片展开状态管理 - 格式: stepId_resourceType (tool/prompt/media/document)
   const [expandedResourceCards, setExpandedResourceCards] = useState<Set<string>>(new Set())
@@ -687,25 +696,21 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
     }
   }, [hasUnsavedChanges])
 
-  // 使用 useBlocker 拦截路由导航
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
-  )
-
-  // 当 blocker 阻止导航时，显示确认对话框
+  // 拦截路由导航（兼容 BrowserRouter，不依赖 data router）
+  const lastPathnameRef = useRef(location.pathname)
   useEffect(() => {
-    if (blocker.state === 'blocked') {
+    if (lastPathnameRef.current !== location.pathname && hasUnsavedChanges) {
       const confirmLeave = window.confirm(
         '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。'
       )
-      if (confirmLeave) {
-        blocker.proceed()
-      } else {
-        blocker.reset()
+      if (!confirmLeave) {
+        // 用户取消，回退到原路径
+        navigate(lastPathnameRef.current, { replace: true })
+        return
       }
     }
-  }, [blocker])
+    lastPathnameRef.current = location.pathname
+  }, [location.pathname, hasUnsavedChanges, navigate])
 
   const loadWorkflow = async () => {
     if (!id) return
@@ -899,8 +904,8 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
 直接输出简介内容，不要有任何前缀或解释。`
 
       const response = await chatWithAI({
-        provider: 'doubao',
-        model: 'doubao-1-5-pro-32k-250115',
+        provider: INTERNAL_AI_CONFIG.provider,
+        model: INTERNAL_AI_CONFIG.model,
         messages: [
           { role: 'user', content: prompt }
         ],
@@ -953,8 +958,8 @@ ${articleInput.trim()}
 4. 直接输出 JSON，不要包裹在代码块中`
 
       const response = await chatWithAI({
-        provider: 'doubao',
-        model: 'doubao-1-5-pro-32k-250115',
+        provider: INTERNAL_AI_CONFIG.provider,
+        model: INTERNAL_AI_CONFIG.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.5,
         maxTokens: 3000
@@ -1624,60 +1629,70 @@ ${articleInput.trim()}
           </div>
         </div>
 
-        {/* 前置准备区域 */}
+        {/* 前置准备区域 - 可折叠 */}
         <div className="info-card preparations-card">
           <div className="card-header-with-action">
-            <div className="card-title-row">
-              <h2 className="card-title">前置准备</h2>
+            <div className="card-title-row" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setPrepsExpanded(!prepsExpanded)}>
+              {prepsExpanded ? <ChevronDown size={18} style={{ color: '#6b7280', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: '#6b7280', flexShrink: 0 }} />}
+              <h2 className="card-title" style={{ margin: 0 }}>前置准备</h2>
               <span className="card-subtitle-hint-inline">在开始工作流之前，用户需要准备什么？</span>
+              {!prepsExpanded && formData.preparations.length > 0 && (
+                <span style={{ fontSize: '12px', color: '#9ca3af', marginLeft: '8px' }}>({formData.preparations.length} 项)</span>
+              )}
             </div>
-            <button className="add-btn-small" onClick={handleAddPreparation}>
-              + 添加准备项
-            </button>
+            {prepsExpanded && (
+              <button className="add-btn-small" onClick={handleAddPreparation}>
+                + 添加准备项
+              </button>
+            )}
           </div>
 
-          {formData.preparations.length === 0 ? (
-            <div className="empty-preparations">
-              <span className="empty-text">暂无前置准备项，点击上方按钮添加</span>
-            </div>
-          ) : (
-            <div className="preparations-list">
-              {formData.preparations.map((prep, index) => (
-                <div key={prep.id} className="preparation-item">
-                  <div className="preparation-number">{index + 1}</div>
-                  <div className="preparation-fields">
-                    <input
-                      type="text"
-                      className="prep-name-input"
-                      placeholder="准备项名称，如：注册 ChatGPT 账号"
-                      value={prep.name}
-                      onChange={(e) => handleUpdatePreparation(index, 'name', e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="prep-desc-input"
-                      placeholder="简要说明（可选）"
-                      value={prep.description}
-                      onChange={(e) => handleUpdatePreparation(index, 'description', e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className="prep-link-input"
-                      placeholder="相关链接（可选），如：https://chat.openai.com"
-                      value={prep.link}
-                      onChange={(e) => handleUpdatePreparation(index, 'link', e.target.value)}
-                    />
-                  </div>
-                  <button
-                    className="remove-prep-btn"
-                    onClick={() => handleRemovePreparation(index)}
-                    title="删除准备项"
-                  >
-                    ×
-                  </button>
+          {prepsExpanded && (
+            <>
+              {formData.preparations.length === 0 ? (
+                <div className="empty-preparations">
+                  <span className="empty-text">暂无前置准备项，点击上方按钮添加</span>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="preparations-list">
+                  {formData.preparations.map((prep, index) => (
+                    <div key={prep.id} className="preparation-item">
+                      <div className="preparation-number">{index + 1}</div>
+                      <div className="preparation-fields">
+                        <input
+                          type="text"
+                          className="prep-name-input"
+                          placeholder="准备项名称，如：注册 ChatGPT 账号"
+                          value={prep.name}
+                          onChange={(e) => handleUpdatePreparation(index, 'name', e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          className="prep-desc-input"
+                          placeholder="简要说明（可选）"
+                          value={prep.description}
+                          onChange={(e) => handleUpdatePreparation(index, 'description', e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          className="prep-link-input"
+                          placeholder="相关链接（可选），如：https://chat.openai.com"
+                          value={prep.link}
+                          onChange={(e) => handleUpdatePreparation(index, 'link', e.target.value)}
+                        />
+                      </div>
+                      <button
+                        className="remove-prep-btn"
+                        onClick={() => handleRemovePreparation(index)}
+                        title="删除准备项"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import WorkflowEditor, {
   type WorkflowEditorEdge,
   type WorkflowEditorNode,
@@ -378,6 +379,7 @@ const simulateWorkflowRun = (config: WorkflowConfig, article: string) => {
 }
 
 export default function ArticleWorkflowMVPPage() {
+  const navigate = useNavigate()
   const [articleDraft, setArticleDraft] = useState('')
   const [generateError, setGenerateError] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -877,14 +879,14 @@ export default function ArticleWorkflowMVPPage() {
                       <div className="flex gap-2 mt-2">
                         <button
                           type="button"
-                          onClick={() => (window.location.href = `/workflow-intro/${savedWorkflowId}`)}
+                          onClick={() => navigate(`/workflow-intro/${savedWorkflowId}`)}
                           className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
                         >
                           查看工作流详情
                         </button>
                         <button
                           type="button"
-                          onClick={() => (window.location.href = '/storage')}
+                          onClick={() => navigate('/workspace')}
                           className="px-3 py-1.5 rounded-lg border border-emerald-600 text-emerald-600 text-xs font-medium hover:bg-emerald-50"
                         >
                           前往我的工作台

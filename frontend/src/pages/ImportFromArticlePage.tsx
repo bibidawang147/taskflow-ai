@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../services/api'
 import '../styles/import-article.css'
 
 type InputType = 'content' | 'url'
@@ -67,7 +68,7 @@ export default function ImportFromArticlePage() {
                 console.log('🔄 下载图片:', src.substring(0, 50) + '...')
 
                 // 使用后端代理下载图片（绕过防盗链）
-                const response = await fetch('http://localhost:3000/api/workflows/proxy-image', {
+                const response = await fetch(`${API_BASE_URL}/api/workflows/proxy-image`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -150,7 +151,7 @@ export default function ImportFromArticlePage() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 180000) // 180秒超时（3分钟）
 
-      const response = await fetch('http://localhost:3000/api/workflows/parse-article', {
+      const response = await fetch(`${API_BASE_URL}/api/workflows/parse-article`, {
         signal: controller.signal,
         method: 'POST',
         headers: {

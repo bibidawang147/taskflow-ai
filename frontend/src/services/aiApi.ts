@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, API_BASE_URL } from './api'
 
 // AI 消息类型
 export interface AIMessage {
@@ -52,7 +52,7 @@ export const chatWithAIStream = async (
 ) => {
   try {
     const token = localStorage.getItem('token')
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+    // API_BASE_URL from static import at top
     const response = await fetch(`${API_BASE_URL}/api/ai/chat/stream`, {
       method: 'POST',
       headers: {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../services/api'
 import '../styles/community.css'
 
 interface Workflow {
@@ -61,7 +62,7 @@ export default function CommunityPage() {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch('http://localhost:3000/api/community/workflows?limit=12', {
+      const response = await fetch(`${API_BASE_URL}/api/community/workflows?limit=12`, {
         headers
       })
       const data = await response.json()
@@ -84,7 +85,7 @@ export default function CommunityPage() {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch('http://localhost:3000/api/community/posts?limit=6', {
+      const response = await fetch(`${API_BASE_URL}/api/community/posts?limit=6`, {
         headers
       })
       const data = await response.json()

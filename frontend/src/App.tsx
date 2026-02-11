@@ -1,10 +1,9 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import DashboardPage from './pages/DashboardPage'
 import ExplorePage from './pages/ExplorePage'
 import ExploreThemeDetailPage from './pages/ExploreThemeDetailPage'
-import WorkspacePage from './pages/WorkspacePage'
 import StoragePage from './pages/StoragePage'
 import SearchResultPage from './pages/SearchResultPage'
 import WorkflowSharePage from './pages/WorkflowSharePage'
@@ -17,14 +16,11 @@ import { RechargePage } from './pages/RechargePage'
 import { UsageStatsPage } from './pages/UsageStatsPage'
 import { MembershipPage } from './pages/MembershipPage'
 import { AIChatPage } from './pages/AIChatPage'
-import TestPage from './pages/TestPage'
 import CommunityPage from './pages/CommunityPage'
 import CommunityWorkflowsPage from './pages/CommunityWorkflowsPage'
 import CommunityPostsPage from './pages/CommunityPostsPage'
 import PostDetailPage from './pages/PostDetailPage'
 import NewPostPage from './pages/NewPostPage'
-import AIRecommendationTestPage from './pages/AIRecommendationTestPage'
-import GridDragDemoPage from './pages/GridDragDemoPage'
 import ArticleWorkflowMVPPage from './pages/ArticleWorkflowMVPPage'
 import ReverseEngineerPage from './pages/ReverseEngineerPage'
 import WorkflowCreatePage from './pages/WorkflowCreatePage'
@@ -35,48 +31,64 @@ import AdminPromoPage from './pages/AdminPromoPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminPricingPage from './pages/AdminPricingPage'
 import WechatCallbackPage from './pages/WechatCallbackPage'
+import NotFoundPage from './pages/NotFoundPage'
+import ProtectedRoute from './components/ProtectedRoute'
+import { lazy, Suspense } from 'react'
+
+const isDev = import.meta.env.DEV
+const TestPage = lazy(() => import('./pages/TestPage'))
+const AIRecommendationTestPage = lazy(() => import('./pages/AIRecommendationTestPage'))
+const GridDragDemoPage = lazy(() => import('./pages/GridDragDemoPage'))
 
 function App() {
   return (
     <Routes>
-      <Route path="/test" element={<TestPage />} />
-      <Route path="/ai-recommendation-test" element={<AIRecommendationTestPage />} />
-      <Route path="/grid-drag-demo" element={<GridDragDemoPage />} />
+      {/* Dev-only test routes */}
+      {isDev && <Route path="/test" element={<Suspense><TestPage /></Suspense>} />}
+      {isDev && <Route path="/ai-recommendation-test" element={<Suspense><AIRecommendationTestPage /></Suspense>} />}
+      {isDev && <Route path="/grid-drag-demo" element={<Suspense><GridDragDemoPage /></Suspense>} />}
+
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/wechat/callback" element={<WechatCallbackPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>
-        <Route index element={<StoragePage />} />
+        <Route index element={<Navigate to="/workspace" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="home" element={<HomePage />} />
         <Route path="workspace" element={<StoragePage />} />
-        <Route path="storage" element={<StoragePage />} />
+        {/* /storage 重定向到 /workspace 统一入口 */}
+        <Route path="storage" element={<Navigate to="/workspace" replace />} />
+        {/* 公开页面 */}
         <Route path="explore" element={<ExplorePage />} />
         <Route path="explore/theme/:themeId" element={<ExploreThemeDetailPage />} />
         <Route path="solution/:id" element={<SolutionPage />} />
         <Route path="search" element={<SearchResultPage />} />
         <Route path="workflow-intro/:id" element={<WorkflowViewPage />} />
-        <Route path="workflow/create" element={<WorkflowCreatePage />} />
-        <Route path="workflow/edit/:id" element={<WorkflowCreatePage />} />
-        <Route path="workflow/import-from-article" element={<ImportFromArticlePage />} />
         <Route path="workflow/view/:id" element={<WorkflowViewPage />} />
         <Route path="tool/:id" element={<AIToolIntroPage />} />
         <Route path="category/:category" element={<CategoryPage />} />
         <Route path="workflow-type/:type" element={<WorkflowTypePage />} />
-        <Route path="recharge" element={<RechargePage />} />
-        <Route path="usage-stats" element={<UsageStatsPage />} />
-        <Route path="membership" element={<MembershipPage />} />
-        <Route path="article-to-workflow" element={<ArticleWorkflowMVPPage />} />
-        <Route path="reverse-engineer" element={<ReverseEngineerPage />} />
         <Route path="community" element={<CommunityPage />} />
         <Route path="community/workflows" element={<CommunityWorkflowsPage />} />
         <Route path="community/posts" element={<CommunityPostsPage />} />
-        <Route path="community/posts/new" element={<NewPostPage />} />
         <Route path="community/posts/:id" element={<PostDetailPage />} />
-        <Route path="admin/promo" element={<AdminPromoPage />} />
-        <Route path="admin/orders" element={<AdminOrdersPage />} />
-        <Route path="admin/pricing" element={<AdminPricingPage />} />
+        {/* 需要登录的页面 */}
+        <Route path="workflow/create" element={<ProtectedRoute><WorkflowCreatePage /></ProtectedRoute>} />
+        <Route path="workflow/edit/:id" element={<ProtectedRoute><WorkflowCreatePage /></ProtectedRoute>} />
+        <Route path="workflow/import-from-article" element={<ProtectedRoute><ImportFromArticlePage /></ProtectedRoute>} />
+        <Route path="recharge" element={<ProtectedRoute><RechargePage /></ProtectedRoute>} />
+        <Route path="usage-stats" element={<ProtectedRoute><UsageStatsPage /></ProtectedRoute>} />
+        <Route path="membership" element={<ProtectedRoute><MembershipPage /></ProtectedRoute>} />
+        <Route path="article-to-workflow" element={<ProtectedRoute><ArticleWorkflowMVPPage /></ProtectedRoute>} />
+        <Route path="reverse-engineer" element={<ProtectedRoute><ReverseEngineerPage /></ProtectedRoute>} />
+        <Route path="community/posts/new" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
+        {/* 管理员页面 */}
+        <Route path="admin/promo" element={<ProtectedRoute><AdminPromoPage /></ProtectedRoute>} />
+        <Route path="admin/orders" element={<ProtectedRoute><AdminOrdersPage /></ProtectedRoute>} />
+        <Route path="admin/pricing" element={<ProtectedRoute><AdminPricingPage /></ProtectedRoute>} />
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   )

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/auth';
+import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../services/api';
+import { authService } from '../services/auth';
 import { AlertCircle, Loader2, MessageCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [wechatLoading, setWechatLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,20 +21,18 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // 调用真实的登录 API
-      const response = await authService.login({ email, password });
-
-      // 保存 token
-      authService.setToken(response.token);
+      // 通过 AuthContext 登录，自动更新全局状态
+      await login({ email, password });
 
       // 如果填了邀请码，登录成功后自动兑换
       if (inviteCode.trim()) {
         try {
+          const token = authService.getToken();
           const redeemRes = await fetch(`${API_BASE_URL}/api/promo/redeem`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${response.token}`,
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({ code: inviteCode.trim() }),
           });
@@ -47,13 +47,8 @@ export default function LoginPage() {
         }
       }
 
-      // 直接跳转到首页（使用 window.location.href 完全刷新页面）
-      // 如果在iframe内，跳转整个顶层窗口
-      if (window.self !== window.top) {
-        window.top!.location.href = '/';
-      } else {
-        window.location.href = '/';
-      }
+      // SPA 导航跳转到首页
+      navigate('/', { replace: true });
     } catch (error: any) {
       console.error('登录失败:', error);
       const message = error.response?.data?.error || '登录失败，请检查邮箱和密码';
@@ -71,7 +66,7 @@ export default function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#faf7ff',
-        padding: '3rem 1rem',
+        padding: '1.5rem 1rem',
       }}
     >
       <div style={{ maxWidth: '400px', width: '100%' }}>

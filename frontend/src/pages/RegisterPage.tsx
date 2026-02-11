@@ -53,10 +53,12 @@ export default function RegisterPage() {
 
       setSuccess('注册成功！已赠送 50,000 积分，即将跳转...');
 
-      // 延迟跳转
+      // 标记为新用户，确保欢迎引导弹出
+      localStorage.removeItem('lingji_welcome_shown');
+
+      // 延迟跳转到工作台
       setTimeout(() => {
-        navigate('/');
-        window.location.reload(); // 刷新以更新导航栏状态
+        navigate('/workspace');
       }, 1500);
     } catch (error: any) {
       console.error('注册失败:', error);
@@ -103,7 +105,7 @@ export default function RegisterPage() {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#faf7ff',
-        padding: '3rem 1rem',
+        padding: '1.5rem 1rem',
       }}
     >
       <div style={{ maxWidth: '400px', width: '100%' }}>
@@ -120,7 +122,7 @@ export default function RegisterPage() {
               display: 'block',
             }}
           >
-            工作流平台
+            瓴积AI
           </Link>
           <h2
             style={{
