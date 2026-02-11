@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom'
 import { FileText } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
@@ -264,6 +264,13 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   // 正在编辑的新建资源临时数据 - 格式: stepId_resourceType
   const [newResourceData, setNewResourceData] = useState<Record<string, any>>({})
 
+  // 自动保存和离开警告相关状态
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastFormDataRef = useRef<string>(JSON.stringify(formData))
+
   // 切换资源卡片展开状态
   const toggleResourceCard = (stepId: string, resourceType: 'tool' | 'prompt' | 'media' | 'document') => {
     const key = `${stepId}_${resourceType}`
@@ -500,6 +507,205 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
       }
     }
   }, []) // 只在组件挂载时执行一次
+
+  // 自动保存函数
+  const autoSave = useCallback(async () => {
+    // 只有在有未保存更改且用户已登录时才自动保存
+    const token = localStorage.getItem('token')
+    if (!hasUnsavedChanges || !token || !formData.title.trim()) {
+      return
+    }
+
+    try {
+      setAutoSaveStatus('saving')
+
+      // 构建工作流数据（与 handleSave 相同的逻辑，但始终保存为草稿）
+      const workflowData: any = {
+        title: formData.title,
+        description: formData.description,
+        tags: formData.tags.join(','),
+        category: formData.category,
+        isPublic: false, // 自动保存始终为私密
+        isDraft: true,    // 自动保存始终为草稿
+        difficultyLevel: formData.difficultyLevel,
+        useScenarios: formData.useScenarios,
+        preparations: formData.preparations.filter(p => p.name.trim()).map((p, index) => ({
+          name: p.name,
+          description: p.description,
+          link: p.link,
+          order: index
+        })),
+        config: {
+          nodes: formData.steps.map((step, index) => ({
+            id: step.id,
+            type: 'ai',
+            label: step.title,
+            config: {
+              goal: step.title,
+              prompt: step.prompt,
+              stepDescription: step.description,
+              expectedResult: step.expectedResult,
+              tools: step.tools.filter(t => t.name.trim()).map(t => ({
+                name: t.name,
+                url: t.url,
+                description: t.description
+              })),
+              promptResources: step.promptResources.filter(p => p.title.trim()).map(p => ({
+                title: p.title,
+                content: p.content
+              })),
+              demonstrationMedia: step.demonstrationMedia.filter(m => m.url.trim()).map(m => ({
+                type: m.type,
+                url: m.url,
+                caption: m.caption
+              })),
+              relatedResources: step.relatedResources.filter(r => r.title.trim() || r.url.trim()).map(r => ({
+                title: r.title,
+                type: r.type,
+                url: r.url,
+                description: r.description
+              })),
+              documentResources: step.documentResources.filter(d => d.name.trim()).map(d => ({
+                name: d.name,
+                url: d.url,
+                description: d.description
+              })),
+              provider: step.tools.length > 0 ? '' : 'OpenAI',
+              model: step.tools.length > 0 ? step.tools[0].name : 'GPT-4',
+              alternativeModels: step.alternativeModels,
+              temperature: 0.7,
+              maxTokens: 2000
+            },
+            position: { x: 100, y: 100 + index * 150 }
+          })),
+          edges: formData.steps.slice(0, -1).map((_, index) => ({
+            id: `e${index}-${index + 1}`,
+            source: formData.steps[index].id,
+            target: formData.steps[index + 1].id
+          }))
+        }
+      }
+
+      // 根据是编辑还是创建来决定调用哪个 API
+      if (id) {
+        await updateWorkflow(id, workflowData)
+      } else {
+        // 如果是新建，第一次自动保存后需要跳转到编辑模式
+        const result = await createWorkflow(workflowData)
+        if (result.id && !id) {
+          // 静默更新 URL，避免触发页面刷新
+          window.history.replaceState({}, '', `/workflow/create/${result.id}`)
+        }
+      }
+
+      setAutoSaveStatus('saved')
+      setLastSavedTime(new Date())
+      setHasUnsavedChanges(false)
+
+      // 2秒后将状态重置为 idle
+      setTimeout(() => {
+        setAutoSaveStatus('idle')
+      }, 2000)
+    } catch (error) {
+      console.error('自动保存失败:', error)
+      setAutoSaveStatus('error')
+      // 5秒后将状态重置为 idle，允许重试
+      setTimeout(() => {
+        setAutoSaveStatus('idle')
+      }, 5000)
+    }
+  }, [hasUnsavedChanges, formData, id])
+
+  // 监听 formData 变化，标记为有未保存的更改
+  useEffect(() => {
+    const currentFormData = JSON.stringify(formData)
+    if (currentFormData !== lastFormDataRef.current) {
+      // 首次加载时不标记为未保存
+      if (lastFormDataRef.current !== JSON.stringify({
+        title: '',
+        description: '',
+        tags: [],
+        difficultyLevel: 'beginner',
+        price: 0,
+        useScenarios: [],
+        preparations: [],
+        steps: [{
+          id: formData.steps[0]?.id || '',
+          title: '',
+          description: '',
+          prompt: '',
+          expectedResult: '',
+          model: { brand: 'OpenAI', name: 'GPT-4', url: '' },
+          alternativeModels: [],
+          advancedSettings: { temperature: 0.7, maxTokens: 2000 },
+          showAdvanced: false,
+          tools: [],
+          promptResources: [],
+          demonstrationMedia: [],
+          relatedResources: [],
+          documentResources: [],
+          associatedSolutions: [],
+          associatedThemes: []
+        }],
+        category: 'general',
+        isPublic: true
+      })) {
+        setHasUnsavedChanges(true)
+      }
+      lastFormDataRef.current = currentFormData
+    }
+  }, [formData])
+
+  // 自动保存定时器：每30秒检查一次
+  useEffect(() => {
+    if (hasUnsavedChanges && autoSaveStatus === 'idle') {
+      autoSaveTimerRef.current = setTimeout(() => {
+        autoSave()
+      }, 30000) // 30秒
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [hasUnsavedChanges, autoSave, autoSaveStatus])
+
+  // beforeunload 警告：关闭/刷新页面时提示
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = '' // Chrome 需要设置 returnValue
+        return '' // 一些浏览器需要返回字符串
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
+  // 使用 useBlocker 拦截路由导航
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  )
+
+  // 当 blocker 阻止导航时，显示确认对话框
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      const confirmLeave = window.confirm(
+        '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。'
+      )
+      if (confirmLeave) {
+        blocker.proceed()
+      } else {
+        blocker.reset()
+      }
+    }
+  }, [blocker])
 
   const loadWorkflow = async () => {
     if (!id) return
@@ -973,6 +1179,9 @@ ${articleInput.trim()}
     localStorage.setItem('savedWorkflows', JSON.stringify(existing))
     // 触发 storage 事件通知其他组件
     window.dispatchEvent(new Event('savedWorkflowsUpdated'))
+    // 保存到本地后也重置未保存状态
+    setHasUnsavedChanges(false)
+    setLastSavedTime(new Date())
     alert('保存成功！')
   }
 
@@ -1086,10 +1295,16 @@ ${articleInput.trim()}
 
       if (id) {
         await updateWorkflow(id, workflowData)
+        // 保存成功后重置未保存状态
+        setHasUnsavedChanges(false)
+        setLastSavedTime(new Date())
         alert('工作流更新成功！')
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
+        // 保存成功后重置未保存状态
+        setHasUnsavedChanges(false)
+        setLastSavedTime(new Date())
         alert(isDraft ? '草稿保存成功！' : '工作流发布成功！')
         if (isDraft) {
           navigate('/workspace')
@@ -1135,6 +1350,66 @@ ${articleInput.trim()}
                 onTitleChange?.(newTitle || '未命名工作流')
               }}
             />
+
+            {/* 保存状态指示器 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginLeft: '12px',
+              fontSize: '13px',
+              color: autoSaveStatus === 'error' ? '#EF4444' :
+                     autoSaveStatus === 'saving' ? '#F59E0B' :
+                     autoSaveStatus === 'saved' ? '#10B981' :
+                     hasUnsavedChanges ? '#6B7280' : '#9CA3AF',
+              whiteSpace: 'nowrap'
+            }}>
+              {autoSaveStatus === 'saving' && (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                    <path d="M21 12a9 9 0 11-6.219-8.56" />
+                  </svg>
+                  <span>保存中...</span>
+                </>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>已保存</span>
+                </>
+              )}
+              {autoSaveStatus === 'error' && (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>保存失败</span>
+                </>
+              )}
+              {autoSaveStatus === 'idle' && hasUnsavedChanges && (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>未保存</span>
+                </>
+              )}
+              {autoSaveStatus === 'idle' && !hasUnsavedChanges && lastSavedTime && (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>已保存</span>
+                </>
+              )}
+            </div>
+
             <div className="article-convert-wrapper">
               <button
                 ref={articleBtnRef}
@@ -1878,16 +2153,10 @@ ${articleInput.trim()}
           </button>
           <button
             className="action-btn secondary"
-            onClick={handleLocalSave}
-          >
-            保存
-          </button>
-          <button
-            className="action-btn secondary"
             onClick={() => handleSave(true)}
             disabled={saving}
           >
-            {saving ? '保存中...' : '存草稿'}
+            {saving ? '保存中...' : '保存草稿'}
           </button>
           <button
             className="action-btn primary"

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
+import { API_BASE_URL } from '../services/api';
 import { AlertCircle, Loader2, MessageCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -27,7 +28,7 @@ export default function LoginPage() {
       // 如果填了邀请码，登录成功后自动兑换
       if (inviteCode.trim()) {
         try {
-          await fetch('http://localhost:3000/api/promo/redeem', {
+          const redeemRes = await fetch(`${API_BASE_URL}/api/promo/redeem`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -35,7 +36,15 @@ export default function LoginPage() {
             },
             body: JSON.stringify({ code: inviteCode.trim() }),
           });
-        } catch { /* 兑换失败不阻塞登录 */ }
+
+          if (!redeemRes.ok) {
+            const errorData = await redeemRes.json();
+            console.warn('[Login] 邀请码兑换失败:', errorData.error || '未知错误');
+          }
+        } catch (error) {
+          // 兑换失败不阻塞登录，但记录错误
+          console.warn('[Login] 邀请码兑换异常:', error);
+        }
       }
 
       // 直接跳转到首页（使用 window.location.href 完全刷新页面）

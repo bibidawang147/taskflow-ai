@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { authService } from '../services/auth'
-
-const API_BASE = 'http://localhost:3000'
+import { API_BASE_URL } from '../services/api'
 
 interface SubscriptionInfo {
   role: string
@@ -29,16 +28,27 @@ export function usePermission() {
           setLoading(false)
           return
         }
-        const res = await fetch(`${API_BASE}/api/promo/subscription`, {
+        const res = await fetch(`${API_BASE_URL}/api/promo/subscription`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (res.ok) {
           const data: SubscriptionInfo = await res.json()
           setRole(data.role)
           setDaysRemaining(data.daysRemaining)
+        } else {
+          // 请求失败：记录错误并降级为 free
+          console.error('[usePermission] 获取订阅信息失败:', res.status, res.statusText)
+          setRole('free')
+          setDaysRemaining(0)
         }
-      } catch { /* ignore */ }
-      finally { setLoading(false) }
+      } catch (error) {
+        // 网络错误或其他异常：记录错误并降级为 free
+        console.error('[usePermission] 获取订阅信息异常:', error)
+        setRole('free')
+        setDaysRemaining(0)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchRole()
   }, [])

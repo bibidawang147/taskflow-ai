@@ -1,5 +1,19 @@
 /* 工作流创建页面 V2 - 单列布局 */
 
+/* 旋转动画 - 用于加载状态 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 :root {
   --color-primary: #8b5cf6;
   --color-primary-dark: #7c3aed;

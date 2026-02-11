@@ -3,7 +3,7 @@ import { usePermission } from '../hooks/usePermission'
 import { authService } from '../services/auth'
 import { Loader2, Copy, Download, Ban, Users, Ticket, BarChart3, Search, Crown, Shield } from 'lucide-react'
 
-const API_BASE = 'http://localhost:3000'
+import { API_BASE_URL } from '../services/api'
 
 // ==================== 类型定义 ====================
 
@@ -101,8 +101,10 @@ function OverviewPanel({ headers }: { headers: () => Record<string, string> }) {
   const [stats, setStats] = useState<AdminStats | null>(null)
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/admin/promo/stats`, { headers: headers() })
-      .then(r => r.json()).then(setStats).catch(() => {})
+    fetch(`${API_BASE_URL}/api/admin/promo/stats`, { headers: headers() })
+      .then(r => r.json()).then(setStats).catch((error) => {
+        console.error('[AdminPromoPage] 获取统计数据失败:', error)
+      })
   }, [headers])
 
   if (!stats) return <div style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF' }}>加载中...</div>
@@ -151,9 +153,20 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
   const fetchCodes = useCallback(async (p = 1) => {
     setListLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/admin/promo/list?page=${p}&pageSize=20`, { headers: headers() })
-      if (res.ok) { const data = await res.json(); setCodes(data.codes); setTotal(data.total); setPage(p) }
-    } catch {} finally { setListLoading(false) }
+      const res = await fetch(`${API_BASE_URL}/api/admin/promo/list?page=${p}&pageSize=20`, { headers: headers() })
+      if (res.ok) {
+        const data = await res.json()
+        setCodes(data.codes)
+        setTotal(data.total)
+        setPage(p)
+      } else {
+        console.error('[AdminPromoPage] 获取邀请码列表失败:', res.status, res.statusText)
+      }
+    } catch (error) {
+      console.error('[AdminPromoPage] 获取邀请码列表异常:', error)
+    } finally {
+      setListLoading(false)
+    }
   }, [headers])
 
   useEffect(() => { fetchCodes() }, [fetchCodes])
@@ -161,7 +174,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
   const handleGenerate = async () => {
     setGenLoading(true); setGenResult(null)
     try {
-      const res = await fetch(`${API_BASE}/api/admin/promo/generate`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/promo/generate`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ ...form, expiresAt: form.expiresAt || null })
       })
@@ -173,7 +186,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
 
   const handleDeactivate = async (id: string) => {
     if (!confirm('确定要停用该码吗？')) return
-    await fetch(`${API_BASE}/api/admin/promo/${id}/deactivate`, { method: 'PATCH', headers: headers() })
+    await fetch(`${API_BASE_URL}/api/admin/promo/${id}/deactivate`, { method: 'PATCH', headers: headers() })
     fetchCodes(page)
   }
 
@@ -331,16 +344,27 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
       const params = new URLSearchParams({ page: String(p), pageSize: '15' })
       if (search) params.set('search', search)
       if (roleFilter !== 'all') params.set('role', roleFilter)
-      const res = await fetch(`${API_BASE}/api/admin/promo/users?${params}`, { headers: headers() })
-      if (res.ok) { const data = await res.json(); setUsers(data.users); setTotal(data.total); setPage(p) }
-    } catch {} finally { setLoading(false) }
+      const res = await fetch(`${API_BASE_URL}/api/admin/promo/users?${params}`, { headers: headers() })
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users)
+        setTotal(data.total)
+        setPage(p)
+      } else {
+        console.error('[AdminPromoPage] 获取用户列表失败:', res.status, res.statusText)
+      }
+    } catch (error) {
+      console.error('[AdminPromoPage] 获取用户列表异常:', error)
+    } finally {
+      setLoading(false)
+    }
   }, [headers, search, roleFilter])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
   const handleRoleChange = async (userId: string) => {
     if (!newRole) return
-    await fetch(`${API_BASE}/api/admin/promo/users/${userId}/role`, {
+    await fetch(`${API_BASE_URL}/api/admin/promo/users/${userId}/role`, {
       method: 'PATCH', headers: headers(),
       body: JSON.stringify({ role: newRole, durationDays: newRole !== 'free' && newRole !== 'admin' ? roleDays : undefined })
     })

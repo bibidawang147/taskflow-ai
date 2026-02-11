@@ -355,7 +355,12 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   // 重命名的二级分组标题
   const [renamedSections, setRenamedSections] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('renamedSidebarSections') || '{}') } catch { return {} }
+    try {
+      return JSON.parse(localStorage.getItem('renamedSidebarSections') || '{}')
+    } catch (error) {
+      console.warn('[NavigationSidebar] 读取重命名的分组失败:', error)
+      return {}
+    }
   })
   const renameSection = (sectionId: string, newName: string) => {
     setRenamedSections(prev => {

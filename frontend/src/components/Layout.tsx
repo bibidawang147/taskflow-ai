@@ -1,9 +1,11 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Settings, HelpCircle, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket } from 'lucide-react';
+import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useState, useRef, useEffect, useMemo } from 'react';
 
-const API_BASE = 'http://localhost:3000';
+import { API_BASE_URL } from '../services/api';
+import WelcomeGuide from './WelcomeGuide';
+import FreeQuotaIndicator from './FreeQuotaIndicator';
 
 interface SubscriptionInfo {
   role: string;
@@ -61,16 +63,10 @@ export default function Layout() {
   };
 
   const isActive = (path: string) => {
-    if (path === '/ai-chat' || path === '/storage' || path === '/explore') {
-      if (path === '/storage') {
-        return location.pathname === '/storage' || location.pathname === '/workspace';
-      }
-      return location.pathname === path;
-    }
     if (path === '/workspace') {
-      return location.pathname === '/workspace' || location.pathname === '/storage';
+      return location.pathname === '/' || location.pathname === '/workspace';
     }
-    return location.pathname.startsWith(path);
+    return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
   const handleLogout = () => {
@@ -84,13 +80,17 @@ export default function Layout() {
     try {
       const token = authService.getToken();
       if (!token) return;
-      const res = await fetch(`${API_BASE}/api/promo/subscription`, {
+      const res = await fetch(`${API_BASE_URL}/api/promo/subscription`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         setSubscription(await res.json());
+      } else {
+        console.error('[Layout] 获取订阅信息失败:', res.status, res.statusText);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      console.error('[Layout] 获取订阅信息异常:', error);
+    }
   };
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function Layout() {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       // 1. 预校验
-      const checkRes = await fetch(`${API_BASE}/api/promo/check?code=${encodeURIComponent(inviteCode.trim())}`, { headers });
+      const checkRes = await fetch(`${API_BASE_URL}/api/promo/check?code=${encodeURIComponent(inviteCode.trim())}`, { headers });
       const checkData = await checkRes.json();
       if (!checkRes.ok || !checkData.valid) {
         setInviteResult({ type: 'error', msg: checkData.error || '兑换码无效' });
@@ -116,7 +116,7 @@ export default function Layout() {
       }
 
       // 2. 兑换
-      const res = await fetch(`${API_BASE}/api/promo/redeem`, {
+      const res = await fetch(`${API_BASE_URL}/api/promo/redeem`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ code: inviteCode.trim() }),
@@ -163,8 +163,6 @@ export default function Layout() {
       { icon: ShieldCheck, label: '订单管理', path: '/admin/orders' },
       { icon: CreditCard, label: '定价管理', path: '/admin/pricing' },
     ] : []),
-    { icon: Settings, label: '设置', path: '/settings' },
-    { icon: HelpCircle, label: '帮助中心', path: '/help' },
   ];
 
   return (
@@ -236,6 +234,7 @@ export default function Layout() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {isAuthenticated && <FreeQuotaIndicator />}
             {isAuthenticated ? (
               <div ref={dropdownRef} style={{ position: 'relative' }}>
                 {/* 头像按钮 */}
@@ -516,6 +515,8 @@ export default function Layout() {
           </div>
         </div>
       </nav>
+
+      {isAuthenticated && <WelcomeGuide />}
 
       <main style={{
         flex: 1,
