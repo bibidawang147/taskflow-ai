@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
 import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff, Search } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import '../styles/workspace-tabs.css'
 import {
   getFavoriteWorkflows,
@@ -796,6 +798,8 @@ function findDropTargetContainer(
 }
 
 export default function StoragePage() {
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [librarySearch, setLibrarySearch] = useState('')
@@ -1149,7 +1153,7 @@ export default function StoragePage() {
 
               // 显示成功提示
               setTimeout(() => {
-                alert(`✅ 成功导入工作包「${importData.workPackageName}」\n\n已在画布上显示 ${workflowItems.length} 个工作流\n已添加到我的收藏`)
+                showToast(`成功导入工作包「${importData.workPackageName}」，已在画布上显示 ${workflowItems.length} 个工作流，已添加到我的收藏`, 'success')
               }, 500)
             }
 
@@ -3024,7 +3028,7 @@ export default function StoragePage() {
   const handleAddTool = () => {
     // 验证URL是否填写
     if (!toolFormData.url.trim()) {
-      alert('请输入工具链接')
+      showToast('请输入工具链接', 'info')
       return
     }
 
@@ -3037,7 +3041,7 @@ export default function StoragePage() {
       }
       new URL(toolUrl) // 验证URL格式
     } catch (e) {
-      alert('请输入有效的URL地址')
+      showToast('请输入有效的URL地址', 'error')
       return
     }
 
@@ -3236,11 +3240,11 @@ export default function StoragePage() {
   }
 
   // 删除工具卡片
-  const handleDeleteToolCard = (cardId: string) => {
+  const handleDeleteToolCard = async (cardId: string) => {
     const item = canvasItems[cardId]
     if (!item || item.type !== 'tool-link') return
 
-    if (!confirm('确定要删除这个工具卡片吗？')) return
+    if (!await showConfirm({ message: '确定要删除这个工具卡片吗？' })) return
 
     removeEdgesForItems([cardId])
     updateCanvasItems((draft) => {
@@ -3261,11 +3265,11 @@ export default function StoragePage() {
   }
 
   // 删除文章卡片
-  const handleDeleteArticleCard = (cardId: string) => {
+  const handleDeleteArticleCard = async (cardId: string) => {
     const item = canvasItems[cardId]
     if (!item || item.type !== 'article') return
 
-    if (!confirm('确定要删除这个文章卡片吗？')) return
+    if (!await showConfirm({ message: '确定要删除这个文章卡片吗？' })) return
 
     removeEdgesForItems([cardId])
     updateCanvasItems((draft) => {
@@ -3574,7 +3578,7 @@ export default function StoragePage() {
       setSavePromiseResolvers({ resolve: null, reject: null })
     } catch (error) {
       console.error('❌ [StoragePage] 保存工作流配置失败:', error)
-      alert('保存失败，请重试')
+      showToast('保存失败，请重试', 'error')
       // 保存失败，拒绝 Promise
       if (savePromiseResolvers.reject) {
         savePromiseResolvers.reject(error)
@@ -4076,10 +4080,10 @@ export default function StoragePage() {
               e.stopPropagation()
               setEditingEdgeLabel({ edgeId: edgeData.id, x: labelX, y: labelY })
             }}
-            onContextMenu={(e) => {
+            onContextMenu={async (e) => {
               e.preventDefault()
               e.stopPropagation()
-              if (confirm('删除这条连接线？')) {
+              if (await showConfirm({ message: '删除这条连接线？' })) {
                 setCanvasEdges(prev => {
                   const next = { ...prev }
                   delete next[edgeData.id]
@@ -4546,9 +4550,9 @@ export default function StoragePage() {
             {/* 删除容器按钮 */}
             <button
               type="button"
-              onClick={(event) => {
+              onClick={async (event) => {
                 event.stopPropagation()
-                if (confirm(`确定要删除容器"${container.name}"吗？\n容器内的所有内容也会被删除。`)) {
+                if (await showConfirm({ message: `确定要删除容器"${container.name}"吗？\n容器内的所有内容也会被删除。` })) {
                   handleDeleteContainer(container.id)
                 }
               }}
@@ -5697,6 +5701,39 @@ export default function StoragePage() {
             >
               添加文章
             </button>
+            {import.meta.env.DEV && (
+              <>
+                <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const items = canvasDataByTabId[CANVAS_TAB_ID]
+                    const edges = edgesByTabId[CANVAS_TAB_ID] || {}
+                    const data = { canvasItems: items, canvasEdges: edges }
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `sample-canvas-${Date.now()}.json`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #9ca3af',
+                    backgroundColor: '#f3f4f6',
+                    color: '#374151',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                  title="导出画布数据为JSON（开发工具）"
+                >
+                  导出画布
+                </button>
+              </>
+            )}
           </div>
 
           <TransformWrapper

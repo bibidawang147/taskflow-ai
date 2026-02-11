@@ -23,6 +23,11 @@ model User {
   // 微信登录
   wechatOpenId  String?  @unique
   wechatUnionId String?  @unique
+
+  // 密码重置
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -857,6 +862,7 @@ model PromoCode {
   description     String?   // 备注说明，如 "早鸟邀请活动"
   createdBy       String?   // 创建者 userId
   batchId         String?   // 批次ID，方便按批次管理
+  countsAsEarlyBird Boolean @default(false) // 兑换时计入早鸟名额
 
   // 关联
   redemptions     PromoCodeRedemption[]

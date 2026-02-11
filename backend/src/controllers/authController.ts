@@ -2,10 +2,14 @@ import { Request, Response } from 'express'
 import { validationResult } from 'express-validator'
 import crypto from 'crypto'
 import prisma from '../utils/database'
-import { hashPassword, comparePassword } from '../utils/password'
+import { hashPassword, comparePassword, validatePassword } from '../utils/password'
+import { sendPasswordResetEmail } from '../utils/email'
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 import { generateToken } from '../utils/jwt'
 import { createError } from '../middleware/errorHandler'
 import { creditService } from '../services/credit.service'
+import { initializeSampleCanvas, initializeSampleWorkflows } from '../services/workspace.service'
 
 const WECHAT_APP_ID = process.env.WECHAT_APP_ID || ''
 const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || ''
@@ -56,6 +60,12 @@ export const register = async (req: Request, res: Response) => {
 
     // 初始化用户余额（赠送新用户积分）
     await creditService.initializeUserBalance(user.id)
+
+    // 初始化示例画布
+    await initializeSampleCanvas(user.id)
+
+    // 初始化示例工作流（AI工作方法库）
+    await initializeSampleWorkflows(user.id)
 
     // 生成JWT令牌
     const token = generateToken(user.id)
@@ -265,6 +275,10 @@ export const wechatCallback = async (req: Request, res: Response) => {
       })
       // 初始化积分
       await creditService.initializeUserBalance(user.id)
+      // 初始化示例画布
+      await initializeSampleCanvas(user.id)
+      // 初始化示例工作流（AI工作方法库）
+      await initializeSampleWorkflows(user.id)
     } else {
       // 老用户 → 更新头像和昵称（如果微信端改过）
       await prisma.user.update({
@@ -288,5 +302,93 @@ export const wechatCallback = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('微信登录回调错误:', error)
     res.status(500).json({ error: '微信登录失败，请稍后重试' })
+  }
+}
+
+// ==================== 密码重置 ====================
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: '输入数据无效', details: errors.array() })
+    }
+
+    const { email } = req.body
+    const genericResponse = { message: '如果该邮箱已注册，我们已发送密码重置链接，请查收邮件' }
+
+    const user = await prisma.user.findUnique({ where: { email } })
+
+    // 用户不存在或微信用户（无密码）→ 返回相同消息防枚举
+    if (!user || !user.password) {
+      return res.status(200).json(genericResponse)
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const expiry = new Date(Date.now() + 60 * 60 * 1000) // 1 小时
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken: hashedToken, resetTokenExpiry: expiry }
+    })
+
+    const resetUrl = `${FRONTEND_URL}/reset-password?token=${rawToken}&email=${encodeURIComponent(email)}`
+
+    try {
+      await sendPasswordResetEmail(email, resetUrl)
+    } catch (emailError) {
+      console.error('发送密码重置邮件失败:', emailError)
+    }
+
+    res.status(200).json(genericResponse)
+  } catch (error) {
+    console.error('忘记密码错误:', error)
+    res.status(500).json({ error: '操作失败，请稍后重试' })
+  }
+}
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: '输入数据无效', details: errors.array() })
+    }
+
+    const { token, email, password } = req.body
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+    const user = await prisma.user.findUnique({ where: { email } })
+
+    if (
+      !user ||
+      !user.resetToken ||
+      !user.resetTokenExpiry ||
+      user.resetToken !== hashedToken ||
+      user.resetTokenExpiry < new Date()
+    ) {
+      return res.status(400).json({ error: '重置链接无效或已过期，请重新申请' })
+    }
+
+    const passwordErrors = validatePassword(password)
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors[0] })
+    }
+
+    const hashedPassword = await hashPassword(password)
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      }
+    })
+
+    res.status(200).json({ message: '密码重置成功，请使用新密码登录' })
+  } catch (error) {
+    console.error('重置密码错误:', error)
+    res.status(500).json({ error: '重置密码失败，请稍后重试' })
   }
 }

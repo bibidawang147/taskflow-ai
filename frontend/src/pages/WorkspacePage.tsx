@@ -16,9 +16,12 @@ import {
   type ElementType
 } from '../utils/dragAvoidanceUtils'
 import api from '../services/api'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 
 export default function WorkspacePage() {
-  alert('代码已更新 - 如果看到这个弹窗说明加载正确')
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const navigate = useNavigate()
   const [inputMessage, setInputMessage] = useState('')
   const [activeModule, setActiveModule] = useState('all')
@@ -29,6 +32,9 @@ export default function WorkspacePage() {
   const [isEditingRoles, setIsEditingRoles] = useState(false)
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editingRoleName, setEditingRoleName] = useState('')
+
+  // 标记布局是否已加载完成，防止自动保存在加载前用默认值覆盖后端数据
+  const layoutLoadedRef = useRef(false)
 
   // 画布卡片位置和大小管理
   type CardConfig = {
@@ -79,6 +85,7 @@ export default function WorkspacePage() {
       } else {
         console.log('⚠️ [WorkspacePage] 没有保存的布局，使用默认布局')
       }
+      layoutLoadedRef.current = true
     }
 
     loadLayout()
@@ -171,13 +178,13 @@ export default function WorkspacePage() {
 
       const success = await saveWorkspaceLayout(layout, zoom, snapshot)
       if (success) {
-        alert('工作台已保存')
+        showToast('工作台已保存', 'success')
       } else {
-        alert('保存失败，请稍后重试')
+        showToast('保存失败，请稍后重试', 'error')
       }
     } catch (error) {
       console.error('保存工作台失败:', error)
-      alert('保存失败，请稍后重试')
+      showToast('保存失败，请稍后重试', 'error')
     } finally {
       setIsSaving(false)
     }
@@ -1500,7 +1507,7 @@ export default function WorkspacePage() {
     if (contextMenu.workflow) {
       console.log('📋 复制工作流:', contextMenu.workflow.name)
       // TODO: 实现复制工作流逻辑
-      alert(`复制工作流「${contextMenu.workflow.name}」功能开发中...`)
+      showToast(`复制工作流「${contextMenu.workflow.name}」功能开发中...`, 'info')
       closeContextMenu()
     }
   }
@@ -1508,11 +1515,11 @@ export default function WorkspacePage() {
   // 右键菜单 - 删除工作流
   const handleDeleteWorkflow = async () => {
     if (contextMenu.workflow) {
-      const confirmed = window.confirm(`确定要删除工作流「${contextMenu.workflow.name}」吗？`)
+      const confirmed = await showConfirm({ message: `确定要删除工作流「${contextMenu.workflow.name}」吗？` })
       if (confirmed) {
         console.log('🗑️ 删除工作流:', contextMenu.workflow.id)
         // TODO: 实现删除工作流逻辑
-        alert(`删除工作流「${contextMenu.workflow.name}」功能开发中...`)
+        showToast(`删除工作流「${contextMenu.workflow.name}」功能开发中...`, 'info')
       }
       closeContextMenu()
     }
@@ -1525,7 +1532,7 @@ export default function WorkspacePage() {
     const workflow = (workItems[activeWorkflow?.moduleId || ''] || []).find(item => item.id === workflowId)
     if (!workflow) return
 
-    const confirmed = window.confirm(`确定要删除工作流「${workflow.name}」吗？此操作无法撤销。`)
+    const confirmed = await showConfirm({ message: `确定要删除工作流「${workflow.name}」吗？此操作无法撤销。` })
     if (confirmed) {
       try {
         // TODO: 调用API删除工作流
@@ -1548,7 +1555,7 @@ export default function WorkspacePage() {
         console.log('✅ 工作流删除成功:', workflowId)
       } catch (error) {
         console.error('删除工作流失败:', error)
-        alert('删除失败，请重试')
+        showToast('删除失败，请重试', 'error')
       }
     }
   }
@@ -1736,8 +1743,11 @@ export default function WorkspacePage() {
     }
   }, [draggingCard, resizingCard, dragOffset, resizeStart, cards, zoom])
 
-  // 自动保存展开/收起状态变化
+  // 自动保存所有状态变化（卡片位置/大小、缩放、展开/收起等）
   useEffect(() => {
+    // 布局未加载完成前不保存，防止用默认值覆盖后端数据
+    if (!layoutLoadedRef.current) return
+
     // 防抖保存：只在用户停止操作500ms后保存
     const timeoutId = setTimeout(async () => {
       if (cards.length === 0) {
@@ -1766,12 +1776,12 @@ export default function WorkspacePage() {
         const success = await saveWorkspaceLayout(layout, zoom, snapshot)
         console.log('✅ [WorkspacePage] 自动保存结果:', success ? '成功' : '失败')
       } catch (error) {
-        console.error('❌ [WorkspacePage] 自动保存展开状态失败:', error)
+        console.error('❌ [WorkspacePage] 自动保存状态失败:', error)
       }
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [expandedCards, selectedModules, selectedWorkItems])
+  }, [cards, zoom, expandedCards, selectedModules, selectedWorkItems])
 
   // 鼠标滚轮/触控板缩放
   useEffect(() => {
@@ -2005,7 +2015,7 @@ export default function WorkspacePage() {
         setJobRoles(prev => [...prev, newJobRole])
         setCards(prev => [...prev, newCard])
 
-        alert(`工作流「${workflow.title}」已添加到画布！双击卡片展开使用。`)
+        showToast(`工作流「${workflow.title}」已添加到画布！双击卡片展开使用。`, 'success')
       } catch (error) {
         console.error('添加工作流失败:', error)
       }
@@ -2041,7 +2051,7 @@ export default function WorkspacePage() {
         setJobRoles(prev => [...prev, newJobRole])
         setCards(prev => [...prev, newCard])
 
-        alert(`AI工具「${aiTool.name}」已添加到画布！双击卡片展开使用。`)
+        showToast(`AI工具「${aiTool.name}」已添加到画布！双击卡片展开使用。`, 'success')
       } catch (error) {
         console.error('添加AI工具失败:', error)
       }
@@ -2161,7 +2171,7 @@ export default function WorkspacePage() {
           console.log('✅ 已添加', favoriteWorkflows.length, '个工作流到收藏')
 
           // 显示成功提示
-          alert(`✅ 成功导入工作包「${importData.workPackageName}」\n\n已在工作区画布上显示 ${workflowCards.length} 个工作流\n并添加到"我的收藏"`)
+          showToast(`成功导入工作包「${importData.workPackageName}」，已在工作区画布上显示 ${workflowCards.length} 个工作流并添加到"我的收藏"`, 'success')
         }
         // 旧格式兼容：{ module, workPackage }
         else if (importData.module && importData.workPackage) {
@@ -4630,7 +4640,7 @@ export default function WorkspacePage() {
                                               connections: connections || [],
                                               timestamp: new Date().toISOString()
                                             }))
-                                            alert('✅ 工作流已应用到当前会话！\n\n在本次会话中，您的配置将保持有效。')
+                                            showToast('工作流已应用到当前会话！在本次会话中，您的配置将保持有效。', 'success')
                                           }
                                         }}
                                         style={{
@@ -4678,7 +4688,7 @@ export default function WorkspacePage() {
                                               timestamp: new Date().toISOString()
                                             }))
 
-                                            alert('✅ 工作流已保存到我的工作流！\n\n您可以在工作区画布中找到这个工作流卡片。')
+                                            showToast('工作流已保存到我的工作流！您可以在工作区画布中找到这个工作流卡片。', 'success')
                                           }
                                         }}
                                         style={{
@@ -5965,7 +5975,7 @@ export default function WorkspacePage() {
                     }}
                     onClick={async (e) => {
                       e.stopPropagation()
-                      const confirmed = window.confirm(`确定要删除工作流「${workflow.name}」吗？此操作无法撤销。`)
+                      const confirmed = await showConfirm({ message: `确定要删除工作流「${workflow.name}」吗？此操作无法撤销。` })
                       if (confirmed) {
                         try {
                           // TODO: 调用API删除
@@ -5976,7 +5986,7 @@ export default function WorkspacePage() {
                           console.log('✅ 工作流删除成功:', workflow.id)
                         } catch (error) {
                           console.error('删除失败:', error)
-                          alert('删除失败，请重试')
+                          showToast('删除失败，请重试', 'error')
                         }
                       }
                     }}
@@ -6589,10 +6599,10 @@ export default function WorkspacePage() {
                 </div>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const workflowNames = updatedWorkflows.map(w => `${w.name} (${w.myVersion} → ${w.version})`).join('\n')
-                  if (confirm(`确定要升级以下工作流吗？\n\n${workflowNames}`)) {
-                    alert(`已成功升级 ${updatedWorkflows.length} 个工作流！`)
+                  if (await showConfirm({ message: `确定要升级以下工作流吗？\n\n${workflowNames}` })) {
+                    showToast(`已成功升级 ${updatedWorkflows.length} 个工作流！`, 'success')
                     setShowRecentUpdatesModal(false)
                   }
                 }}
@@ -6766,7 +6776,7 @@ export default function WorkspacePage() {
                     <button
                       onClick={() => {
                         // 升级工作流逻辑
-                        alert(`升级 ${workflow.name} 到 ${workflow.version}`)
+                        showToast(`升级 ${workflow.name} 到 ${workflow.version}`, 'info')
                       }}
                       style={{
                         padding: '0.5rem 1rem',

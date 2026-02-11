@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../services/api';
 import { authService } from '../services/auth';
@@ -8,7 +8,8 @@ import { AlertCircle, Loader2, MessageCircle } from 'lucide-react';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [searchParams] = useSearchParams();
+  const [inviteCode, setInviteCode] = useState(() => searchParams.get('invite') || '');
   const [loading, setLoading] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,8 +48,9 @@ export default function LoginPage() {
         }
       }
 
-      // SPA 导航跳转到首页
-      navigate('/', { replace: true });
+      // SPA 导航：有 redirect 参数则跳转，否则回首页
+      const redirectTo = searchParams.get('redirect');
+      navigate(redirectTo || '/', { replace: true });
     } catch (error: any) {
       console.error('登录失败:', error);
       const message = error.response?.data?.error || '登录失败，请检查邮箱和密码';
@@ -209,6 +211,19 @@ export default function LoginPage() {
                 onFocus={(e) => (e.target.style.borderColor = '#8b5cf6')}
                 onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
               />
+              <div style={{ textAlign: 'right', marginTop: '6px' }}>
+                <Link
+                  to="/forgot-password"
+                  style={{
+                    fontSize: '13px',
+                    color: '#8b5cf6',
+                    textDecoration: 'none',
+                    fontWeight: '500',
+                  }}
+                >
+                  忘记密码？
+                </Link>
+              </div>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>

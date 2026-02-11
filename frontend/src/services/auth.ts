@@ -85,5 +85,17 @@ export const authService = {
   wechatLogin: async (code: string): Promise<AuthResponse> => {
     const response = await api.get(`/api/auth/wechat/callback?code=${encodeURIComponent(code)}`)
     return response.data
-  }
+  },
+
+  // 忘记密码 - 发送重置邮件
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post('/api/auth/forgot-password', { email })
+    return response.data
+  },
+
+  // 重置密码
+  resetPassword: async (data: { token: string; email: string; password: string }): Promise<{ message: string }> => {
+    const response = await api.post('/api/auth/reset-password', data)
+    return response.data
+  },
 }

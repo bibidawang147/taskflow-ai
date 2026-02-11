@@ -30,9 +30,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const { user } = await authService.getProfile()
           setUser(user)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('检查认证状态失败:', error)
-        authService.logout()
+        // 只有明确的 401 才清除 token（token 无效/过期）
+        // 网络错误、后端重启、500 等情况保留 token，下次刷新可恢复
+        if (error?.response?.status === 401) {
+          authService.logout()
+        }
       } finally {
         setLoading(false)
       }

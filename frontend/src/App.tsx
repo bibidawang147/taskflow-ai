@@ -31,6 +31,9 @@ import AdminPromoPage from './pages/AdminPromoPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminPricingPage from './pages/AdminPricingPage'
 import WechatCallbackPage from './pages/WechatCallbackPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import RedeemPage from './pages/RedeemPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { lazy, Suspense } from 'react'
@@ -51,6 +54,9 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/wechat/callback" element={<WechatCallbackPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/redeem" element={<RedeemPage />} />
       <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/workspace" replace />} />

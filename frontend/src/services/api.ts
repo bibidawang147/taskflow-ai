@@ -28,20 +28,28 @@ api.interceptors.request.use(
 )
 
 // 响应拦截器 - 处理认证错误
+// 用标记防止多个并发 401 同时触发重复跳转
+let isRedirecting = false
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       // 清除无效的令牌
       localStorage.removeItem('token')
-      // 只在需要认证的页面才重定向到登录页面
-      // 对于探索页面等公开页面，只记录错误而不重定向
-      const currentPath = window.location.pathname
-      const publicPaths = ['/explore', '/', '/workflow-intro', '/solution', '/community']
-      const isPublicPath = publicPaths.some(path => currentPath.startsWith(path) || currentPath === path)
 
-      if (!isPublicPath && currentPath !== '/login' && currentPath !== '/register') {
-        window.location.href = '/login'
+      // 防止多个并发请求同时 401 导致重复跳转
+      if (!isRedirecting) {
+        const currentPath = window.location.pathname
+        const publicPaths = ['/explore', '/', '/workflow-intro', '/solution', '/community', '/forgot-password', '/reset-password']
+        const isPublicPath = publicPaths.some(path => currentPath.startsWith(path) || currentPath === path)
+
+        if (!isPublicPath && currentPath !== '/login' && currentPath !== '/register') {
+          isRedirecting = true
+          window.location.href = '/login'
+          // 跳转后重置标记（实际上页面会刷新，但加个保险）
+          setTimeout(() => { isRedirecting = false }, 3000)
+        }
       }
     }
     return Promise.reject(error)
