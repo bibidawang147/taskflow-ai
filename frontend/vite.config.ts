@@ -2,17 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
-  build: {
-    esbuild: {
-      drop: ['console', 'debugger'],
-    },
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
   },
   server: {
     port: 5173,
@@ -41,4 +39,4 @@ export default defineConfig({
       ],
     },
   },
-})
+}))

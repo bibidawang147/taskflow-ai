@@ -5,6 +5,8 @@ import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/w
 import { chatWithAI } from '../services/aiApi'
 import { popularWorkPackages } from '../data/popularWorkPackages'
 import { exploreThemes } from '../data/exploreThemes'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import '../styles/workflow-create.css'
 
 interface AIModel {
@@ -202,6 +204,8 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
 
   const [formData, setFormData] = useState<WorkflowFormData>({
     title: '',
@@ -341,19 +345,19 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
 
     // 验证必填字段
     if (resourceType === 'tool' && !data.name.trim()) {
-      alert('请输入工具名称')
+      showToast('请输入工具名称', 'error')
       return
     }
     if (resourceType === 'prompt' && !data.title.trim()) {
-      alert('请输入提示词标题')
+      showToast('请输入提示词标题', 'error')
       return
     }
     if (resourceType === 'media' && !data.url.trim()) {
-      alert('请输入媒体链接')
+      showToast('请输入媒体链接', 'error')
       return
     }
     if (resourceType === 'document' && !data.name.trim()) {
-      alert('请输入文档名称')
+      showToast('请输入文档名称', 'error')
       return
     }
 
@@ -700,16 +704,21 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   const lastPathnameRef = useRef(location.pathname)
   useEffect(() => {
     if (lastPathnameRef.current !== location.pathname && hasUnsavedChanges) {
-      const confirmLeave = window.confirm(
-        '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。'
-      )
-      if (!confirmLeave) {
-        // 用户取消，回退到原路径
-        navigate(lastPathnameRef.current, { replace: true })
-        return
-      }
+      const prevPathname = lastPathnameRef.current
+      ;(async () => {
+        const confirmLeave = await showConfirm({
+          message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。'
+        })
+        if (!confirmLeave) {
+          // 用户取消，回退到原路径
+          navigate(prevPathname, { replace: true })
+          return
+        }
+        lastPathnameRef.current = location.pathname
+      })()
+    } else {
+      lastPathnameRef.current = location.pathname
     }
-    lastPathnameRef.current = location.pathname
   }, [location.pathname, hasUnsavedChanges, navigate])
 
   const loadWorkflow = async () => {
@@ -794,7 +803,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
       })
     } catch (error) {
       console.error('加载工作流失败:', error)
-      alert('加载工作流失败')
+      showToast('加载工作流失败', 'error')
     }
   }
 
@@ -883,7 +892,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   // AI 生成简介
   const handleGenerateDescription = async () => {
     if (!formData.title.trim()) {
-      alert('请先输入工作流标题')
+      showToast('请先输入工作流标题', 'error')
       return
     }
 
@@ -916,11 +925,11 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
       if (response.success && response.data.content) {
         setFormData({ ...formData, description: response.data.content.trim() })
       } else {
-        alert('生成失败，请重试')
+        showToast('生成失败，请重试', 'error')
       }
     } catch (error: any) {
       console.error('AI 生成简介失败:', error)
-      alert(error.message || '生成失败，请重试')
+      showToast(error.message || '生成失败，请重试', 'error')
     } finally {
       setGeneratingDescription(false)
     }
@@ -1001,14 +1010,14 @@ ${articleInput.trim()}
           setShowArticlePopover(false)
           setArticleInput('')
         } else {
-          alert('AI 返回格式异常，请重试')
+          showToast('AI 返回格式异常，请重试', 'error')
         }
       } else {
-        alert('转换失败，请重试')
+        showToast('转换失败，请重试', 'error')
       }
     } catch (error: any) {
       console.error('文章转换失败:', error)
-      alert(error.message || '转换失败，请重试')
+      showToast(error.message || '转换失败，请重试', 'error')
     } finally {
       setConvertingArticle(false)
     }
@@ -1070,8 +1079,8 @@ ${articleInput.trim()}
   }
 
   // 删除步骤
-  const handleDeleteStep = (index: number) => {
-    if (confirm('确定要删除这个步骤吗？')) {
+  const handleDeleteStep = async (index: number) => {
+    if (await showConfirm({ message: '确定要删除这个步骤吗？' })) {
       const newSteps = formData.steps.filter((_, i) => i !== index)
       setFormData({ ...formData, steps: newSteps })
     }
@@ -1164,7 +1173,7 @@ ${articleInput.trim()}
   // 本地保存工作流到 localStorage
   const handleLocalSave = () => {
     if (!formData.title.trim()) {
-      alert('请填写工作流标题')
+      showToast('请填写工作流标题', 'error')
       return
     }
     const now = new Date().toISOString()
@@ -1187,7 +1196,7 @@ ${articleInput.trim()}
     // 保存到本地后也重置未保存状态
     setHasUnsavedChanges(false)
     setLastSavedTime(new Date())
-    alert('保存成功！')
+    showToast('保存成功！', 'success')
   }
 
   // 保存工作流（存草稿或发布）
