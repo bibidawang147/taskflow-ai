@@ -344,6 +344,31 @@ router.patch('/users/:id', authenticateToken, requireAdmin, async (req: Authenti
   }
 })
 
+/**
+ * 删除用户
+ * DELETE /api/admin/users/:id
+ */
+router.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const adminId = req.user!.id
+
+    if (id === adminId) {
+      return res.status(400).json({ error: '不能删除自己' })
+    }
+
+    await prisma.user.delete({ where: { id } })
+
+    res.json({ message: '用户已删除' })
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: '用户不存在' })
+    }
+    console.error('删除用户错误:', error)
+    res.status(500).json({ error: '删除用户失败' })
+  }
+})
+
 // ==================== 使用邀请码（用户端） ====================
 
 /**

@@ -8,6 +8,7 @@ import {
   deleteInviteCode,
   getAdminUsers,
   updateAdminUser,
+  deleteAdminUser,
   type AdminStats,
   type InviteCode,
   type AdminUser
@@ -155,6 +156,23 @@ export default function AdminPage() {
       loadStats()
     } catch (err) {
       showToast('操作失败', 'error')
+    }
+  }
+
+  // 删除用户
+  const handleDeleteUser = async (user: AdminUser) => {
+    const confirmed = await showConfirm({
+      message: `确定删除用户「${user.name}」(${user.email})？该操作不可撤销，用户的所有数据（工作流、执行记录等）都将被删除。`,
+      type: 'danger'
+    })
+    if (!confirmed) return
+    try {
+      await deleteAdminUser(user.id)
+      showToast('用户已删除', 'success')
+      loadUsers()
+      loadStats()
+    } catch (err: any) {
+      showToast(err.response?.data?.error || '删除失败', 'error')
     }
   }
 
@@ -412,6 +430,12 @@ export default function AdminPage() {
                           onClick={() => navigate(`/workspace?userId=${user.id}`)}
                         >
                           查看
+                        </button>
+                        <button
+                          className="btn-action btn-danger"
+                          onClick={() => handleDeleteUser(user)}
+                        >
+                          删除
                         </button>
                       </td>
                     </tr>

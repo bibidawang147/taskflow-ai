@@ -130,6 +130,11 @@ export const updateAdminUser = async (
   return response.data
 }
 
+// 删除用户
+export const deleteAdminUser = async (id: string): Promise<void> => {
+  await api.delete(`/api/admin/users/${id}`)
+}
+
 // 使用邀请码（用户端）
 export const useInviteCode = async (code: string): Promise<{
   success: boolean
