@@ -319,7 +319,7 @@ export default function Layout() {
           onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
         >
           <Gift size={13} color="#8b5cf6" style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563', flexShrink: 0 }}>邀请码</span>
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563', flexShrink: 0 }}>兑换</span>
           <ChevronDown size={12} color="#9CA3AF" style={{ marginLeft: 'auto', transform: showInviteInput ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
         </button>
         {showInviteInput && (

@@ -195,12 +195,26 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
     fetchCodes(page)
   }
 
+  const siteUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin
+
+  const copyLink = (code: string, type?: string, plan?: string, days?: number) => {
+    const link = `${siteUrl}/redeem?code=${code}`
+    const typeLabel = type ? (TYPE_LABELS[type] || type) : '兑换码'
+    const planLabel = plan ? (ROLE_LABELS[plan] || plan) : ''
+    const daysLabel = days ? `${days}天` : ''
+    const desc = [planLabel, daysLabel].filter(Boolean).join(' · ')
+    const text = `🎁 送你一个瓴积AI${typeLabel}${desc ? `（${desc}）` : ''}，点击链接直接兑换：\n${link}`
+    navigator.clipboard.writeText(text)
+    showToast('已复制分享文案', 'success')
+  }
+
   const copy = (text: string) => navigator.clipboard.writeText(text)
 
   const copyAllUnused = () => {
-    const unused = codes.filter(c => c.isActive && c.usedCount === 0).map(c => c.code)
+    const unused = codes.filter(c => c.isActive && c.usedCount === 0)
+      .map(c => `${c.code} → ${siteUrl}/redeem?code=${c.code}`)
     navigator.clipboard.writeText(unused.join('\n'))
-    showToast(`已复制 ${unused.length} 个未使用的码`, 'success')
+    showToast(`已复制 ${unused.length} 个未使用的码（含链接）`, 'success')
   }
 
   const exportCSV = () => {
@@ -234,7 +248,10 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
               <input type="number" value={form.count} onChange={e => setForm({ ...form, count: parseInt(e.target.value) || 1 })} min={1} max={1000} style={inputStyle} />
             </FormField>
             <FormField label="类型">
-              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} style={inputStyle}>
+              <select value={form.type} onChange={e => {
+                const type = e.target.value
+                setForm({ ...form, type, durationDays: type === 'annual' ? 365 : 30 })
+              }} style={inputStyle}>
                 <option value="invite">邀请码</option><option value="discount">优惠码</option>
                 <option value="gift">赠送码</option><option value="annual">年卡码</option>
               </select>
@@ -278,7 +295,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
                 {genResult.map((code, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>{code}</span>
-                    <button onClick={() => copy(code)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}><Copy size={12} color="#6B7280" /></button>
+                    <button onClick={() => copyLink(code, form.type, form.plan, form.durationDays)} title="复制分享文案" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}><Copy size={12} color="#6B7280" /></button>
                   </div>
                 ))}
               </div>
@@ -304,7 +321,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
               <tr key={c.id} style={{ borderTop: '1px solid #E5E7EB' }}>
                 <td style={tdStyle}>
                   <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{c.code}</span>
-                  <button onClick={() => copy(c.code)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', marginLeft: '4px' }}><Copy size={12} color="#9CA3AF" /></button>
+                  <button onClick={() => copyLink(c.code, c.type, c.plan, c.durationDays)} title="复制分享文案" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', marginLeft: '4px' }}><Copy size={12} color="#9CA3AF" /></button>
                 </td>
                 <td style={tdStyle}>{TYPE_LABELS[c.type] || c.type}</td>
                 <td style={tdStyle}><RoleTag role={c.plan} /></td>
