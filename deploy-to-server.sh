@@ -34,6 +34,10 @@ rm -rf dist-old
 mv dist dist-old
 mv dist-new dist
 
+# 同步到 nginx 目录
+rm -rf /var/www/workflow-platform/*
+cp -r /root/frontend/dist/* /var/www/workflow-platform/
+
 pm2 restart workflow-frontend
 pm2 save
 
