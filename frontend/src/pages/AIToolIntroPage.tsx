@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useToast } from '../components/ui/Toast'
 import '../styles/intro-pages.css'
 
 // 模拟AI工具数据
@@ -198,16 +199,17 @@ const usageStats = {
 export default function AIToolIntroPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'docs' | 'reviews'>('overview')
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null)
 
   const handleTryTool = () => {
-    alert('开始免费试用！')
+    showToast('开始免费试用！', 'success')
   }
 
   const handleSubscribe = (planIndex: number) => {
     setSelectedPlan(planIndex)
-    alert(`准备订阅 ${toolData.pricingPlans[planIndex].name}`)
+    showToast(`准备订阅 ${toolData.pricingPlans[planIndex].name}`, 'info')
   }
 
   return (

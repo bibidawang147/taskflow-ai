@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import communityApi from '../services/communityApi'
+import { useToast } from '../components/ui/Toast'
 import '../styles/community.css'
 
 interface Post {
@@ -21,6 +22,7 @@ interface Post {
 
 export default function CommunityPostsPage() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState<'latest' | 'hot'>('latest')
@@ -59,7 +61,7 @@ export default function CommunityPostsPage() {
     e.stopPropagation()
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
@@ -78,7 +80,7 @@ export default function CommunityPostsPage() {
       }))
     } catch (error) {
       console.error('点赞失败:', error)
-      alert('操作失败，请重试')
+      showToast('操作失败，请重试', 'error')
     }
   }
 

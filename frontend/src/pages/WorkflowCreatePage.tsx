@@ -1202,7 +1202,7 @@ ${articleInput.trim()}
   // 保存工作流（存草稿或发布）
   const handleSave = async (isDraft: boolean) => {
     if (!validateForm()) {
-      alert('请填写所有必填字段')
+      showToast('请填写所有必填字段', 'error')
       return
     }
 
@@ -1312,14 +1312,14 @@ ${articleInput.trim()}
         // 保存成功后重置未保存状态
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
-        alert('工作流更新成功！')
+        showToast('工作流更新成功！', 'success')
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
         // 保存成功后重置未保存状态
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
-        alert(isDraft ? '草稿保存成功！' : '工作流发布成功！')
+        showToast(isDraft ? '草稿保存成功！' : '工作流发布成功！', 'success')
         if (isDraft) {
           navigate('/workspace')
         } else {
@@ -1328,7 +1328,7 @@ ${articleInput.trim()}
       }
     } catch (error) {
       console.error('保存工作流失败:', error)
-      alert('保存失败，请重试')
+      showToast('保存失败，请重试', 'error')
     } finally {
       setSaving(false)
     }

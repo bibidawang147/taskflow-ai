@@ -12,12 +12,16 @@ import {
   type InviteCode,
   type AdminUser
 } from '../services/adminApi'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import '../styles/admin.css'
 
 type TabType = 'overview' | 'inviteCodes' | 'users'
 
 export default function AdminPage() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,12 +115,12 @@ export default function AdminPage() {
   const handleCreateCodes = async () => {
     try {
       const result = await createInviteCodes(createForm)
-      alert(result.message)
+      showToast(result.message, 'success')
       setShowCreateModal(false)
       loadInviteCodes()
       loadStats()
     } catch (err: any) {
-      alert(err.response?.data?.error || '创建失败')
+      showToast(err.response?.data?.error || '创建失败', 'error')
     }
   }
 
@@ -126,19 +130,20 @@ export default function AdminPage() {
       await updateInviteCode(code.id, { isActive: !code.isActive })
       loadInviteCodes()
     } catch (err) {
-      alert('操作失败')
+      showToast('操作失败', 'error')
     }
   }
 
   // 删除邀请码
   const handleDeleteCode = async (code: InviteCode) => {
-    if (!confirm(`确定删除邀请码 ${code.code}？`)) return
+    const confirmed = await showConfirm({ message: `确定删除邀请码 ${code.code}？`, type: 'danger' })
+    if (!confirmed) return
     try {
       await deleteInviteCode(code.id)
       loadInviteCodes()
       loadStats()
     } catch (err) {
-      alert('删除失败')
+      showToast('删除失败', 'error')
     }
   }
 
@@ -149,14 +154,14 @@ export default function AdminPage() {
       loadUsers()
       loadStats()
     } catch (err) {
-      alert('操作失败')
+      showToast('操作失败', 'error')
     }
   }
 
   // 复制邀请码
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code)
-    alert('已复制到剪贴板')
+    showToast('已复制到剪贴板', 'success')
   }
 
   if (loading) {

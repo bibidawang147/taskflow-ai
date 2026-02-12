@@ -27,6 +27,7 @@ import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
 import { NavigationSidebar } from '../components/NavigationSidebar'
 import WorkflowCreatePage from './WorkflowCreatePage'
+import CanvasWelcomeModal from '../components/CanvasWelcomeModal'
 
 type WorkflowStatus = 'active' | 'draft' | 'paused'
 type LibrarySection = 'created' | 'favorites' | 'recent'
@@ -4658,6 +4659,7 @@ export default function StoragePage() {
 
   return (
     <>
+      <CanvasWelcomeModal />
       <style>{`
         .workflow-library-list::-webkit-scrollbar {
           width: 6px;
@@ -5701,39 +5703,6 @@ export default function StoragePage() {
             >
               添加文章
             </button>
-            {import.meta.env.DEV && (
-              <>
-                <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb' }} />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const items = canvasDataByTabId[CANVAS_TAB_ID]
-                    const edges = edgesByTabId[CANVAS_TAB_ID] || {}
-                    const data = { canvasItems: items, canvasEdges: edges }
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `sample-canvas-${Date.now()}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #9ca3af',
-                    backgroundColor: '#f3f4f6',
-                    color: '#374151',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    cursor: 'pointer'
-                  }}
-                  title="导出画布数据为JSON（开发工具）"
-                >
-                  导出画布
-                </button>
-              </>
-            )}
           </div>
 
           <TransformWrapper

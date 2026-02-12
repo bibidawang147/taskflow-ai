@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RecommendationCard } from './RecommendationCard'
+import { useToast } from './ui/Toast'
 import './AIRecommendationPanel.css'
 
 interface WorkflowRecommendation {
@@ -45,6 +46,7 @@ export const ExploreChatRecommendationPanel: React.FC<Props> = ({
   intentTags = [],
   onWorkflowSelect
 }) => {
+  const { showToast } = useToast()
   const [expanded, setExpanded] = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
@@ -61,7 +63,7 @@ export const ExploreChatRecommendationPanel: React.FC<Props> = ({
     try {
       const token = localStorage.getItem('token')
       if (!token) {
-        alert('请先登录')
+        showToast('请先登录', 'warning')
         navigate('/login')
         return
       }
@@ -75,14 +77,14 @@ export const ExploreChatRecommendationPanel: React.FC<Props> = ({
       })
 
       if (response.ok) {
-        alert('导入成功！已添加到我的工作台')
+        showToast('导入成功！已添加到我的工作台', 'success')
       } else {
         const data = await response.json()
-        alert(data.error || '导入失败，请稍后重试')
+        showToast(data.error || '导入失败，请稍后重试', 'error')
       }
     } catch (error) {
       console.error('导入失败:', error)
-      alert('导入失败，请稍后重试')
+      showToast('导入失败，请稍后重试', 'error')
     }
   }
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePermission } from '../hooks/usePermission'
 import { api } from '../services/api'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import { Shield, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
 
 interface OrderItem {
@@ -34,6 +36,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 
 export default function AdminOrdersPage() {
   const { isAdmin, loading: permLoading } = usePermission()
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [orders, setOrders] = useState<OrderItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -60,18 +64,18 @@ export default function AdminOrdersPage() {
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
   const handleActivate = async (orderId: string) => {
-    if (!confirm('确认该笔订单已支付？激活后用户将立即获得会员权益。')) return
+    if (!await showConfirm({ message: '确认该笔订单已支付？激活后用户将立即获得会员权益。' })) return
     setActivatingId(orderId)
     try {
       const res = await api.post(`/api/pricing/admin/activate/${orderId}`)
       if (res.data.success) {
-        alert('订阅已激活')
+        showToast('订阅已激活', 'success')
         fetchOrders(page)
       } else {
-        alert(res.data.error || '激活失败')
+        showToast(res.data.error || '激活失败', 'error')
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || '激活失败')
+      showToast(err.response?.data?.error || '激活失败', 'error')
     } finally {
       setActivatingId(null)
     }

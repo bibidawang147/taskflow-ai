@@ -9,7 +9,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 import { generateToken } from '../utils/jwt'
 import { createError } from '../middleware/errorHandler'
 import { creditService } from '../services/credit.service'
-import { initializeSampleCanvas, initializeSampleWorkflows } from '../services/workspace.service'
+import { initializeSampleCanvas } from '../services/workspace.service'
 
 const WECHAT_APP_ID = process.env.WECHAT_APP_ID || ''
 const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || ''
@@ -61,9 +61,8 @@ export const register = async (req: Request, res: Response) => {
     // 初始化用户余额（赠送新用户积分）
     await creditService.initializeUserBalance(user.id)
 
-    // 先创建示例工作流，拿到 ID 后再初始化画布（画布卡片需要引用工作流 ID）
-    const sampleWfs = await initializeSampleWorkflows(user.id)
-    await initializeSampleCanvas(user.id, sampleWfs)
+    // 初始化空白画布
+    await initializeSampleCanvas(user.id, [])
 
     // 生成JWT令牌
     const token = generateToken(user.id)
@@ -273,9 +272,8 @@ export const wechatCallback = async (req: Request, res: Response) => {
       })
       // 初始化积分
       await creditService.initializeUserBalance(user.id)
-      // 先创建示例工作流，再初始化画布
-      const sampleWfs = await initializeSampleWorkflows(user.id)
-      await initializeSampleCanvas(user.id, sampleWfs)
+      // 初始化空白画布
+      await initializeSampleCanvas(user.id, [])
     } else {
       // 老用户 → 更新头像和昵称（如果微信端改过）
       await prisma.user.update({

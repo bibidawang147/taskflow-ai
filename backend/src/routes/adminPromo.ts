@@ -34,7 +34,8 @@ router.post(
         expiresAt: req.body.expiresAt || null,
         description: req.body.description || '',
         prefix: req.body.prefix || 'LJINVITE',
-        createdBy: req.user!.id
+        createdBy: req.user!.id,
+        countsAsEarlyBird: req.body.countsAsEarlyBird ?? false
       })
 
       return res.json({ success: true, ...result })

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import communityApi from '../services/communityApi'
+import { useToast } from '../components/ui/Toast'
 import '../styles/community.css'
 
 interface Comment {
@@ -35,6 +36,7 @@ interface Post {
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
   const [commentContent, setCommentContent] = useState('')
@@ -54,7 +56,7 @@ export default function PostDetailPage() {
       setPost(data)
     } catch (error) {
       console.error('获取帖子详情失败:', error)
-      alert('加载失败')
+      showToast('加载失败', 'error')
       navigate('/community/posts')
     } finally {
       setLoading(false)
@@ -64,7 +66,7 @@ export default function PostDetailPage() {
   const handleLike = async () => {
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
@@ -78,20 +80,20 @@ export default function PostDetailPage() {
       } : null)
     } catch (error) {
       console.error('点赞失败:', error)
-      alert('操作失败，请重试')
+      showToast('操作失败，请重试', 'error')
     }
   }
 
   const handleSubmitComment = async () => {
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
 
     if (!commentContent.trim()) {
-      alert('请输入评论内容')
+      showToast('请输入评论内容', 'warning')
       return
     }
 
@@ -107,7 +109,7 @@ export default function PostDetailPage() {
       fetchPost()
     } catch (error) {
       console.error('发布评论失败:', error)
-      alert('发布失败，请重试')
+      showToast('发布失败，请重试', 'error')
     } finally {
       setSubmitting(false)
     }

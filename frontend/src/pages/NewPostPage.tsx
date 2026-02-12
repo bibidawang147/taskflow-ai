@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import communityApi from '../services/communityApi'
+import { useToast } from '../components/ui/Toast'
 import '../styles/community.css'
 
 export default function NewPostPage() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -25,18 +27,18 @@ export default function NewPostPage() {
   const handleSubmit = async () => {
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
 
     if (!title.trim()) {
-      alert('请输入标题')
+      showToast('请输入标题', 'warning')
       return
     }
 
     if (!content.trim()) {
-      alert('请输入内容')
+      showToast('请输入内容', 'warning')
       return
     }
 
@@ -48,11 +50,11 @@ export default function NewPostPage() {
         tags: tags.length > 0 ? tags : undefined
       })
 
-      alert('发布成功！')
+      showToast('发布成功！', 'success')
       navigate(`/community/posts/${result.post.id}`)
     } catch (error) {
       console.error('发布失败:', error)
-      alert('发布失败，请重试')
+      showToast('发布失败，请重试', 'error')
     } finally {
       setSubmitting(false)
     }

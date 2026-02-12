@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Check, Sparkles, X, Loader2 } from 'lucide-react';
 import { authService } from '../services/auth';
 import { api } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 import '../styles/membership.css';
 
 interface PricingInfo {
@@ -55,6 +56,7 @@ const TIER_LABELS: Record<string, string> = {
 
 export function MembershipPage() {
   const isAuthenticated = authService.isAuthenticated();
+  const { showToast } = useToast();
   const [pricing, setPricing] = useState<PricingInfo | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loadingPricing, setLoadingPricing] = useState(true);
@@ -96,7 +98,7 @@ export function MembershipPage() {
   // 购买 Pro
   const handlePurchase = async () => {
     if (!isAuthenticated) {
-      alert('请先登录');
+      showToast('请先登录', 'warning');
       return;
     }
     setPurchasing(true);
@@ -199,7 +201,7 @@ export function MembershipPage() {
             <div className="membership-earlybird-info">
               <span className="membership-earlybird-label">早鸟名额</span>
               <span className="membership-earlybird-count">
-                已售 {pricing.earlyBirdSold} / {pricing.earlyBirdLimit}
+                已售 {Math.round((pricing.earlyBirdSold / pricing.earlyBirdLimit) * 100)}%
               </span>
             </div>
             <div className="membership-earlybird-track">
@@ -209,7 +211,7 @@ export function MembershipPage() {
               />
             </div>
             <p className="membership-earlybird-hint">
-              仅剩 {pricing.earlyBirdRemaining} 个早鸟名额，售完即恢复原价
+              仅剩 {Math.round((pricing.earlyBirdRemaining / pricing.earlyBirdLimit) * 100)}% 早鸟名额，售完即恢复原价
             </p>
           </div>
         )}
@@ -264,7 +266,7 @@ export function MembershipPage() {
                 {/* 即将恢复原价提示，和价格同行 */}
                 {pricing && displayPrice?.isDiscount && (
                   <span className="membership-price-original-inline">
-                    即将恢复原价 ¥{pricing.originalPrice}/年
+                    即将恢复 ¥{pricing.originalPrice}/年
                   </span>
                 )}
               </div>
@@ -311,7 +313,7 @@ export function MembershipPage() {
               ) : (
                 <button
                   className="membership-btn membership-btn--upgrade"
-                  onClick={isAuthenticated ? handlePurchase : () => alert('请先登录')}
+                  onClick={isAuthenticated ? handlePurchase : () => showToast('请先登录', 'warning')}
                   disabled={purchasing}
                 >
                   {purchasing ? <><Loader2 size={16} className="spin" /> 处理中...</> : '立即升级'}

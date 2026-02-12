@@ -59,10 +59,8 @@ app.use(helmet())
 // CORS 配置
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173'];
 
-// 添加生产服务器 IP
-allowedOrigins.push('http://47.93.218.80');
 
 app.use(cors({
   origin: (origin, callback) => {

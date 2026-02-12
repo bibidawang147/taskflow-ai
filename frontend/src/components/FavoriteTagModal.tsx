@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { FavoriteTag, favoritesService } from '../services/navigationService'
+import { useConfirm } from './ui/ConfirmDialog'
 
 interface FavoriteTagModalProps {
   isOpen: boolean
@@ -41,6 +42,7 @@ export const FavoriteTagModal: React.FC<FavoriteTagModalProps> = ({
   onSuccess,
   editTag
 }) => {
+  const { showConfirm } = useConfirm()
   const [name, setName] = useState('')
   const [color, setColor] = useState('#3b82f6')
   const [icon, setIcon] = useState('📌')
@@ -90,7 +92,7 @@ export const FavoriteTagModal: React.FC<FavoriteTagModalProps> = ({
   const handleDelete = async () => {
     if (!editTag) return
 
-    if (!confirm(`确定要删除标签"${editTag.name}"吗？`)) {
+    if (!await showConfirm({ message: `确定要删除标签"${editTag.name}"吗？` })) {
       return
     }
 

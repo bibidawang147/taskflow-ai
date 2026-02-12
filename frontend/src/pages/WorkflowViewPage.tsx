@@ -8,6 +8,7 @@ import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
 import WorkflowOverviewChart from '../components/workflow-viewer/WorkflowOverviewChart'
 import StepCardList from '../components/workflow-viewer/StepCardList'
 import PreparationSection from '../components/workflow-viewer/PreparationSection'
+import { useToast } from '../components/ui/Toast'
 import '../styles/workflow-viewer.css'
 
 interface FullWorkflowData {
@@ -20,6 +21,7 @@ interface FullWorkflowData {
 export default function WorkflowViewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +68,7 @@ export default function WorkflowViewPage() {
       setTimeout(() => navigate('/workspace'), 600)
     } catch (err: any) {
       console.error('添加到工作台失败:', err)
-      alert(err?.response?.data?.error || '添加失败，请稍后重试')
+      showToast(err?.response?.data?.error || '添加失败，请稍后重试', 'error')
     } finally {
       setCloning(false)
     }

@@ -3,8 +3,10 @@ import { Check, Gift, Coins, CreditCard, Smartphone, X, Sparkles } from 'lucide-
 import { creditService } from '../services/credit';
 import { RechargePlan } from '../types/credit';
 import { CreditBalance } from '../components/CreditBalance';
+import { useToast } from '../components/ui/Toast';
 
 export function RechargePage() {
+  const { showToast } = useToast();
   const [plans, setPlans] = useState<RechargePlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<RechargePlan | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'wechat' | 'alipay'>('wechat');
@@ -40,7 +42,7 @@ export function RechargePage() {
       // 这里在实际项目中应该跳转到支付页面或显示支付二维码
       // 目前只是模拟
     } catch (error: any) {
-      alert(error.response?.data?.message || '创建订单失败');
+      showToast(error.response?.data?.message || '创建订单失败', 'error');
     } finally {
       setLoading(false);
     }
@@ -618,7 +620,7 @@ export function RechargePage() {
               <button
                 onClick={() => {
                   setShowPaymentModal(false);
-                  alert('支付功能需要对接真实支付平台。在测试环境中，你可以在后端直接调用确认接口来模拟支付成功。');
+                  showToast('支付功能需要对接真实支付平台。在测试环境中，你可以在后端直接调用确认接口来模拟支付成功。', 'info');
                 }}
                 style={{
                   width: '100%',

@@ -6,6 +6,8 @@ import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
 import { ChevronRight, ChevronDown, Plus, X, Pencil } from 'lucide-react'
+import { useToast } from './ui/Toast'
+import { useConfirm } from './ui/ConfirmDialog'
 
 // 画布数据类型定义
 interface Position {
@@ -251,6 +253,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   embedded = false,
   externalSearchQuery
 }) => {
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -486,7 +490,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const handleWorkflowDelete = async () => {
     const workflow = contextMenuWorkflowRef.current
     if (!workflow) return
-    if (!confirm(`确定要删除"${workflow.title}"吗？此操作不可撤销。`)) return
+    if (!await showConfirm({ message: `确定要删除"${workflow.title}"吗？此操作不可撤销。` })) return
     try {
       await deleteWorkflow(workflow.id)
       contextMenuWorkflowRef.current = null
@@ -494,7 +498,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       onRefresh?.()
     } catch (err) {
       console.error('删除工作流失败:', err)
-      alert('删除失败，请重试')
+      showToast('删除失败，请重试', 'error')
     }
   }
 
@@ -533,7 +537,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   const handleBatchDelete = async () => {
     if (selectedWorkflows.size === 0) return
-    if (!confirm(`确定要删除选中的 ${selectedWorkflows.size} 个AI工作方法吗？此操作不可撤销。`)) return
+    if (!await showConfirm({ message: `确定要删除选中的 ${selectedWorkflows.size} 个AI工作方法吗？此操作不可撤销。` })) return
     try {
       await Promise.all(Array.from(selectedWorkflows).map(id => deleteWorkflow(id)))
       setSelectedWorkflows(new Set())
@@ -542,7 +546,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       onRefresh?.()
     } catch (err) {
       console.error('批量删除失败:', err)
-      alert('部分删除失败，请刷新后重试')
+      showToast('部分删除失败，请刷新后重试', 'error')
       loadSidebarData()
     }
   }
@@ -1143,7 +1147,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           loadSidebarData()
         } catch (err) {
           console.error('Failed to delete tag:', err)
-          alert('删除失败，请重试')
+          showToast('删除失败，请重试', 'error')
         }
       }
     })
@@ -1168,7 +1172,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       loadSidebarData()
     } catch (err) {
       console.error('Failed to rename tag:', err)
-      alert('重命名失败，请重试')
+      showToast('重命名失败，请重试', 'error')
     }
     setEditingSectionId(null)
   }
@@ -2070,7 +2074,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                         loadSidebarData()
                       } catch (err) {
                         console.error('创建标签失败:', err)
-                        alert('创建失败，请重试')
+                        showToast('创建失败，请重试', 'error')
                       }
                     }
                   })

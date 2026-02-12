@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavigationSection, navigationSectionsService } from '../services/navigationService'
+import { useConfirm } from './ui/ConfirmDialog'
 
 interface NavigationSectionModalProps {
   isOpen: boolean
@@ -14,6 +15,7 @@ export const NavigationSectionModal: React.FC<NavigationSectionModalProps> = ({
   onSuccess,
   editSection
 }) => {
+  const { showConfirm } = useConfirm()
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,7 +65,7 @@ export const NavigationSectionModal: React.FC<NavigationSectionModalProps> = ({
       return
     }
 
-    if (!confirm(`确定要删除"${editSection.name}"吗？`)) {
+    if (!await showConfirm({ message: `确定要删除"${editSection.name}"吗？` })) {
       return
     }
 

@@ -30,6 +30,7 @@ export async function generatePromoCodes(params: {
   description?: string
   prefix?: string
   createdBy: string
+  countsAsEarlyBird?: boolean
 }) {
   const {
     count,
@@ -40,7 +41,8 @@ export async function generatePromoCodes(params: {
     expiresAt,
     description,
     prefix = 'LJCODE',
-    createdBy
+    createdBy,
+    countsAsEarlyBird = false
   } = params
 
   const batchId = `batch-${Date.now()}`
@@ -74,7 +76,8 @@ export async function generatePromoCodes(params: {
     expiresAt: expiresAt ? new Date(expiresAt) : null,
     description: description || null,
     createdBy,
-    batchId
+    batchId,
+    countsAsEarlyBird
   }))
 
   await prisma.promoCode.createMany({ data })
@@ -132,6 +135,7 @@ export async function listPromoCodes(params: {
       expiresAt: c.expiresAt?.toISOString() || null,
       description: c.description,
       batchId: c.batchId,
+      countsAsEarlyBird: c.countsAsEarlyBird,
       createdAt: c.createdAt.toISOString(),
       redemptionCount: c._count.redemptions
     })),

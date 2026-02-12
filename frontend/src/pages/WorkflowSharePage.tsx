@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import {
   getWorkflowDetail,
   favoriteWorkflow,
@@ -107,6 +109,8 @@ function groupStepsByModel(nodes: any[]): any[][] {
 export default function WorkflowSharePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
 
   const [workflow, setWorkflow] = useState<Workflow | null>(null)
   const [isFavorited, setIsFavorited] = useState(false)
@@ -161,7 +165,7 @@ export default function WorkflowSharePage() {
     // 检查是否登录
     const token = localStorage.getItem('token')
     if (!token) {
-      const shouldLogin = window.confirm('收藏功能需要登录，是否前往登录？')
+      const shouldLogin = await showConfirm({ message: '收藏功能需要登录，是否前往登录？' })
       if (shouldLogin) {
         navigate('/login')
       }
@@ -190,23 +194,17 @@ export default function WorkflowSharePage() {
     } catch (error: any) {
       console.error('收藏操作失败:', error)
       const errorMsg = error.response?.data?.error || '操作失败，请重试'
-      alert(errorMsg)
+      showToast(errorMsg, 'error')
     }
   }
 
   const handleClone = async () => {
     if (!id) return
 
-    // 如果是假ID（演示工作流），显示提示
-    if (id.startsWith('fake-')) {
-      alert('这是演示工作流 🎬\n\n演示工作流仅用于预览，无法添加到工作台。\n\n请浏览其他真实的工作流进行添加！')
-      return
-    }
-
     // 检查是否登录
     const token = localStorage.getItem('token')
     if (!token) {
-      const shouldLogin = window.confirm('添加到工作台需要登录，是否前往登录？')
+      const shouldLogin = await showConfirm({ message: '添加到工作台需要登录，是否前往登录？' })
       if (shouldLogin) {
         navigate('/login')
       }
@@ -230,7 +228,7 @@ export default function WorkflowSharePage() {
     } catch (error: any) {
       console.error('添加到工作台失败:', error)
       const errorMsg = error.response?.data?.error || '操作失败，请重试'
-      alert(`添加失败：${errorMsg}`)
+      showToast(`添加失败：${errorMsg}`, 'error')
     }
   }
 
@@ -244,15 +242,15 @@ export default function WorkflowSharePage() {
 
     // 复制到剪贴板
     navigator.clipboard.writeText(shareText).then(() => {
-      alert('分享文案已复制到剪贴板！\n\n您可以粘贴到任何地方进行分享。')
+      showToast('分享文案已复制到剪贴板！您可以粘贴到任何地方进行分享。', 'success')
       setShowShareModal(false)
     }).catch(() => {
-      alert('复制失败，请手动复制链接')
+      showToast('复制失败，请手动复制链接', 'error')
     })
   }
 
   const downloadAsImage = async () => {
-    alert('生成海报功能开发中...\n\n将支持：\n- 自动生成精美的工作流海报\n- 包含步骤预览和二维码\n- 适合社交媒体分享')
+    showToast('生成海报功能开发中，将支持自动生成精美的工作流海报、包含步骤预览和二维码、适合社交媒体分享', 'info')
     setShowShareModal(false)
   }
 
@@ -274,65 +272,7 @@ export default function WorkflowSharePage() {
     )
   }
 
-  // 使用真实数据或假数据
-  const nodes = Array.isArray(workflow.config?.nodes) && workflow.config.nodes.length > 0
-    ? workflow.config.nodes
-    : [
-        {
-          id: 'step1',
-          type: 'llm',
-          label: '市场调研与选题',
-          config: {
-            goal: '分析热门话题，确定文案方向',
-            provider: 'OpenAI',
-            model: 'GPT-4',
-            prompt: '请帮我分析当前小红书上关于【护肤品】的热门话题和用户痛点。要求：\n1. 列出5个最受关注的话题方向\n2. 分析每个话题的热度原因\n3. 给出适合种草的产品类型\n4. 推荐最佳发布时间段'
-          }
-        },
-        {
-          id: 'step2',
-          type: 'llm',
-          label: '生成文案大纲',
-          config: {
-            goal: '根据选题创建文案结构',
-            provider: 'OpenAI',
-            model: 'GPT-4',
-            prompt: '基于前面的调研结果，为【敏感肌保湿精华推荐】这个主题创建小红书文案大纲。要求：\n1. 开头：3种吸睛钩子（问题式/数据式/故事式）\n2. 正文结构：痛点-产品-效果-使用感受\n3. 结尾：引导互动的话术\n4. 标题：5个备选标题（包含表情符号）'
-          }
-        },
-        {
-          id: 'step3',
-          type: 'llm',
-          label: '撰写正文内容',
-          config: {
-            goal: '创作完整的种草文案',
-            provider: 'Anthropic',
-            model: 'Claude-3-Sonnet',
-            prompt: '根据大纲，撰写一篇800字左右的小红书种草笔记。要求：\n1. 语言风格：真诚、口语化、有共鸣感\n2. 内容要点：开头我的敏感肌困扰、产品介绍、使用体验、购买建议\n3. 排版：使用表情符号、分段清晰\n4. 避免：夸大宣传、绝对化用词'
-          }
-        },
-        {
-          id: 'step4',
-          type: 'llm',
-          label: 'SEO关键词优化',
-          config: {
-            goal: '提升文案搜索排名',
-            provider: 'OpenAI',
-            model: 'GPT-3.5-Turbo',
-            prompt: '对上面的文案进行SEO优化，提升小红书搜索曝光。要求：\n1. 提取10个高频搜索关键词\n2. 自然融入文案中（不影响阅读体验）\n3. 优化标题包含核心关键词\n4. 添加5-8个相关话题标签\n5. 给出搜索流量预估'
-          }
-        },
-        {
-          id: 'step5',
-          type: 'tool',
-          label: '检查内容合规性',
-          config: {
-            goal: '确保内容符合平台规范',
-            tool: '文本审核API',
-            description: '使用文本审核工具检查违禁词、广告法规范、医疗美容限制、引流信息等，确保内容合规。'
-          }
-        }
-      ]
+  const nodes = Array.isArray(workflow.config?.nodes) ? workflow.config.nodes : []
 
   console.log('=== WorkflowSharePage Debug ===')
   console.log('Workflow:', workflow)
@@ -349,13 +289,6 @@ export default function WorkflowSharePage() {
 
         {/* 工作流卡片 */}
         <div className="douban-workflow-card">
-          {/* 演示工作流标记 */}
-          {id?.startsWith('fake-') && (
-            <div className="demo-badge">
-              🎬 演示工作流（仅供预览）
-            </div>
-          )}
-
           {/* 标题 */}
           <h1 className="douban-workflow-title">{workflow.title}</h1>
 

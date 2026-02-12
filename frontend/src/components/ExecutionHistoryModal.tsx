@@ -9,6 +9,8 @@ import {
   updateExecutionNotes,
   type ExecutionHistory
 } from '../services/workflowApi'
+import { useToast } from './ui/Toast'
+import { useConfirm } from './ui/ConfirmDialog'
 import '../styles/execution-history-modal.css'
 
 interface ExecutionHistoryModalProps {
@@ -22,6 +24,8 @@ export default function ExecutionHistoryModal({
   onClose,
   workflowId
 }: ExecutionHistoryModalProps) {
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [executions, setExecutions] = useState<ExecutionHistory[]>([])
   const [loading, setLoading] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'failed'>('all')
@@ -72,30 +76,30 @@ export default function ExecutionHistoryModal({
       loadHistory()
     } catch (error) {
       console.error('收藏操作失败:', error)
-      alert('操作失败，请重试')
+      showToast('操作失败，请重试', 'error')
     }
   }
 
   const handleDelete = async (executionId: string) => {
-    if (!confirm('确定要删除这条执行记录吗？')) return
+    if (!await showConfirm({ message: '确定要删除这条执行记录吗？' })) return
 
     try {
       await deleteExecutionHistory(executionId)
       loadHistory()
     } catch (error) {
       console.error('删除失败:', error)
-      alert('删除失败，请重试')
+      showToast('删除失败，请重试', 'error')
     }
   }
 
   const handleReExecute = async (executionId: string) => {
     try {
       await reExecuteWorkflow(executionId)
-      alert('✅ 重新执行成功！')
+      showToast('重新执行成功！', 'success')
       loadHistory()
     } catch (error) {
       console.error('重新执行失败:', error)
-      alert('❌ 重新执行失败，请重试')
+      showToast('重新执行失败，请重试', 'error')
     }
   }
 
@@ -107,7 +111,7 @@ export default function ExecutionHistoryModal({
       loadHistory()
     } catch (error) {
       console.error('保存备注失败:', error)
-      alert('保存失败，请重试')
+      showToast('保存失败，请重试', 'error')
     }
   }
 
@@ -252,7 +256,7 @@ export default function ExecutionHistoryModal({
                           className="copy-btn"
                           onClick={() => {
                             navigator.clipboard.writeText(JSON.stringify(execution.output, null, 2))
-                            alert('✅ 已复制到剪贴板')
+                            showToast('已复制到剪贴板', 'success')
                           }}
                         >
                           📋 复制输出

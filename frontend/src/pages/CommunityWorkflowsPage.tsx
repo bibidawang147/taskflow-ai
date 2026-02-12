@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import communityApi from '../services/communityApi'
+import { useToast } from '../components/ui/Toast'
 import '../styles/community.css'
 
 interface Workflow {
@@ -25,6 +26,7 @@ interface Workflow {
 
 export default function CommunityWorkflowsPage() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState('全部')
@@ -67,7 +69,7 @@ export default function CommunityWorkflowsPage() {
     e.stopPropagation()
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
@@ -90,7 +92,7 @@ export default function CommunityWorkflowsPage() {
       }))
     } catch (error) {
       console.error('点赞失败:', error)
-      alert('操作失败，请重试')
+      showToast('操作失败，请重试', 'error')
     }
   }
 
@@ -98,18 +100,18 @@ export default function CommunityWorkflowsPage() {
     e.stopPropagation()
     const token = localStorage.getItem('token')
     if (!token) {
-      alert('请先登录')
+      showToast('请先登录', 'warning')
       navigate('/login')
       return
     }
 
     try {
       await communityApi.copyWorkflow(workflowId)
-      alert('复制成功！已添加到"我的工作台"')
+      showToast('复制成功！已添加到"我的工作台"', 'success')
       navigate('/workspace')
     } catch (error) {
       console.error('复制失败:', error)
-      alert('复制失败，请重试')
+      showToast('复制失败，请重试', 'error')
     }
   }
 

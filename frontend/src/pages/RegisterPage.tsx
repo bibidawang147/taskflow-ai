@@ -55,6 +55,7 @@ export default function RegisterPage() {
 
       // 标记为新用户，确保欢迎引导弹出
       localStorage.removeItem('lingji_welcome_shown');
+      localStorage.removeItem('lingji_canvas_welcome_shown');
 
       // 延迟跳转到工作台
       setTimeout(() => {

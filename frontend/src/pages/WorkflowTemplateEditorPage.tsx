@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useToast } from '../components/ui/Toast'
 import PreparationsEditor from '../components/WorkflowEditor/PreparationsEditor'
 import StepDetailEditor from '../components/WorkflowEditor/StepDetailEditor'
 import {
@@ -39,6 +40,7 @@ const DIFFICULTY_OPTIONS: { value: DifficultyLevel; label: string; color: string
 export default function WorkflowTemplateEditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const isEditing = !!id
 
   const [loading, setLoading] = useState(true)
@@ -115,7 +117,7 @@ export default function WorkflowTemplateEditorPage() {
         })
       } catch (error) {
         console.error('加载工作流失败:', error)
-        alert('加载工作流失败')
+        showToast('加载工作流失败', 'error')
       } finally {
         setLoading(false)
       }
@@ -172,7 +174,7 @@ export default function WorkflowTemplateEditorPage() {
   // 删除步骤
   const removeStep = (index: number) => {
     if (formData.steps.length <= 1) {
-      alert('至少需要保留一个步骤')
+      showToast('至少需要保留一个步骤', 'info')
       return
     }
     const updated = formData.steps.filter((_, i) => i !== index)
@@ -214,12 +216,12 @@ export default function WorkflowTemplateEditorPage() {
   // 保存工作流
   const handleSave = async () => {
     if (!formData.title.trim()) {
-      alert('请输入工作流标题')
+      showToast('请输入工作流标题', 'info')
       return
     }
 
     if (!id) {
-      alert('请先创建工作流后再编辑')
+      showToast('请先创建工作流后再编辑', 'info')
       return
     }
 
@@ -249,10 +251,10 @@ export default function WorkflowTemplateEditorPage() {
         }
       }
 
-      alert('保存成功！')
+      showToast('保存成功！', 'success')
     } catch (error) {
       console.error('保存失败:', error)
-      alert('保存失败，请重试')
+      showToast('保存失败，请重试', 'error')
     } finally {
       setSaving(false)
     }

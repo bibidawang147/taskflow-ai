@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RecommendationCard } from './RecommendationCard'
 import api from '../services/api'
+import { useToast } from './ui/Toast'
 import './AIRecommendationPanel.css'
 
 interface WorkflowRecommendation {
@@ -36,6 +37,7 @@ export const AIRecommendationPanel: React.FC<Props> = ({
   sessionId,
   onWorkflowSelect
 }) => {
+  const { showToast } = useToast()
   const [recommendations, setRecommendations] = useState<WorkflowRecommendation[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -99,10 +101,10 @@ export const AIRecommendationPanel: React.FC<Props> = ({
     trackAction(workflowId, 'imported')
     try {
       await api.post(`/api/workflows/${workflowId}/clone`)
-      alert('导入成功!已添加到我的工作台')
+      showToast('导入成功!已添加到我的工作台', 'success')
     } catch (error) {
       console.error('导入失败:', error)
-      alert('导入失败,请稍后重试')
+      showToast('导入失败,请稍后重试', 'error')
     }
   }
 

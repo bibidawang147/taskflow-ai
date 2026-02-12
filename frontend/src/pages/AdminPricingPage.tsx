@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { usePermission } from '../hooks/usePermission'
 import { api } from '../services/api'
+import { useToast } from '../components/ui/Toast'
 import { Shield, Save, Loader2, RefreshCw } from 'lucide-react'
 
 interface PricingConfig {
@@ -27,6 +28,7 @@ const TIER_LABELS: Record<string, string> = {
 
 export default function AdminPricingPage() {
   const { isAdmin, loading: permLoading } = usePermission()
+  const { showToast } = useToast()
   const [config, setConfig] = useState<PricingConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -79,11 +81,11 @@ export default function AdminPricingPage() {
         standardStartAt: form.standardStartAt || undefined,
       })
       if (res.data.success) {
-        alert('配置已保存')
+        showToast('配置已保存', 'success')
         fetchConfig()
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || '保存失败')
+      showToast(err.response?.data?.error || '保存失败', 'error')
     } finally {
       setSaving(false)
     }

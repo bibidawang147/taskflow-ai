@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X } from 'lucide-react';
+import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X, ChevronDown } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useState, useRef, useEffect, useMemo } from 'react';
 
@@ -42,6 +42,7 @@ export default function Layout() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [showInviteInput, setShowInviteInput] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
@@ -152,6 +153,15 @@ export default function Layout() {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  // 下拉框关闭时重置邀请码展开状态
+  useEffect(() => {
+    if (!dropdownOpen) {
+      setShowInviteInput(false);
+      setInviteCode('');
+      setInviteResult(null);
+    }
   }, [dropdownOpen]);
 
   // 路由变化时关闭菜单
@@ -291,56 +301,76 @@ export default function Layout() {
         ))}
       </div>
 
-      {/* 填写邀请码 - 单行布局 */}
+      {/* 填写邀请码 - 点击展开 */}
       <div style={{ borderTop: '1px solid #F0F1F3', padding: '7px 14px 8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowInviteInput(!showInviteInput); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            width: '100%',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+        >
           <Gift size={13} color="#8b5cf6" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563', flexShrink: 0 }}>邀请码</span>
-          <input
-            type="text"
-            value={inviteCode}
-            onChange={(e) => { setInviteCode(e.target.value); setInviteResult(null); }}
-            placeholder="输入兑换码"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: '3px 7px',
-              border: '1px solid #E5E7EB',
-              borderRadius: '5px',
-              fontSize: '11px',
-              outline: 'none',
-              boxSizing: 'border-box',
-              transition: 'border-color 0.2s',
-            }}
-            onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; }}
-            onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; }}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleInviteSubmit(); }}
-          />
-          <button
-            onClick={(e) => { e.stopPropagation(); handleInviteSubmit(); }}
-            disabled={inviteLoading || !inviteCode.trim()}
-            style={{
-              padding: '3px 8px',
-              backgroundColor: inviteLoading || !inviteCode.trim() ? '#E5E7EB' : '#8b5cf6',
-              color: inviteLoading || !inviteCode.trim() ? '#9CA3AF' : 'white',
-              border: 'none',
-              borderRadius: '5px',
-              fontSize: '11px',
-              fontWeight: 500,
-              cursor: inviteLoading || !inviteCode.trim() ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '2px',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s',
-              flexShrink: 0,
-            }}
-          >
-            {inviteLoading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
-            兑换
-          </button>
-        </div>
+          <ChevronDown size={12} color="#9CA3AF" style={{ marginLeft: 'auto', transform: showInviteInput ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+        </button>
+        {showInviteInput && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => { setInviteCode(e.target.value); setInviteResult(null); }}
+              placeholder="输入兑换码"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: '3px 7px',
+                border: '1px solid #E5E7EB',
+                borderRadius: '5px',
+                fontSize: '11px',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.2s',
+              }}
+              onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; }}
+              onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleInviteSubmit(); }}
+            />
+            <button
+              onClick={(e) => { e.stopPropagation(); handleInviteSubmit(); }}
+              disabled={inviteLoading || !inviteCode.trim()}
+              style={{
+                padding: '3px 8px',
+                backgroundColor: inviteLoading || !inviteCode.trim() ? '#E5E7EB' : '#8b5cf6',
+                color: inviteLoading || !inviteCode.trim() ? '#9CA3AF' : 'white',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '11px',
+                fontWeight: 500,
+                cursor: inviteLoading || !inviteCode.trim() ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              {inviteLoading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+              兑换
+            </button>
+          </div>
+        )}
         {inviteResult && (
           <div style={{
             fontSize: '10.5px',

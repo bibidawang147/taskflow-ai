@@ -117,6 +117,14 @@ export async function redeemPromoCode(code: string, userId: string) {
       data: { usedCount: { increment: 1 } }
     })
 
+    // 4.5 如果此码计入早鸟名额，递增 earlyBirdSold
+    if (promo.countsAsEarlyBird) {
+      await tx.pricingConfig.update({
+        where: { id: 'singleton' },
+        data: { earlyBirdSold: { increment: 1 } }
+      })
+    }
+
     // 5. 更新用户角色和到期时间（admin 不降级）
     const currentUser = await tx.user.findUnique({ where: { id: userId }, select: { role: true } })
     const ROLE_LEVEL: Record<string, number> = { free: 0, pro: 1, creator: 2, admin: 99 }

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { usePermission } from '../hooks/usePermission'
 import { authService } from '../services/auth'
 import { Loader2, Copy, Download, Ban, Users, Ticket, BarChart3, Search, Crown, Shield } from 'lucide-react'
+import { useToast } from '../components/ui/Toast'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 
 import { API_BASE_URL } from '../services/api'
 
@@ -138,6 +140,8 @@ function OverviewPanel({ headers }: { headers: () => Record<string, string> }) {
 // ==================== 邀请码管理 ====================
 
 function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [codes, setCodes] = useState<PromoCodeItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -147,7 +151,8 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
   const [genResult, setGenResult] = useState<string[] | null>(null)
   const [form, setForm] = useState({
     count: 10, type: 'invite', plan: 'pro', durationDays: 30,
-    maxUsesPerCode: 1, expiresAt: '', description: '', prefix: 'LJINVITE'
+    maxUsesPerCode: 1, expiresAt: '', description: '', prefix: 'LJINVITE',
+    countsAsEarlyBird: false
   })
 
   const fetchCodes = useCallback(async (p = 1) => {
@@ -180,12 +185,12 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
       })
       const data = await res.json()
       if (res.ok && data.success) { setGenResult(data.codes); fetchCodes() }
-      else alert(data.error || '生成失败')
-    } catch { alert('网络错误') } finally { setGenLoading(false) }
+      else showToast(data.error || '生成失败', 'error')
+    } catch { showToast('网络错误', 'error') } finally { setGenLoading(false) }
   }
 
   const handleDeactivate = async (id: string) => {
-    if (!confirm('确定要停用该码吗？')) return
+    if (!await showConfirm({ message: '确定要停用该码吗？' })) return
     await fetch(`${API_BASE_URL}/api/admin/promo/${id}/deactivate`, { method: 'PATCH', headers: headers() })
     fetchCodes(page)
   }
@@ -195,7 +200,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
   const copyAllUnused = () => {
     const unused = codes.filter(c => c.isActive && c.usedCount === 0).map(c => c.code)
     navigator.clipboard.writeText(unused.join('\n'))
-    alert(`已复制 ${unused.length} 个未使用的码`)
+    showToast(`已复制 ${unused.length} 个未使用的码`, 'success')
   }
 
   const exportCSV = () => {
@@ -253,6 +258,12 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
             </FormField>
             <FormField label="备注" span={2}>
               <input type="text" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="如：早鸟邀请码第一批" style={inputStyle} />
+            </FormField>
+            <FormField label="早鸟名额">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.countsAsEarlyBird} onChange={e => setForm({ ...form, countsAsEarlyBird: e.target.checked })} />
+                <span style={{ fontSize: '13px', color: '#6B7280' }}>兑换时计入早鸟名额</span>
+              </label>
             </FormField>
           </div>
           <div style={{ marginTop: '14px' }}>
