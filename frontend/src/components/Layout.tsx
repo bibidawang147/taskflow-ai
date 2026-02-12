@@ -53,15 +53,21 @@ export default function Layout() {
   const [referralCopied, setReferralCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 从 JWT token 解析 userId
-  const userId = useMemo(() => {
+  // 从 JWT token 解析 userId 和 email
+  const { userId, userEmail } = useMemo(() => {
     try {
       const token = authService.getToken();
-      if (!token) return null;
+      if (!token) return { userId: null, userEmail: '' };
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.userId || payload.id || payload.sub || null;
-    } catch { return null; }
+      return {
+        userId: payload.userId || payload.id || payload.sub || null,
+        userEmail: payload.email || ''
+      };
+    } catch { return { userId: null, userEmail: '' }; }
   }, [isAuthenticated]);
+
+  const SUPER_ADMIN_EMAIL = 'bibidawang147@gmail.com';
+  const isSuperAdmin = userEmail === SUPER_ADMIN_EMAIL;
 
   const handleCopyId = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -237,11 +243,11 @@ export default function Layout() {
               borderRadius: '4px',
               fontSize: '10px',
               fontWeight: 600,
-              backgroundColor: ROLE_COLORS[subscription.role]?.bg || '#F3F4F6',
-              color: ROLE_COLORS[subscription.role]?.text || '#6B7280',
+              backgroundColor: isSuperAdmin ? '#FEE2E2' : (ROLE_COLORS[subscription.role]?.bg || '#F3F4F6'),
+              color: isSuperAdmin ? '#DC2626' : (ROLE_COLORS[subscription.role]?.text || '#6B7280'),
             }}>
               <Crown size={10} />
-              {ROLE_LABELS[subscription.role] || subscription.role}
+              {isSuperAdmin ? '超级管理员' : (ROLE_LABELS[subscription.role] || subscription.role)}
             </span>
           )}
         </div>
