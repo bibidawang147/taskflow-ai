@@ -17,11 +17,10 @@ export default function CanvasWelcomeModal({ onClose }: CanvasWelcomeModalProps)
 
   useEffect(() => {
     const shown = localStorage.getItem(CANVAS_WELCOME_KEY)
-    if (shown) return
-    // 只有 WelcomeGuide 已关闭时才显示（避免两个弹窗叠加）
-    const welcomeShown = localStorage.getItem('lingji_welcome_shown')
-    if (welcomeShown) {
-      setVisible(true)
+    if (!shown) {
+      // 延迟显示，让 WelcomeGuide 先渲染（如有）
+      const timer = setTimeout(() => setVisible(true), 300)
+      return () => clearTimeout(timer)
     }
   }, [])
 
@@ -38,7 +37,7 @@ export default function CanvasWelcomeModal({ onClose }: CanvasWelcomeModalProps)
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 9998,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

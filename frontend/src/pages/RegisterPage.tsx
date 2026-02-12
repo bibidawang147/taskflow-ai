@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/auth';
+import { useAuth } from '../contexts/AuthContext';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 export default function RegisterPage() {
@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,15 +42,12 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // 调用真实的注册 API
-      const response = await authService.register({
+      // 通过 AuthContext 注册，自动更新全局认证状态（token + user）
+      await register({
         name: formData.name,
         email: formData.email,
         password: formData.password,
       });
-
-      // 保存 token
-      authService.setToken(response.token);
 
       setSuccess('注册成功！即将跳转...');
 
