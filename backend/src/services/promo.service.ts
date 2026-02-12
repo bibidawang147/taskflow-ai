@@ -169,7 +169,7 @@ export async function redeemPromoCode(code: string, userId: string) {
 export async function getUserSubscription(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, roleExpiresAt: true }
+    select: { name: true, role: true, roleExpiresAt: true }
   })
 
   if (!user) {
@@ -195,6 +195,7 @@ export async function getUserSubscription(userId: string) {
       data: { role: 'free', roleExpiresAt: null }
     })
     return {
+      name: user.name,
       role: 'free',
       roleExpiresAt: null,
       daysRemaining: 0,
@@ -207,6 +208,7 @@ export async function getUserSubscription(userId: string) {
     : 0
 
   return {
+    name: user.name,
     role: user.role,
     roleExpiresAt: user.roleExpiresAt?.toISOString() || null,
     daysRemaining,

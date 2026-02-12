@@ -10,6 +10,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import '../styles/layout-responsive.css';
 
 interface SubscriptionInfo {
+  name?: string;
   role: string;
   roleExpiresAt: string | null;
   daysRemaining: number;
@@ -117,8 +118,12 @@ export default function Layout() {
             const data = await res.json();
             setMyReferralCode(data.code || '');
             setReferralUsedCount(data.usedCount || 0);
+          } else {
+            console.error('[Referral] API error:', res.status, await res.text());
           }
-        } catch {}
+        } catch (err) {
+          console.error('[Referral] Fetch error:', err);
+        }
       })();
     }
   }, [isAuthenticated]);
@@ -222,7 +227,7 @@ export default function Layout() {
       {/* 用户信息区 */}
       <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #F0F1F3' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#111827' }}>用户</span>
+          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#111827' }}>{subscription?.name || '用户'}</span>
           {subscription && subscription.role !== 'free' && (
             <span style={{
               display: 'inline-flex',
@@ -432,7 +437,8 @@ export default function Layout() {
             onClick={(e) => {
               e.stopPropagation();
               if (!myReferralCode) return;
-              navigator.clipboard.writeText(myReferralCode);
+              const shareText = `送你一个瓴积AI工作台的邀请码：${myReferralCode}，注册即可获得30天PRO会员体验！注册链接：https://huolehuole.top/register?ref=${myReferralCode}`;
+              navigator.clipboard.writeText(shareText);
               setReferralCopied(true);
               setTimeout(() => setReferralCopied(false), 2000);
             }}
