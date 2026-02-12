@@ -356,6 +356,8 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
 // ==================== 用户管理 ====================
 
 function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
+  const { showToast } = useToast()
+  const { showConfirm } = useConfirm()
   const [users, setUsers] = useState<UserItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -389,6 +391,28 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
   }, [headers, search, roleFilter])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  const handleDeleteUser = async (user: UserItem) => {
+    const confirmed = await showConfirm({
+      message: `确定删除用户「${user.name}」(${user.email})？\n该操作不可撤销，用户的所有数据都将被删除。`,
+      type: 'danger'
+    })
+    if (!confirmed) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/promo/users/${user.id}`, {
+        method: 'DELETE', headers: headers()
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        showToast(data.message || '用户已删除', 'success')
+        fetchUsers(page)
+      } else {
+        showToast(data.error || '删除失败', 'error')
+      }
+    } catch {
+      showToast('网络错误', 'error')
+    }
+  }
 
   const handleRoleChange = async (userId: string) => {
     if (!newRole) return
@@ -492,12 +516,20 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
                       </div>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => { setEditingUser(u.id); setNewRole(u.role); setRoleDays(30) }}
-                      style={{ ...outlineBtn, padding: '4px 12px', fontSize: '12px' }}
-                    >
-                      <Crown size={12} /> 改角色
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => { setEditingUser(u.id); setNewRole(u.role); setRoleDays(30) }}
+                        style={{ ...outlineBtn, padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        <Crown size={12} /> 改角色
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u)}
+                        style={{ ...outlineBtn, padding: '4px 12px', fontSize: '12px', color: '#EF4444', borderColor: '#FCA5A5' }}
+                      >
+                        删除
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

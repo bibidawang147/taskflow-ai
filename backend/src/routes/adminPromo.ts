@@ -228,6 +228,33 @@ router.patch(
 )
 
 /**
+ * DELETE /api/admin/promo/users/:id
+ * 删除用户（级联删除所有关联数据）
+ */
+router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const adminId = req.user!.id
+
+    if (id === adminId) {
+      return res.status(400).json({ error: '不能删除自己' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user) {
+      return res.status(404).json({ error: '用户不存在' })
+    }
+
+    await prisma.user.delete({ where: { id } })
+
+    return res.json({ success: true, message: `用户 ${user.name} 已删除` })
+  } catch (error) {
+    console.error('删除用户失败:', error)
+    return res.status(500).json({ error: '删除用户失败' })
+  }
+})
+
+/**
  * GET /api/admin/promo/stats
  * 管理后台概览数据
  */
