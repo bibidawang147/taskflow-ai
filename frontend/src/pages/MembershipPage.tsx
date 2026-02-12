@@ -139,7 +139,7 @@ export function MembershipPage() {
   const displayPrice = getDisplayPrice();
 
   function isPaidRole(role: string) {
-    return role === 'pro' || role === 'creator' || role === 'admin';
+    return role === 'pro' || role === 'creator';
   }
 
   const compareRows = [
@@ -184,13 +184,15 @@ export function MembershipPage() {
           <h1 className="membership-title">选择适合你的方案</h1>
           <div style={{ marginTop: 20 }}>
             <span className="membership-current-badge">
-              当前等级：{isTrial
-                ? `PRO会员体验中（剩余 ${subscription?.daysRemaining ?? 0} 天）`
-                : isPaidPro
-                  ? 'PRO会员'
-                  : userRole === 'creator'
-                    ? '创作者'
-                    : '免费版'}
+              当前等级：{userRole === 'admin'
+                ? '管理员'
+                : isTrial
+                  ? `PRO会员体验中（剩余 ${subscription?.daysRemaining ?? 0} 天）`
+                  : isPaidPro
+                    ? 'PRO会员'
+                    : userRole === 'creator'
+                      ? '创作者'
+                      : '免费版'}
             </span>
           </div>
         </div>
@@ -282,7 +284,7 @@ export function MembershipPage() {
               {[
                 '10 个画布（年度会员）',
                 'AI 转工作流 200 次/月',
-                '发布与复制所有工作方法',
+                '发布与复制所有会员专属AI工作方法',
                 '查看完整步骤详情与提示词',
                 '购买付费工作方法',
                 '申请成为创作者',
@@ -340,7 +342,7 @@ export function MembershipPage() {
               {[
                 '无限画布',
                 'AI 转工作流不限次数',
-                '发布与复制所有工作方法',
+                '发布与复制所有会员专属AI工作方法',
                 '查看完整步骤详情与提示词',
                 '团队协作功能',
                 '专属客服经理',
