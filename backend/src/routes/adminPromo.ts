@@ -7,6 +7,11 @@ import prisma from '../utils/database'
 
 const router = Router()
 
+// 超级管理员邮箱（拥有全部权限）
+const SUPER_ADMIN_EMAIL = 'bibidawang147@gmail.com'
+
+const isSuperAdmin = (email: string) => email === SUPER_ADMIN_EMAIL
+
 // 所有管理员路由都需要认证 + admin 角色
 router.use(authenticateToken)
 router.use(requireRole('admin'))
@@ -152,12 +157,16 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
     })
     const balanceMap = new Map(balances.map(b => [b.userId, b]))
 
+    const currentUserEmail = req.user!.email || ''
+    const currentIsSuperAdmin = isSuperAdmin(currentUserEmail)
+
     const formattedUsers = users.map(u => ({
       id: u.id,
       name: u.name,
       email: u.email,
       avatar: u.avatar,
       role: u.role,
+      isSuperAdmin: isSuperAdmin(u.email),
       roleExpiresAt: u.roleExpiresAt?.toISOString() || null,
       tier: u.tier,
       createdAt: u.createdAt.toISOString(),
@@ -180,7 +189,8 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize)
+      totalPages: Math.ceil(total / pageSize),
+      currentUserIsSuperAdmin: currentIsSuperAdmin
     })
   } catch (error) {
     console.error('查询用户列表失败:', error)
@@ -199,10 +209,27 @@ router.patch(
     try {
       const { id } = req.params
       const { role: newRole, durationDays } = req.body
+      const currentEmail = req.user!.email || ''
+      const currentIsSuperAdmin = isSuperAdmin(currentEmail)
 
-      const user = await prisma.user.findUnique({ where: { id } })
-      if (!user) {
+      const targetUser = await prisma.user.findUnique({ where: { id } })
+      if (!targetUser) {
         return res.status(404).json({ error: '用户不存在' })
+      }
+
+      // 超级管理员不能被任何人修改角色
+      if (isSuperAdmin(targetUser.email)) {
+        return res.status(403).json({ error: '无法修改超级管理员' })
+      }
+
+      // 普通管理员：不能修改其他管理员，不能把人设为管理员
+      if (!currentIsSuperAdmin) {
+        if (targetUser.role === 'admin') {
+          return res.status(403).json({ error: '权限不足，无法修改管理员' })
+        }
+        if (newRole === 'admin') {
+          return res.status(403).json({ error: '权限不足，只有超级管理员可以设置管理员' })
+        }
       }
 
       const updateData: any = { role: newRole }
@@ -210,7 +237,6 @@ router.patch(
       if (newRole === 'free') {
         updateData.roleExpiresAt = null
       } else if (newRole !== 'admin' && durationDays) {
-        // 设置过期时间
         updateData.roleExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
       }
 
@@ -235,6 +261,8 @@ router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { id } = req.params
     const adminId = req.user!.id
+    const currentEmail = req.user!.email || ''
+    const currentIsSuperAdmin = isSuperAdmin(currentEmail)
 
     if (id === adminId) {
       return res.status(400).json({ error: '不能删除自己' })
@@ -243,6 +271,16 @@ router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => 
     const user = await prisma.user.findUnique({ where: { id } })
     if (!user) {
       return res.status(404).json({ error: '用户不存在' })
+    }
+
+    // 超级管理员不能被任何人删除
+    if (isSuperAdmin(user.email)) {
+      return res.status(403).json({ error: '无法删除超级管理员' })
+    }
+
+    // 普通管理员不能删除其他管理员
+    if (!currentIsSuperAdmin && user.role === 'admin') {
+      return res.status(403).json({ error: '权限不足，只有超级管理员可以删除管理员' })
     }
 
     await prisma.user.delete({ where: { id } })

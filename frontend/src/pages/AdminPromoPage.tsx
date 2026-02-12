@@ -18,7 +18,7 @@ interface PromoCodeItem {
 
 interface UserItem {
   id: string; name: string; email: string; avatar: string | null
-  role: string; roleExpiresAt: string | null; tier: string; createdAt: string
+  role: string; isSuperAdmin: boolean; roleExpiresAt: string | null; tier: string; createdAt: string
   stats: { workflows: number; executions: number; favorites: number; redemptions: number; subscriptions: number }
   balance: { coins: number; totalRecharged: number; totalConsumed: number } | null
 }
@@ -369,6 +369,7 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [newRole, setNewRole] = useState('')
   const [roleDays, setRoleDays] = useState(30)
+  const [meIsSuperAdmin, setMeIsSuperAdmin] = useState(false)
 
   const fetchUsers = useCallback(async (p = 1) => {
     setLoading(true)
@@ -382,6 +383,7 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
         setUsers(data.users)
         setTotal(data.total)
         setPage(p)
+        if (data.currentUserIsSuperAdmin !== undefined) setMeIsSuperAdmin(data.currentUserIsSuperAdmin)
       } else {
         console.error('[AdminPromoPage] 获取用户列表失败:', res.status, res.statusText)
       }
@@ -480,7 +482,7 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <RoleTag role={u.role} />
+                    <RoleTag role={u.role} isSuperAdmin={u.isSuperAdmin} />
                     {u.role !== 'free' && u.role !== 'admin' && u.roleExpiresAt && (
                       <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
                         {new Date(u.roleExpiresAt).toLocaleDateString('zh-CN')} 到期
@@ -495,7 +497,12 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
                 <td style={tdStyle}>{u.stats.executions}</td>
                 <td style={tdStyle}>{new Date(u.createdAt).toLocaleDateString('zh-CN')}</td>
                 <td style={{ ...tdStyle, minWidth: '160px' }}>
-                  {editingUser === u.id ? (
+                  {/* 超级管理员不可被任何人操作；普通管理员只能被超级管理员操作 */}
+                  {u.isSuperAdmin ? (
+                    <span style={{ fontSize: '12px', color: '#9CA3AF' }}>—</span>
+                  ) : (!meIsSuperAdmin && u.role === 'admin') ? (
+                    <span style={{ fontSize: '12px', color: '#9CA3AF' }}>—</span>
+                  ) : editingUser === u.id ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ ...inputStyle, fontSize: '12px', padding: '4px 6px' }}>
@@ -503,7 +510,7 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
                           <option value="free">Free</option>
                           <option value="pro">Pro</option>
                           <option value="creator">创作者</option>
-                          <option value="admin">管理员</option>
+                          {meIsSuperAdmin && <option value="admin">管理员</option>}
                         </select>
                       </div>
                       {newRole && newRole !== 'free' && newRole !== 'admin' && (
@@ -547,7 +554,17 @@ function UsersPanel({ headers }: { headers: () => Record<string, string> }) {
 
 // ==================== 公共小组件 ====================
 
-function RoleTag({ role }: { role: string }) {
+function RoleTag({ role, isSuperAdmin }: { role: string; isSuperAdmin?: boolean }) {
+  if (isSuperAdmin) {
+    return (
+      <span style={{
+        display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
+        fontSize: '11px', fontWeight: 600, backgroundColor: '#FEE2E2', color: '#DC2626'
+      }}>
+        超级管理员
+      </span>
+    )
+  }
   const t = ROLE_TAG[role] || ROLE_TAG.free
   return (
     <span style={{
