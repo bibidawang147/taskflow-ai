@@ -169,8 +169,10 @@ export async function redeemPromoCode(code: string, userId: string) {
 export async function getUserSubscription(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, role: true, roleExpiresAt: true }
+    select: { name: true, email: true, role: true, roleExpiresAt: true }
   })
+
+  const SUPER_ADMIN_EMAIL = 'bibidawang147@gmail.com'
 
   if (!user) {
     return null
@@ -197,6 +199,7 @@ export async function getUserSubscription(userId: string) {
     return {
       name: user.name,
       role: 'free',
+      isSuperAdmin: user.email === SUPER_ADMIN_EMAIL,
       roleExpiresAt: null,
       daysRemaining: 0,
       activeSubscription: null
@@ -210,6 +213,7 @@ export async function getUserSubscription(userId: string) {
   return {
     name: user.name,
     role: user.role,
+    isSuperAdmin: user.email === SUPER_ADMIN_EMAIL,
     roleExpiresAt: user.roleExpiresAt?.toISOString() || null,
     daysRemaining,
     activeSubscription: activeSubscription

@@ -12,6 +12,7 @@ import '../styles/layout-responsive.css';
 interface SubscriptionInfo {
   name?: string;
   role: string;
+  isSuperAdmin?: boolean;
   roleExpiresAt: string | null;
   daysRemaining: number;
   activeSubscription: {
@@ -53,21 +54,17 @@ export default function Layout() {
   const [referralCopied, setReferralCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 从 JWT token 解析 userId 和 email
-  const { userId, userEmail } = useMemo(() => {
+  // 从 JWT token 解析 userId
+  const userId = useMemo(() => {
     try {
       const token = authService.getToken();
-      if (!token) return { userId: null, userEmail: '' };
+      if (!token) return null;
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return {
-        userId: payload.userId || payload.id || payload.sub || null,
-        userEmail: payload.email || ''
-      };
-    } catch { return { userId: null, userEmail: '' }; }
+      return payload.userId || payload.id || payload.sub || null;
+    } catch { return null; }
   }, [isAuthenticated]);
 
-  const SUPER_ADMIN_EMAIL = 'bibidawang147@gmail.com';
-  const isSuperAdmin = userEmail === SUPER_ADMIN_EMAIL;
+  const isSuperAdmin = subscription?.isSuperAdmin === true;
 
   const handleCopyId = (e: React.MouseEvent) => {
     e.stopPropagation();
