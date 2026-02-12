@@ -201,7 +201,9 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
     const link = `${siteUrl}/redeem?code=${code}`
     const typeLabel = type ? (TYPE_LABELS[type] || type) : '兑换码'
     const planLabel = plan ? (ROLE_LABELS[plan] || plan) : ''
-    const daysLabel = days ? `${days}天` : ''
+    // 年卡码自动修正天数
+    const actualDays = type === 'annual' ? Math.max(days || 365, 365) : days
+    const daysLabel = actualDays ? `${actualDays}天` : ''
     const desc = [planLabel, daysLabel].filter(Boolean).join(' · ')
     const text = `🎁 送你一个瓴积AI${typeLabel}${desc ? `（${desc}）` : ''}，点击链接直接兑换：\n${link}`
     navigator.clipboard.writeText(text)
@@ -250,7 +252,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
             <FormField label="类型">
               <select value={form.type} onChange={e => {
                 const type = e.target.value
-                setForm({ ...form, type, durationDays: type === 'annual' ? 365 : 30 })
+                setForm(prev => ({ ...prev, type, durationDays: type === 'annual' ? 365 : 30 }))
               }} style={inputStyle}>
                 <option value="invite">邀请码</option><option value="discount">优惠码</option>
                 <option value="gift">赠送码</option><option value="annual">年卡码</option>
@@ -325,7 +327,7 @@ function CodesPanel({ headers }: { headers: () => Record<string, string> }) {
                 </td>
                 <td style={tdStyle}>{TYPE_LABELS[c.type] || c.type}</td>
                 <td style={tdStyle}><RoleTag role={c.plan} /></td>
-                <td style={tdStyle}>{c.durationDays}天</td>
+                <td style={tdStyle}>{c.type === 'annual' ? Math.max(c.durationDays, 365) : c.durationDays}天</td>
                 <td style={tdStyle}>{c.usedCount}/{c.maxUses ?? '∞'}</td>
                 <td style={tdStyle}>
                   {c.isActive ? (c.maxUses !== null && c.usedCount >= c.maxUses
