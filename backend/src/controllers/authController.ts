@@ -10,6 +10,7 @@ import { generateToken } from '../utils/jwt'
 import { createError } from '../middleware/errorHandler'
 import { creditService } from '../services/credit.service'
 import { initializeSampleCanvas } from '../services/workspace.service'
+import { useReferralCode } from '../services/referral.service'
 
 const WECHAT_APP_ID = process.env.WECHAT_APP_ID || ''
 const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || ''
@@ -26,7 +27,7 @@ export const register = async (req: Request, res: Response) => {
       })
     }
 
-    const { name, email, password } = req.body
+    const { name, email, password, referralCode } = req.body
 
     // 检查邮箱是否已存在
     const existingUser = await prisma.user.findUnique({
@@ -64,11 +65,24 @@ export const register = async (req: Request, res: Response) => {
     // 初始化空白画布
     await initializeSampleCanvas(user.id, [])
 
+    // 如果有邀请码，自动使用
+    let referralMessage = ''
+    if (referralCode && typeof referralCode === 'string' && referralCode.trim()) {
+      try {
+        const referralResult = await useReferralCode(referralCode.trim().toUpperCase(), user.id)
+        if (referralResult.success) {
+          referralMessage = '，' + referralResult.message
+        }
+      } catch (e) {
+        // 邀请码失败不影响注册
+      }
+    }
+
     // 生成JWT令牌
     const token = generateToken(user.id)
 
     res.status(201).json({
-      message: '注册成功，已赠送 50000 积分',
+      message: '注册成功，已赠送 50000 积分' + referralMessage,
       user,
       token
     })

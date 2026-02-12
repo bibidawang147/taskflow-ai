@@ -95,6 +95,9 @@ model User {
   // AI对话会话
   chatSessions  ChatSession[]
 
+  // 用户专属邀请码
+  referralCode  String?  @unique
+
   @@map("users")
 }
 

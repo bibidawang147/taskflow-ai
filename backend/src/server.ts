@@ -30,6 +30,7 @@ import chatsRoutes from './routes/chats'
 import promoRoutes from './routes/promo'
 import adminPromoRoutes from './routes/adminPromo'
 import pricingRoutes from './routes/pricing'
+import referralRoutes from './routes/referral'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticateToken } from './middleware/auth'
 import logger, { stream } from './utils/logger'
@@ -132,6 +133,7 @@ app.use('/api/chats', chatsRoutes) // AI对话会话管理
 app.use('/api/promo', promoRoutes) // 邀请码/优惠码
 app.use('/api/admin/promo', adminPromoRoutes) // 管理员-码管理
 app.use('/api/pricing', pricingRoutes) // 定价+购买+订单管理
+app.use('/api/referral', referralRoutes) // 用户专属邀请码
 
 // 错误处理
 app.use(errorHandler)

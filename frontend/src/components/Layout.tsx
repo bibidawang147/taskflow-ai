@@ -47,6 +47,9 @@ export default function Layout() {
   const [inviteResult, setInviteResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [idCopied, setIdCopied] = useState(false);
+  const [myReferralCode, setMyReferralCode] = useState('');
+  const [referralUsedCount, setReferralUsedCount] = useState(0);
+  const [referralCopied, setReferralCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 从 JWT token 解析 userId
@@ -100,7 +103,24 @@ export default function Layout() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) fetchSubscription();
+    if (isAuthenticated) {
+      fetchSubscription();
+      // 获取我的邀请码
+      (async () => {
+        try {
+          const token = authService.getToken();
+          if (!token) return;
+          const res = await fetch(`${API_BASE_URL}/api/referral/my-code`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setMyReferralCode(data.code || '');
+            setReferralUsedCount(data.usedCount || 0);
+          }
+        } catch {}
+      })();
+    }
   }, [isAuthenticated]);
 
   const handleInviteSubmit = async () => {
@@ -381,6 +401,66 @@ export default function Layout() {
             {inviteResult.msg}
           </div>
         )}
+      </div>
+
+      {/* 我的邀请码 */}
+      <div style={{ borderTop: '1px solid #F0F1F3', padding: '7px 14px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          <Ticket size={13} color="#f59e0b" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563', flexShrink: 0 }}>我的邀请码</span>
+          <span style={{ fontSize: '10px', color: '#9CA3AF', marginLeft: 'auto' }}>{referralUsedCount}/200</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <code
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              flex: 1,
+              padding: '3px 7px',
+              background: '#F9FAFB',
+              border: '1px solid #E5E7EB',
+              borderRadius: '5px',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              color: '#374151',
+              letterSpacing: '0.5px',
+              userSelect: 'all',
+            }}
+          >
+            {myReferralCode || '加载中...'}
+          </code>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!myReferralCode) return;
+              navigator.clipboard.writeText(myReferralCode);
+              setReferralCopied(true);
+              setTimeout(() => setReferralCopied(false), 2000);
+            }}
+            disabled={!myReferralCode}
+            style={{
+              padding: '3px 8px',
+              backgroundColor: !myReferralCode ? '#E5E7EB' : referralCopied ? '#059669' : '#f59e0b',
+              color: !myReferralCode ? '#9CA3AF' : 'white',
+              border: 'none',
+              borderRadius: '5px',
+              fontSize: '11px',
+              fontWeight: 500,
+              cursor: !myReferralCode ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+          >
+            {referralCopied ? <Check size={10} /> : <Copy size={10} />}
+            {referralCopied ? '已复制' : '复制'}
+          </button>
+        </div>
+        <div style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '3px', paddingLeft: '19px' }}>
+          好友使用可得30天PRO，你获得7天
+        </div>
       </div>
 
       {/* 退出登录 */}
