@@ -51,7 +51,7 @@ export default function RegisterPage() {
       // 保存 token
       authService.setToken(response.token);
 
-      setSuccess('注册成功！已赠送 50,000 积分，即将跳转...');
+      setSuccess('注册成功！即将跳转...');
 
       // 标记为新用户，确保欢迎引导弹出
       localStorage.removeItem('lingji_welcome_shown');
@@ -421,31 +421,6 @@ export default function RegisterPage() {
           </form>
 
           {/* 注册优势 */}
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#f8fafc',
-              borderRadius: '6px',
-            }}
-          >
-            <h4
-              style={{
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#1f2937',
-                marginBottom: '0.5rem',
-              }}
-            >
-              注册即可享受
-            </h4>
-            <ul style={{ fontSize: '12px', color: '#6b7280', margin: 0, paddingLeft: '1rem' }}>
-              <li>注册赠送 50,000 积分</li>
-              <li>每日 10,000 积分免费额度</li>
-              <li>访问所有基础 AI 模型</li>
-              <li>创建和管理工作流</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

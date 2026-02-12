@@ -43,10 +43,10 @@ export default function WelcomeGuide({ onClose }: WelcomeGuideProps) {
     },
     {
       icon: PenTool,
-      title: '创建第一个工作流',
-      desc: '用可视化编辑器搭建你的专属 AI 工作流程',
-      action: () => handleAction('/workflow/create'),
-      buttonText: '去创建',
+      title: '进入 AI 工作台',
+      desc: '在画布上自由组织你的 AI 工作流，打造专属工作空间',
+      action: () => handleAction('/workspace'),
+      buttonText: '去工作台',
       color: '#3b82f6',
     },
     {
