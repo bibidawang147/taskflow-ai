@@ -60,9 +60,9 @@ function App() {
       <Route path="/ai-chat" element={<AIChatPage />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/workspace" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="home" element={<HomePage />} />
-        <Route path="workspace" element={<StoragePage />} />
+        <Route path="workspace" element={<ProtectedRoute><StoragePage /></ProtectedRoute>} />
         {/* /storage 重定向到 /workspace 统一入口 */}
         <Route path="storage" element={<Navigate to="/workspace" replace />} />
         {/* 公开页面 */}
