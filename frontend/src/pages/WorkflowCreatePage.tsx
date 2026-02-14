@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { FileText, ChevronDown, ChevronRight } from 'lucide-react'
+import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom'
+import { FileText, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
 import { popularWorkPackages } from '../data/popularWorkPackages'
@@ -119,8 +119,8 @@ const AI_MODELS: Record<string, string[]> = {
 
 // AI 内部生成用模型配置（描述生成、文章转换等内部功能）
 const INTERNAL_AI_CONFIG = {
-  provider: 'doubao',
-  model: 'doubao-1-5-pro-32k-250115',
+  provider: 'qwen',
+  model: 'qwen-plus',
 } as const
 
 // 场景分类（一级Tab -> 二级胶囊标签）
@@ -700,26 +700,29 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
     }
   }, [hasUnsavedChanges])
 
-  // 拦截路由导航（兼容 BrowserRouter，不依赖 data router）
-  const lastPathnameRef = useRef(location.pathname)
+  // 拦截路由导航：使用 useBlocker 在导航发生前拦截
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  )
+
   useEffect(() => {
-    if (lastPathnameRef.current !== location.pathname && hasUnsavedChanges) {
-      const prevPathname = lastPathnameRef.current
-      ;(async () => {
-        const confirmLeave = await showConfirm({
-          message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。'
-        })
-        if (!confirmLeave) {
-          // 用户取消，回退到原路径
-          navigate(prevPathname, { replace: true })
-          return
+    if (blocker.state === 'blocked') {
+      showConfirm({
+        title: '未保存的更改',
+        message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。',
+        type: 'warning',
+        confirmText: '离开',
+        cancelText: '继续编辑'
+      }).then(confirmed => {
+        if (confirmed) {
+          blocker.proceed()
+        } else {
+          blocker.reset()
         }
-        lastPathnameRef.current = location.pathname
-      })()
-    } else {
-      lastPathnameRef.current = location.pathname
+      })
     }
-  }, [location.pathname, hasUnsavedChanges, navigate])
+  }, [blocker.state])
 
   const loadWorkflow = async () => {
     if (!id) return
@@ -1499,7 +1502,7 @@ ${articleInput.trim()}
                   </>
                 ) : (
                   <>
-                    <span className="ai-sparkle">✨</span>
+                    <Sparkles className="ai-sparkle" size={14} />
                     AI 生成
                   </>
                 )}

@@ -386,7 +386,9 @@
 }
 
 .ai-sparkle {
-  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* AI 加载动画 */
