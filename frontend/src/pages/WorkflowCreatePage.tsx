@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useParams, useLocation, useBlocker } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { FileText, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
@@ -699,30 +699,6 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [hasUnsavedChanges])
-
-  // 拦截路由导航：使用 useBlocker 在导航发生前拦截
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
-  )
-
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      showConfirm({
-        title: '未保存的更改',
-        message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。',
-        type: 'warning',
-        confirmText: '离开',
-        cancelText: '继续编辑'
-      }).then(confirmed => {
-        if (confirmed) {
-          blocker.proceed()
-        } else {
-          blocker.reset()
-        }
-      })
-    }
-  }, [blocker.state])
 
   const loadWorkflow = async () => {
     if (!id) return
