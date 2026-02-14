@@ -35,19 +35,23 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // 清除无效的令牌
-      localStorage.removeItem('token')
+      // 只有当请求确实携带了 token 时才清除（说明 token 已失效）
+      // 避免未登录状态下的 401 误删新 token
+      const requestHadToken = error.config?.headers?.Authorization
+      if (requestHadToken) {
+        localStorage.removeItem('token')
+      }
 
       // 防止多个并发请求同时 401 导致重复跳转
       if (!isRedirecting) {
         const currentPath = window.location.pathname
-        const publicPaths = ['/explore', '/', '/workflow-intro', '/solution', '/community', '/forgot-password', '/reset-password']
-        const isPublicPath = publicPaths.some(path => currentPath.startsWith(path) || currentPath === path)
+        const publicPaths = ['/explore', '/workflow-intro', '/solution', '/community', '/forgot-password', '/reset-password']
+        const isPublicPath = publicPaths.some(path => currentPath.startsWith(path))
+            || currentPath === '/'
 
         if (!isPublicPath && currentPath !== '/login' && currentPath !== '/register') {
           isRedirecting = true
           window.location.href = '/login'
-          // 跳转后重置标记（实际上页面会刷新，但加个保险）
           setTimeout(() => { isRedirecting = false }, 3000)
         }
       }
