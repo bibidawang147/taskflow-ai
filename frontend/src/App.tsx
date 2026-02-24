@@ -31,6 +31,7 @@ import AdminPromoPage from './pages/AdminPromoPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminPricingPage from './pages/AdminPricingPage'
 import WechatCallbackPage from './pages/WechatCallbackPage'
+import WechatBindCallbackPage from './pages/WechatBindCallbackPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import RedeemPage from './pages/RedeemPage'
@@ -53,6 +54,7 @@ function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/wechat/callback" element={<WechatCallbackPage />} />
+      <Route path="/auth/wechat/bindback" element={<WechatBindCallbackPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />

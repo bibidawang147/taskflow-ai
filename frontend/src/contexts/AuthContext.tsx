@@ -7,6 +7,7 @@ interface AuthContextType {
   login: (data: LoginData) => Promise<void>
   register: (data: RegisterData) => Promise<void>
   logout: () => void
+  refreshUser: () => Promise<void>
   isAuthenticated: boolean
 }
 
@@ -65,6 +66,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const refreshUser = async () => {
+    try {
+      const { user } = await authService.getProfile()
+      setUser(user)
+    } catch (error) {
+      console.error('刷新用户信息失败:', error)
+    }
+  }
+
   const logout = () => {
     authService.logout()
     setUser(null)
@@ -76,6 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated
   }
 

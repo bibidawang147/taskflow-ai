@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { body } from 'express-validator'
-import { register, login, getProfile, getWechatAuthUrl, wechatCallback, forgotPassword, resetPassword } from '../controllers/authController'
+import { register, login, getProfile, getWechatAuthUrl, wechatCallback, checkEmail, bindWechat, confirmBindWechat, bindEmail, forgotPassword, resetPassword } from '../controllers/authController'
 import { authenticateToken } from '../middleware/auth'
 
 const router = Router()
@@ -45,6 +45,12 @@ router.get('/profile', authenticateToken, getProfile)
 // 微信扫码登录
 router.get('/wechat/url', getWechatAuthUrl)
 router.get('/wechat/callback', wechatCallback)
+
+// 账号绑定
+router.get('/check-email', checkEmail)
+router.post('/bind/wechat', authenticateToken, bindWechat)
+router.post('/bind/wechat/confirm', authenticateToken, confirmBindWechat)
+router.post('/bind/email', authenticateToken, bindEmail)
 
 // 忘记密码验证规则
 const forgotPasswordValidation = [

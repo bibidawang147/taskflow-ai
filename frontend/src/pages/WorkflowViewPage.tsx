@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ChevronRight, RotateCcw, CheckCircle2, Loader2, Play, Edit3, Plus } from 'lucide-react'
-import { getFullWorkflow, cloneWorkflow } from '../services/workflowApi'
+import { getFullWorkflow, cloneWorkflow, favoriteWorkflow } from '../services/workflowApi'
 import { authService } from '../services/auth'
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowStepDetail, WorkflowPreparation } from '../types/workflow'
 import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
@@ -61,6 +61,12 @@ export default function WorkflowViewPage() {
     try {
       setCloning(true)
       const result = await cloneWorkflow(id)
+      // 自动收藏到AI工作方法收藏夹
+      try {
+        await favoriteWorkflow(id)
+      } catch (favErr) {
+        console.warn('自动收藏失败（可能已收藏）:', favErr)
+      }
       setCloneSuccess(true)
       // 设置标记，StoragePage 会读取并自动将卡片添加到画布
       localStorage.setItem('newlyClonedWorkflowId', result.workflow.id)

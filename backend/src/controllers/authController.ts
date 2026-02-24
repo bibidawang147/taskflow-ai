@@ -6,11 +6,13 @@ import { hashPassword, comparePassword, validatePassword } from '../utils/passwo
 import { sendPasswordResetEmail } from '../utils/email'
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
-import { generateToken } from '../utils/jwt'
+import { generateToken, verifyToken } from '../utils/jwt'
+import jwt from 'jsonwebtoken'
 import { createError } from '../middleware/errorHandler'
 import { creditService } from '../services/credit.service'
 import { initializeSampleCanvas } from '../services/workspace.service'
 import { useReferralCode } from '../services/referral.service'
+import { bindWechatToEmailUser, bindEmailToWechatUser } from '../services/accountMerge.service'
 
 const WECHAT_APP_ID = process.env.WECHAT_APP_ID || ''
 const WECHAT_APP_SECRET = process.env.WECHAT_APP_SECRET || ''
@@ -202,8 +204,16 @@ export const getWechatAuthUrl = async (req: Request, res: Response) => {
       return res.status(500).json({ error: '微信登录未配置' })
     }
 
+    const mode = req.query.mode as string | undefined
     const state = crypto.randomBytes(16).toString('hex')
-    const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${WECHAT_APP_ID}&redirect_uri=${encodeURIComponent(WECHAT_REDIRECT_URI)}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`
+
+    // 绑定模式使用不同的回调地址
+    let redirectUri = WECHAT_REDIRECT_URI
+    if (mode === 'bind') {
+      redirectUri = WECHAT_REDIRECT_URI.replace('/auth/wechat/callback', '/auth/wechat/bindback')
+    }
+
+    const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${WECHAT_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`
 
     res.json({ url, state })
   } catch (error) {
@@ -311,6 +321,183 @@ export const wechatCallback = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('微信登录回调错误:', error)
     res.status(500).json({ error: '微信登录失败，请稍后重试' })
+  }
+}
+
+// ==================== 账号绑定 ====================
+
+const JWT_SECRET = process.env.JWT_SECRET || ''
+
+/**
+ * GET /api/auth/check-email?email=xxx — 检查邮箱是否已注册
+ */
+export const checkEmail = async (req: Request, res: Response) => {
+  try {
+    const email = req.query.email as string
+    if (!email) {
+      return res.status(400).json({ error: '缺少邮箱参数' })
+    }
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true }
+    })
+    res.json({ registered: !!existing, name: existing?.name || null })
+  } catch (error) {
+    console.error('检查邮箱错误:', error)
+    res.status(500).json({ error: '检查失败' })
+  }
+}
+
+/**
+ * POST /api/auth/bind/wechat — 邮箱用户绑定微信（第一步：检查是否需要合并）
+ */
+export const bindWechat = async (req: any, res: Response) => {
+  try {
+    const { code } = req.body
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: '缺少微信授权码' })
+    }
+
+    // 用 code 换 access_token + openid
+    const tokenUrl = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${WECHAT_APP_ID}&secret=${WECHAT_APP_SECRET}&code=${code}&grant_type=authorization_code`
+    const tokenRes = await fetch(tokenUrl)
+    const tokenData = await tokenRes.json() as {
+      access_token?: string; openid?: string; unionid?: string; errcode?: number; errmsg?: string
+    }
+
+    if (tokenData.errcode || !tokenData.access_token) {
+      return res.status(400).json({ error: '微信授权失败: ' + (tokenData.errmsg || '未知错误') })
+    }
+
+    const { access_token, openid, unionid } = tokenData
+
+    // 获取微信用户信息
+    const userInfoUrl = `https://api.weixin.qq.com/sns/userinfo?access_token=${access_token}&openid=${openid}&lang=zh_CN`
+    const userInfoRes = await fetch(userInfoUrl)
+    const wxUser = await userInfoRes.json() as { nickname?: string; headimgurl?: string; unionid?: string }
+
+    const wxNickname = wxUser.nickname || '微信用户'
+    const wxAvatar = wxUser.headimgurl || null
+    const wxUnionId = unionid || wxUser.unionid || null
+
+    // 检查是否有已存在的微信账号
+    const existingWxUser = await prisma.user.findUnique({
+      where: { wechatOpenId: openid }
+    })
+
+    if (existingWxUser && existingWxUser.id !== req.user.id) {
+      // 有冲突 → 不自动合并，返回确认信息 + 临时令牌
+      const wxDataToken = jwt.sign(
+        { openid, unionid: wxUnionId, nickname: wxNickname, avatar: wxAvatar },
+        JWT_SECRET,
+        { expiresIn: '5m' }
+      )
+      return res.json({
+        needsConfirm: true,
+        message: `该微信已关联账号「${existingWxUser.name}」，确认合并后两个账号的数据将合为一个`,
+        existingName: existingWxUser.name,
+        wxDataToken
+      })
+    }
+
+    // 无冲突 → 直接绑定
+    const result = await bindWechatToEmailUser(req.user.id, openid!, wxUnionId, wxNickname, wxAvatar)
+    const token = generateToken(req.user.id)
+    res.json({ ...result, token })
+  } catch (error: any) {
+    console.error('绑定微信错误:', error)
+    res.status(error.message?.includes('已绑定') ? 409 : 500).json({
+      error: error.message || '绑定微信失败'
+    })
+  }
+}
+
+/**
+ * POST /api/auth/bind/wechat/confirm — 确认合并微信账号
+ */
+export const confirmBindWechat = async (req: any, res: Response) => {
+  try {
+    const { wxDataToken } = req.body
+    if (!wxDataToken) {
+      return res.status(400).json({ error: '缺少确认令牌' })
+    }
+
+    // 验证临时令牌
+    let wxData: { openid: string; unionid: string | null; nickname: string; avatar: string | null }
+    try {
+      wxData = jwt.verify(wxDataToken, JWT_SECRET) as any
+    } catch {
+      return res.status(400).json({ error: '确认令牌已过期，请重新绑定' })
+    }
+
+    const result = await bindWechatToEmailUser(
+      req.user.id, wxData.openid, wxData.unionid, wxData.nickname, wxData.avatar
+    )
+    const token = generateToken(req.user.id)
+    res.json({ ...result, token })
+  } catch (error: any) {
+    console.error('确认绑定微信错误:', error)
+    res.status(500).json({ error: error.message || '合并失败' })
+  }
+}
+
+/**
+ * POST /api/auth/bind/email — 微信用户绑定邮箱
+ * 未注册邮箱：只需 email（无需密码）
+ * 已注册邮箱：需 email + password（验证身份后合并）
+ */
+export const bindEmail = async (req: any, res: Response) => {
+  try {
+    const { email, password, name } = req.body
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: '请输入有效的邮箱地址' })
+    }
+
+    // 检查当前用户是否已有真实邮箱
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, password: true }
+    })
+    if (currentUser && currentUser.password && !currentUser.email.endsWith('@wechat.placeholder')) {
+      return res.status(409).json({ error: '该账号已绑定邮箱' })
+    }
+
+    // 检查邮箱是否已被其他账号注册
+    const existingEmailUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, password: true, name: true }
+    })
+
+    if (!existingEmailUser) {
+      // 邮箱未注册 → 直接绑定，不需要密码
+      const result = await bindEmailToWechatUser(req.user.id, email, '', name)
+      const token = generateToken(req.user.id)
+      return res.json({ ...result, token })
+    }
+
+    // 邮箱已注册 → 需要密码验证
+    if (!password) {
+      return res.status(400).json({ error: '该邮箱已注册，请输入密码以确认合并' })
+    }
+
+    if (!existingEmailUser.password) {
+      return res.status(400).json({ error: '该邮箱账号没有设置密码，无法验证身份' })
+    }
+
+    const isValid = await comparePassword(password, existingEmailUser.password)
+    if (!isValid) {
+      return res.status(401).json({ error: '密码错误，无法合并' })
+    }
+
+    // 密码验证通过 → 合并
+    const result = await bindEmailToWechatUser(req.user.id, email, existingEmailUser.password, name)
+    const token = generateToken(req.user.id)
+    res.json({ ...result, token })
+  } catch (error: any) {
+    console.error('绑定邮箱错误:', error)
+    res.status(error.message?.includes('已绑定') ? 409 : 500).json({
+      error: error.message || '绑定邮箱失败'
+    })
   }
 }
 

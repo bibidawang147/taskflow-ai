@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function WechatCallbackPage() {
   const [searchParams] = useSearchParams();
   const [error, setError] = useState('');
-  const navigate = useNavigate();
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -18,13 +17,14 @@ export default function WechatCallbackPage() {
     authService.wechatLogin(code)
       .then((res) => {
         authService.setToken(res.token);
-        navigate('/', { replace: true });
+        // 使用 window.location 强制刷新，让 AuthContext 重新初始化用户状态
+        window.location.href = '/';
       })
       .catch((err) => {
         console.error('微信登录失败:', err);
         setError(err.response?.data?.error || '微信登录失败，请稍后重试');
       });
-  }, [searchParams, navigate]);
+  }, [searchParams]);
 
   if (error) {
     return (

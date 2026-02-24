@@ -1459,7 +1459,7 @@ export default function StoragePage() {
         id: workflow.id,
         name: workflow.title,
         summary: workflow.description || '',
-        status: 'active' as WorkflowStatus,
+        status: (workflow.isDraft ? 'draft' : 'active') as WorkflowStatus,
         category: workflow.category || '未分类',
         tags: Array.isArray(workflow.tags) ? workflow.tags : [],
         owner: workflow.author?.name || '我',
@@ -1492,17 +1492,11 @@ export default function StoragePage() {
       return convertToLibraryWorkflow(wf, 'favorites', isOwner)
     })
 
-    // ✅ 过滤：只显示已发布的工作流（isDraft: false）
-    const publishedWorkflows = (createdWorkflows || []).filter(wf => !wf.isDraft)
-    const created = publishedWorkflows.map(wf => convertToLibraryWorkflow(wf, 'created', true))
+    // 显示所有工作流（包括草稿），草稿标记为 draft 状态
+    const created = (createdWorkflows || []).map(wf => convertToLibraryWorkflow(wf, 'created', true))
 
     console.log('✅ [libraryData] 转换后 favorites:', favorites.length, '个')
-    console.log('✅ [libraryData] 转换后 created:', created.length, '个')
-    console.log('📝 [libraryData] 工作流过滤:', {
-      total: createdWorkflows?.length || 0,
-      published: publishedWorkflows.length,
-      drafts: (createdWorkflows?.length || 0) - publishedWorkflows.length
-    })
+    console.log('✅ [libraryData] 转换后 created:', created.length, '个（含草稿）')
 
     // 将本地保存的工作流转换为 LibraryWorkflow 格式
     const localWorkflows: LibraryWorkflow[] = localSavedWorkflows.map(w => ({
@@ -1793,6 +1787,119 @@ export default function StoragePage() {
       isReloadingForClonedWorkflowRef.current = false
     }, 100)
   }, [loading, createdWorkflows, loadWorkflows])
+
+  // 自动将新保存的工作流（草稿/发布）添加到画布对应分类容器中
+  useEffect(() => {
+    const savedInfoStr = localStorage.getItem('newlySavedWorkflowInfo')
+    if (!savedInfoStr) return
+    if (loading || !createdWorkflows || createdWorkflows.length === 0) return
+
+    try {
+      const { workflowId: savedWfId, categoryName } = JSON.parse(savedInfoStr)
+      if (!savedWfId) return
+
+      // 确认工作流已在 createdWorkflows 中
+      const savedWorkflow = createdWorkflows.find(w => w.id === savedWfId)
+      if (!savedWorkflow) {
+        // 可能还没同步，等下一次 re-render
+        return
+      }
+
+      // 清除标记，防止重复执行
+      localStorage.removeItem('newlySavedWorkflowInfo')
+
+      setTimeout(() => {
+        setCanvasItems((prev) => {
+          const rootContainer = prev[ROOT_CONTAINER_ID]
+          if (!rootContainer || rootContainer.type !== 'container') return prev
+
+          const next = JSON.parse(JSON.stringify(prev)) as CanvasItemsMap
+
+          // 检查画布中是否已有该工作流的卡片
+          const existingCard = Object.values(next).find(
+            item => item.type === 'workflow' && item.workflowId === savedWfId
+          )
+          if (existingCard) return prev
+
+          // 查找名称匹配的容器
+          let targetContainerId: string | null = null
+          for (const [itemId, item] of Object.entries(next)) {
+            if (item.type === 'container' && item.id !== ROOT_CONTAINER_ID && item.name === categoryName) {
+              targetContainerId = itemId
+              break
+            }
+          }
+
+          // 没有匹配容器，创建一个新容器
+          if (!targetContainerId) {
+            targetContainerId = generateId('container')
+
+            // 计算新容器的位置（避免重叠）
+            const existingContainers = Object.values(next).filter(
+              (item): item is ContainerCanvasItem =>
+                item.type === 'container' && item.id !== ROOT_CONTAINER_ID && item.parentId === ROOT_CONTAINER_ID
+            )
+            let posX = 20
+            let posY = 20
+            const MARGIN = 30
+            for (const c of existingContainers) {
+              const bottom = c.position.y + (c.size?.height || CONTAINER_MIN_HEIGHT) + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING * 2 + MARGIN
+              if (bottom > posY) posY = bottom
+            }
+
+            next[targetContainerId] = {
+              id: targetContainerId,
+              type: 'container',
+              name: categoryName,
+              parentId: ROOT_CONTAINER_ID,
+              position: { x: posX, y: posY },
+              size: { width: CONTAINER_MIN_WIDTH, height: CONTAINER_MIN_HEIGHT },
+              collapsed: false,
+              childrenIds: [],
+              color: getRandomContainerColor()
+            }
+            // attach container to root
+            const root = next[ROOT_CONTAINER_ID] as ContainerCanvasItem
+            next[ROOT_CONTAINER_ID] = { ...root, childrenIds: [...root.childrenIds, targetContainerId] }
+          }
+
+          // 在目标容器内创建卡片
+          const cardId = generateId('workflow-card')
+          const container = next[targetContainerId] as ContainerCanvasItem
+
+          // 计算卡片在容器内的位置
+          const existingChildren = (container.childrenIds || []).length
+          const COLS = 3
+          const col = existingChildren % COLS
+          const row = Math.floor(existingChildren / COLS)
+          const cardPosition = {
+            x: 10 + col * (CARD_WIDTH + 15),
+            y: 10 + row * (CARD_HEIGHT + 15)
+          }
+
+          next[cardId] = {
+            id: cardId,
+            type: 'workflow' as const,
+            workflowId: savedWfId,
+            parentId: targetContainerId,
+            position: cardPosition
+          }
+
+          // attach card to container
+          next[targetContainerId] = { ...next[targetContainerId] as ContainerCanvasItem, childrenIds: [...container.childrenIds, cardId] }
+
+          // recalc container size
+          recalcContainerSizes(next, [targetContainerId, ROOT_CONTAINER_ID])
+
+          console.log(`✅ [StoragePage] 新工作流已放入容器「${categoryName}」`)
+          return next
+        })
+      }, 200)
+    } catch (e) {
+      console.error('[StoragePage] 处理新保存工作流失败:', e)
+      localStorage.removeItem('newlySavedWorkflowInfo')
+    }
+  }, [loading, createdWorkflows])
 
   const attachToParent = useCallback((items: CanvasItemsMap, parentId: string, childId: string) => {
     const parent = getContainer(items, parentId)

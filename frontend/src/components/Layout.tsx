@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X, ChevronDown } from 'lucide-react';
+import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X, ChevronDown, MessageCircle, Mail, AlertCircle } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useState, useRef, useEffect, useMemo } from 'react';
 
@@ -13,6 +13,8 @@ interface SubscriptionInfo {
   name?: string;
   role: string;
   isSuperAdmin?: boolean;
+  hasWechat?: boolean;
+  hasRealEmail?: boolean;
   roleExpiresAt: string | null;
   daysRemaining: number;
   activeSubscription: {
@@ -51,6 +53,16 @@ export default function Layout() {
   const [idCopied, setIdCopied] = useState(false);
   const [myReferralCode, setMyReferralCode] = useState('');
   const [referralUsedCount, setReferralUsedCount] = useState(0);
+  // 账号绑定状态
+  const [showBindEmail, setShowBindEmail] = useState(false);
+  const [bindEmailVal, setBindEmailVal] = useState('');
+  const [bindPasswordVal, setBindPasswordVal] = useState('');
+  const [bindNameVal, setBindNameVal] = useState('');
+  const [bindLoading, setBindLoading] = useState(false);
+  const [bindResult, setBindResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [bindEmailChecked, setBindEmailChecked] = useState(false);
+  const [bindEmailRegistered, setBindEmailRegistered] = useState(false);
+  const [bindExistingName, setBindExistingName] = useState('');
   const [referralCopied, setReferralCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -328,6 +340,225 @@ export default function Layout() {
           </button>
         ))}
       </div>
+
+      {/* 账号绑定 */}
+      {subscription && (!subscription.hasWechat || !subscription.hasRealEmail) && (
+        <div style={{ borderTop: '1px solid #F0F1F3', padding: '7px 14px 8px' }}>
+          {/* 邮箱用户绑定微信 */}
+          {!subscription.hasWechat && subscription.hasRealEmail && (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const { url } = await authService.getWechatBindUrl();
+                  window.location.href = url;
+                } catch {
+                  setBindResult({ type: 'error', msg: '获取微信授权链接失败' });
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                width: '100%',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            >
+              <MessageCircle size={13} color="#07c160" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563' }}>绑定微信</span>
+            </button>
+          )}
+
+          {/* 微信用户绑定邮箱 */}
+          {!subscription.hasRealEmail && subscription.hasWechat && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowBindEmail(!showBindEmail);
+                  setBindResult(null);
+                  setBindEmailChecked(false);
+                  setBindEmailRegistered(false);
+                  setBindPasswordVal('');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  width: '100%',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+              >
+                <Mail size={13} color="#8b5cf6" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#4B5563' }}>绑定邮箱</span>
+                <ChevronDown size={12} color="#9CA3AF" style={{ marginLeft: 'auto', transform: showBindEmail ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              </button>
+              {showBindEmail && (
+                <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '5px' }} onClick={(e) => e.stopPropagation()}>
+                  {/* 第一步：输入邮箱 */}
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <input
+                      type="email"
+                      value={bindEmailVal}
+                      onChange={(e) => { setBindEmailVal(e.target.value); setBindEmailChecked(false); setBindResult(null); }}
+                      placeholder="输入邮箱地址"
+                      style={{ flex: 1, minWidth: 0, padding: '4px 7px', border: '1px solid #E5E7EB', borderRadius: '5px', fontSize: '11px', outline: 'none', boxSizing: 'border-box' }}
+                      onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; }}
+                      onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; }}
+                    />
+                    {!bindEmailChecked && (
+                      <button
+                        onClick={async () => {
+                          if (!bindEmailVal.trim()) return;
+                          setBindLoading(true);
+                          setBindResult(null);
+                          try {
+                            const res = await authService.checkEmail(bindEmailVal.trim());
+                            setBindEmailRegistered(res.registered);
+                            setBindExistingName(res.name || '');
+                            setBindEmailChecked(true);
+                          } catch {
+                            setBindResult({ type: 'error', msg: '检查失败，请重试' });
+                          } finally {
+                            setBindLoading(false);
+                          }
+                        }}
+                        disabled={bindLoading || !bindEmailVal.trim()}
+                        style={{
+                          padding: '4px 8px', backgroundColor: bindLoading || !bindEmailVal.trim() ? '#E5E7EB' : '#8b5cf6',
+                          color: bindLoading || !bindEmailVal.trim() ? '#9CA3AF' : 'white',
+                          border: 'none', borderRadius: '5px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap',
+                          cursor: bindLoading || !bindEmailVal.trim() ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0,
+                        }}
+                      >
+                        {bindLoading ? <Loader2 size={10} className="animate-spin" /> : null}
+                        下一步
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 第二步a：邮箱未注册 → 直接绑定 */}
+                  {bindEmailChecked && !bindEmailRegistered && (
+                    <>
+                      <div style={{ fontSize: '10.5px', color: '#059669', paddingLeft: '2px' }}>
+                        该邮箱未注册，可直接绑定
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setBindLoading(true);
+                          setBindResult(null);
+                          try {
+                            const res = await authService.bindEmail({ email: bindEmailVal.trim() });
+                            if (res.token) authService.setToken(res.token);
+                            setBindResult({ type: 'success', msg: res.message });
+                            setShowBindEmail(false);
+                            setTimeout(() => { window.location.reload(); }, 1500);
+                          } catch (err: any) {
+                            setBindResult({ type: 'error', msg: err.response?.data?.error || '绑定失败' });
+                          } finally {
+                            setBindLoading(false);
+                          }
+                        }}
+                        disabled={bindLoading}
+                        style={{
+                          padding: '4px 8px', backgroundColor: bindLoading ? '#E5E7EB' : '#8b5cf6',
+                          color: bindLoading ? '#9CA3AF' : 'white',
+                          border: 'none', borderRadius: '5px', fontSize: '11px', fontWeight: 500,
+                          cursor: bindLoading ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                        }}
+                      >
+                        {bindLoading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                        确认绑定
+                      </button>
+                    </>
+                  )}
+
+                  {/* 第二步b：邮箱已注册 → 输入密码确认合并 */}
+                  {bindEmailChecked && bindEmailRegistered && (
+                    <>
+                      <div style={{
+                        fontSize: '10.5px', color: '#D97706', padding: '4px 6px',
+                        backgroundColor: '#FEF3C7', borderRadius: '4px', lineHeight: 1.4,
+                      }}>
+                        该邮箱已注册{bindExistingName ? `（${bindExistingName}）` : ''}，输入该邮箱的密码可合并两个账号
+                      </div>
+                      <input
+                        type="password"
+                        value={bindPasswordVal}
+                        onChange={(e) => setBindPasswordVal(e.target.value)}
+                        placeholder="输入该邮箱账号的密码"
+                        style={{ padding: '4px 7px', border: '1px solid #E5E7EB', borderRadius: '5px', fontSize: '11px', outline: 'none', boxSizing: 'border-box' }}
+                        onFocus={(e) => { e.target.style.borderColor = '#8b5cf6'; }}
+                        onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; }}
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!bindPasswordVal.trim()) return;
+                          setBindLoading(true);
+                          setBindResult(null);
+                          try {
+                            const res = await authService.bindEmail({
+                              email: bindEmailVal.trim(),
+                              password: bindPasswordVal,
+                            });
+                            if (res.token) authService.setToken(res.token);
+                            setBindResult({ type: 'success', msg: res.message });
+                            setShowBindEmail(false);
+                            setTimeout(() => { window.location.reload(); }, 1500);
+                          } catch (err: any) {
+                            setBindResult({ type: 'error', msg: err.response?.data?.error || '合并失败' });
+                          } finally {
+                            setBindLoading(false);
+                          }
+                        }}
+                        disabled={bindLoading || !bindPasswordVal.trim()}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: bindLoading || !bindPasswordVal.trim() ? '#E5E7EB' : '#f59e0b',
+                          color: bindLoading || !bindPasswordVal.trim() ? '#9CA3AF' : 'white',
+                          border: 'none', borderRadius: '5px', fontSize: '11px', fontWeight: 500,
+                          cursor: bindLoading || !bindPasswordVal.trim() ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                        }}
+                      >
+                        {bindLoading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                        确认合并
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {bindResult && (
+            <div style={{
+              fontSize: '10.5px',
+              marginTop: '3px',
+              paddingLeft: '19px',
+              color: bindResult.type === 'success' ? '#059669' : '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+            }}>
+              {bindResult.type === 'error' && <AlertCircle size={10} />}
+              {bindResult.msg}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 填写邀请码 - 点击展开 */}
       <div style={{ borderTop: '1px solid #F0F1F3', padding: '7px 14px 8px' }}>

@@ -88,6 +88,36 @@ export const authService = {
     return response.data
   },
 
+  // 获取微信绑定授权链接
+  getWechatBindUrl: async (): Promise<{ url: string; state: string }> => {
+    const response = await api.get('/api/auth/wechat/url?mode=bind')
+    return response.data
+  },
+
+  // 检查邮箱是否已注册
+  checkEmail: async (email: string): Promise<{ registered: boolean; name: string | null }> => {
+    const response = await api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`)
+    return response.data
+  },
+
+  // 绑定微信（用 code，可能返回需要确认）
+  bindWechat: async (code: string): Promise<any> => {
+    const response = await api.post('/api/auth/bind/wechat', { code })
+    return response.data
+  },
+
+  // 确认绑定微信（合并）
+  confirmBindWechat: async (wxDataToken: string): Promise<{ merged: boolean; message: string; token: string }> => {
+    const response = await api.post('/api/auth/bind/wechat/confirm', { wxDataToken })
+    return response.data
+  },
+
+  // 绑定邮箱（密码可选，已注册邮箱需要密码验证）
+  bindEmail: async (data: { email: string; password?: string; name?: string }): Promise<{ merged: boolean; message: string; token: string }> => {
+    const response = await api.post('/api/auth/bind/email', data)
+    return response.data
+  },
+
   // 忘记密码 - 发送重置邮件
   forgotPassword: async (email: string): Promise<{ message: string }> => {
     const response = await api.post('/api/auth/forgot-password', { email })

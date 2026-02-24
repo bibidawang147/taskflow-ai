@@ -207,6 +207,10 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
   const { showToast } = useToast()
   const { showConfirm } = useConfirm()
 
+  // 跟踪已保存的工作流ID（autoSave创建后记录，避免重复创建）
+  const [savedWorkflowId, setSavedWorkflowId] = useState<string | null>(null)
+  const workflowId = id || savedWorkflowId // 优先用URL参数，其次用已保存的ID
+
   const [formData, setFormData] = useState<WorkflowFormData>({
     title: '',
     description: '',
@@ -600,14 +604,13 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
       }
 
       // 根据是编辑还是创建来决定调用哪个 API
-      if (id) {
-        await updateWorkflow(id, workflowData)
+      if (workflowId) {
+        await updateWorkflow(workflowId, workflowData)
       } else {
-        // 如果是新建，第一次自动保存后需要跳转到编辑模式
+        // 新建工作流，记录ID供后续保存使用
         const result = await createWorkflow(workflowData)
-        if (result.id && !id) {
-          // 静默更新 URL，避免触发页面刷新
-          window.history.replaceState({}, '', `/workflow/create/${result.id}`)
+        if (result.id) {
+          setSavedWorkflowId(result.id)
         }
       }
 
@@ -627,7 +630,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
         setAutoSaveStatus('idle')
       }, 5000)
     }
-  }, [hasUnsavedChanges, formData, id])
+  }, [hasUnsavedChanges, formData, workflowId])
 
   // 监听 formData 变化，标记为有未保存的更改
   useEffect(() => {
@@ -699,6 +702,52 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [hasUnsavedChanges])
+
+  // 拦截路由导航：监听 popstate（浏览器前进/后退）
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+
+    const handlePopState = () => {
+      // 浏览器后退/前进时，如果有未保存更改，push 回当前路径阻止离开
+      // 然后弹出确认框
+      const currentPath = location.pathname
+      window.history.pushState(null, '', currentPath)
+
+      showConfirm({
+        title: '未保存的更改',
+        message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。',
+        type: 'warning',
+        confirmText: '离开',
+        cancelText: '继续编辑'
+      }).then(confirmed => {
+        if (confirmed) {
+          setHasUnsavedChanges(false)
+          window.history.back()
+        }
+      })
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [hasUnsavedChanges, location.pathname])
+
+  // 安全导航：在有未保存更改时先弹确认框
+  const safeNavigate = useCallback(async (to: string) => {
+    if (hasUnsavedChanges) {
+      const confirmed = await showConfirm({
+        title: '未保存的更改',
+        message: '你有未保存的更改。确定要离开吗？未保存的更改将会丢失。',
+        type: 'warning',
+        confirmText: '离开',
+        cancelText: '继续编辑'
+      })
+      if (!confirmed) return
+    }
+    setHasUnsavedChanges(false)
+    navigate(to)
+  }, [hasUnsavedChanges, navigate, showConfirm])
 
   const loadWorkflow = async () => {
     if (!id) return
@@ -1180,9 +1229,18 @@ ${articleInput.trim()}
 
   // 保存工作流（存草稿或发布）
   const handleSave = async (isDraft: boolean) => {
-    if (!validateForm()) {
-      showToast('请填写所有必填字段', 'error')
-      return
+    if (isDraft) {
+      // 草稿只需要标题
+      if (!formData.title.trim()) {
+        showToast('请输入工作流标题', 'error')
+        return
+      }
+    } else {
+      // 发布需要完整验证
+      if (!validateForm()) {
+        showToast('请填写所有必填字段', 'error')
+        return
+      }
     }
 
     try {
@@ -1286,8 +1344,8 @@ ${articleInput.trim()}
         }
       }
 
-      if (id) {
-        await updateWorkflow(id, workflowData)
+      if (workflowId) {
+        await updateWorkflow(workflowId, workflowData)
         // 保存成功后重置未保存状态
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
@@ -1295,6 +1353,25 @@ ${articleInput.trim()}
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
+        // 记录已保存的ID，防止后续重复创建
+        if (result.id) {
+          setSavedWorkflowId(result.id)
+          // 计算分类名称：从 useScenarios 找到对应的一级分类名
+          let categoryName = '其他'
+          if (formData.useScenarios.length > 0) {
+            for (const cat of SCENARIO_CATEGORIES) {
+              if (cat.children.some(c => formData.useScenarios.includes(c.id))) {
+                categoryName = cat.name
+                break
+              }
+            }
+          }
+          // 留标记给 StoragePage，让它把卡片放到画布上
+          localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
+            workflowId: result.id,
+            categoryName
+          }))
+        }
         // 保存成功后重置未保存状态
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
@@ -2149,7 +2226,7 @@ ${articleInput.trim()}
         <div className="form-actions">
           <button
             className="action-btn secondary"
-            onClick={() => navigate('/workspace')}
+            onClick={() => safeNavigate('/workspace')}
             disabled={saving}
           >
             取消

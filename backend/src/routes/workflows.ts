@@ -343,6 +343,9 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
       config,
       isPublic = false,
       isDraft = false,
+      difficultyLevel,
+      useScenarios,
+      preparations,
       sourceType,
       sourceUrl,
       sourceContent,
@@ -364,6 +367,9 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         isPublic,
         isDraft,
         authorId: userId,
+        // 推荐相关字段
+        ...(difficultyLevel !== undefined && { difficultyLevel }),
+        ...(useScenarios !== undefined && { useScenarios: JSON.stringify(useScenarios) }),
         // 保存原始来源信息
         sourceType: sourceType || null,
         sourceUrl: sourceUrl || null,
@@ -381,7 +387,18 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
             position: node.position || { x: 0, y: 0 },
             config: node.config || {}
           }))
-        }
+        },
+        // 同时创建前置准备记录
+        ...(Array.isArray(preparations) && preparations.length > 0 && {
+          preparations: {
+            create: preparations.map((prep: any, index: number) => ({
+              name: prep.name,
+              description: prep.description || null,
+              link: prep.link || null,
+              order: prep.order ?? index
+            }))
+          }
+        })
       },
       include: {
         author: {
@@ -391,7 +408,8 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
             avatar: true
           }
         },
-        nodes: true
+        nodes: true,
+        preparations: { orderBy: { order: 'asc' } }
       }
     })
 
@@ -1536,7 +1554,7 @@ router.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Res
   try {
     const userId = req.user!.id
     const { id } = req.params
-    const { title, description, category, tags, config, isPublic } = req.body
+    const { title, description, category, tags, config, isPublic, isDraft, difficultyLevel, useScenarios, preparations } = req.body
 
     // 检查工作流是否存在且用户有权限
     const workflow = await prisma.workflow.findUnique({
@@ -1555,26 +1573,67 @@ router.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Res
       })
     }
 
-    // 更新工作流
-    const updatedWorkflow = await prisma.workflow.update({
-      where: { id },
-      data: {
-        ...(title !== undefined && { title }),
-        ...(description !== undefined && { description }),
-        ...(category !== undefined && { category }),
-        ...(tags !== undefined && { tags }),
-        ...(config !== undefined && { config }),
-        ...(isPublic !== undefined && { isPublic })
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true
+    // 更新工作流（使用事务确保原子性）
+    const updatedWorkflow = await prisma.$transaction(async (tx) => {
+      // 更新工作流主体
+      const updated = await tx.workflow.update({
+        where: { id },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(description !== undefined && { description }),
+          ...(category !== undefined && { category }),
+          ...(tags !== undefined && { tags }),
+          ...(config !== undefined && { config }),
+          ...(isPublic !== undefined && { isPublic }),
+          ...(isDraft !== undefined && { isDraft }),
+          ...(difficultyLevel !== undefined && { difficultyLevel }),
+          ...(useScenarios !== undefined && { useScenarios: JSON.stringify(useScenarios) }),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              avatar: true
+            }
           }
         }
+      })
+
+      // 如果有前置准备数据，先删后建（全量替换）
+      if (Array.isArray(preparations)) {
+        await tx.workflowPreparation.deleteMany({ where: { workflowId: id } })
+        if (preparations.length > 0) {
+          await tx.workflowPreparation.createMany({
+            data: preparations.map((prep: any, index: number) => ({
+              workflowId: id,
+              name: prep.name,
+              description: prep.description || null,
+              link: prep.link || null,
+              order: prep.order ?? index
+            }))
+          })
+        }
       }
+
+      // 如果config中有nodes，同步更新WorkflowNode记录
+      if (config?.nodes && Array.isArray(config.nodes)) {
+        await tx.workflowNode.deleteMany({ where: { workflowId: id } })
+        if (config.nodes.length > 0) {
+          await tx.workflowNode.createMany({
+            data: config.nodes.map((node: any) => ({
+              id: node.id,
+              workflowId: id,
+              type: node.type || 'ai',
+              label: node.label || '',
+              position: node.position || { x: 0, y: 0 },
+              config: node.config || {}
+            }))
+          })
+        }
+      }
+
+      return updated
     })
 
     // 清除 AI 助手的工作流摘要缓存（标题/描述/配置/公开状态变更都可能影响推荐）
