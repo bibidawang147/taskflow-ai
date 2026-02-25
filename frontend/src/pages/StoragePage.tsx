@@ -54,7 +54,7 @@ const CONTAINER_MIN_HEIGHT = 200
 const CONTAINER_PADDING = 16
 const CONTAINER_HEADER_HEIGHT = 30
 const ROOT_CONTAINER_ID = 'canvas-root'
-const TOP_LEFT_LIMIT = 2
+const TOP_LEFT_LIMIT = 7
 const MIN_VISIBLE_RATIO = 0.3
 const INITIAL_POSITION_X = 10
 const INITIAL_POSITION_Y = 10
@@ -871,6 +871,8 @@ export default function StoragePage() {
   const [createdWorkflows, setCreatedWorkflows] = useState<Workflow[]>([])
   const [localSavedWorkflows, setLocalSavedWorkflows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // 无限画布：动态尺寸，接近边缘时自动扩展
+  const [infiniteCanvasSize, setInfiniteCanvasSize] = useState({ width: 10000, height: 10000 })
   // 创建空白画布的初始数据
   const createEmptyCanvasData = (): CanvasItemsMap => ({
     [ROOT_CONTAINER_ID]: {
@@ -2435,77 +2437,16 @@ export default function StoragePage() {
     (
       positionX: number,
       positionY: number,
-      scale: number,
-      options: { damping?: boolean } = {}
+      _scale: number,
+      _options: { damping?: boolean } = {}
     ): { x: number; y: number } => {
-      const { damping = false } = options
-      const contentBounds = calculateCanvasContentBounds(canvasItems)
-      const wrapperElement = transformRef.current?.instance.wrapperComponent
-      const viewportWidth = wrapperElement?.clientWidth ?? window.innerWidth
-      const viewportHeight = wrapperElement?.clientHeight ?? window.innerHeight
-      const contentWidth = Math.max(contentBounds.maxX - contentBounds.minX, 1)
-      const contentHeight = Math.max(contentBounds.maxY - contentBounds.minY, 1)
-      const requiredVisibleWidth = Math.min(contentWidth * scale * MIN_VISIBLE_RATIO, viewportWidth)
-      const requiredVisibleHeight = Math.min(contentHeight * scale * MIN_VISIBLE_RATIO, viewportHeight)
-      const minLeft = -Math.max(contentWidth * scale - requiredVisibleWidth, 0)
-      const minTop = -Math.max(contentHeight * scale - requiredVisibleHeight, 0)
-
-      let nextX = positionX
-      let nextY = positionY
-
-      const adjustUpper = (value: number, limit: number) => {
-        if (value <= limit) {
-          return value
-        }
-        if (damping) {
-          return limit + (value - limit) * 0.3
-        }
-        return limit
+      // 左边和上边固定，右边和下边无限延伸
+      return {
+        x: Math.min(positionX, TOP_LEFT_LIMIT),
+        y: Math.min(positionY, TOP_LEFT_LIMIT)
       }
-
-      const adjustLower = (value: number, limit: number) => {
-        if (value >= limit) {
-          return value
-        }
-        if (damping) {
-          return limit - (limit - value) * 0.3
-        }
-        return limit
-      }
-
-      let left = positionX + contentBounds.minX * scale
-      let right = positionX + contentBounds.maxX * scale
-      const leftAdjustDelta = adjustUpper(left, TOP_LEFT_LIMIT) - left
-      if (leftAdjustDelta !== 0) {
-        nextX += leftAdjustDelta
-        left += leftAdjustDelta
-        right += leftAdjustDelta
-      }
-      const leftLowerDelta = adjustLower(left, minLeft) - left
-      if (leftLowerDelta !== 0) {
-        nextX += leftLowerDelta
-        left += leftLowerDelta
-        right += leftLowerDelta
-      }
-
-      let top = positionY + contentBounds.minY * scale
-      let bottom = positionY + contentBounds.maxY * scale
-      const upperTopDelta = adjustUpper(top, TOP_LEFT_LIMIT) - top
-      if (upperTopDelta !== 0) {
-        nextY += upperTopDelta
-        top += upperTopDelta
-        bottom += upperTopDelta
-      }
-      const lowerTopDelta = adjustLower(top, minTop) - top
-      if (lowerTopDelta !== 0) {
-        nextY += lowerTopDelta
-        top += lowerTopDelta
-        bottom += lowerTopDelta
-      }
-
-      return { x: nextX, y: nextY }
     },
-    [canvasItems]
+    []
   )
 
   const clampTransform = useCallback(
@@ -2539,6 +2480,27 @@ export default function StoragePage() {
       positionY: ref.state.positionY
     }
     setCurrentScale(ref.state.scale)
+    // 无限画布：接近边缘时自动扩展
+    const { scale, positionX, positionY } = ref.state
+    const wrapperEl = ref.instance.wrapperComponent
+    if (wrapperEl) {
+      const vw = wrapperEl.clientWidth
+      const vh = wrapperEl.clientHeight
+      const visibleRight = (-positionX + vw) / scale
+      const visibleBottom = (-positionY + vh) / scale
+      const BUFFER = 2000
+      setInfiniteCanvasSize(prev => {
+        const growW = visibleRight + BUFFER > prev.width
+        const growH = visibleBottom + BUFFER > prev.height
+        if (growW || growH) {
+          return {
+            width: growW ? prev.width + 5000 : prev.width,
+            height: growH ? prev.height + 5000 : prev.height
+          }
+        }
+        return prev
+      })
+    }
   }, [])
 
   const handlePanningStart = useCallback(() => {
@@ -5867,8 +5829,8 @@ export default function StoragePage() {
                 className="workflow-canvas-area"
                 style={{
                   position: 'relative',
-                  width: rootContainer.size.width + CONTAINER_PADDING * 4,
-                  height: rootContainer.size.height + CONTAINER_PADDING * 4 + CONTAINER_HEADER_HEIGHT,
+                  width: infiniteCanvasSize.width,
+                  height: infiniteCanvasSize.height,
                   cursor: isPanning ? 'grabbing' : spacePressed ? 'grab' : 'default',
                   transform: 'translateZ(0)',
                   willChange: 'transform'
@@ -5878,8 +5840,8 @@ export default function StoragePage() {
                   className="canvas-content"
                   style={{
                     position: 'relative',
-                    width: rootContainer.size.width + CONTAINER_PADDING * 2,
-                    height: rootContainer.size.height + CONTAINER_PADDING * 2,
+                    width: infiniteCanvasSize.width,
+                    height: infiniteCanvasSize.height,
                     padding: `${CONTAINER_PADDING}px`,
                     borderRadius: '16px',
                     backgroundImage:
