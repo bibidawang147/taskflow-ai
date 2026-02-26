@@ -66,28 +66,23 @@ deploy_backend() {
     echo_info "1. 构建后端代码..."
     npm run build || true
 
-    # 上传关键文件
+    # 上传关键文件（注意：PM2 运行在 /root/backend/，不是 /root/workflow-backend/）
     echo_info "2. 上传到服务器..."
 
-    # 上传 dist 目录
-    scp -i $SSH_KEY -r dist ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/
+    # 打包上传 dist 目录和 package.json
+    tar czf /tmp/backend-dist.tar.gz dist/ package.json
+    scp -i $SSH_KEY /tmp/backend-dist.tar.gz ${SERVER_USER}@${SERVER_IP}:/tmp/
 
-    # 上传 package.json（检查依赖是否变化）
-    scp -i $SSH_KEY package.json ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/
-
-    # 只上传 prisma 迁移文件（不覆盖服务器的 schema.prisma，服务器用 PostgreSQL）
-    scp -i $SSH_KEY -r prisma/migrations ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/prisma/
-
-    # 在服务器上安装依赖（如果 package.json 变化）
-    echo_info "3. 检查并安装依赖..."
+    # 在服务器上解压并安装依赖
+    echo_info "3. 解压并检查依赖..."
     ssh -i $SSH_KEY ${SERVER_USER}@${SERVER_IP} << 'EOF'
-        cd /root/workflow-backend
+        cd /root/backend
+
+        # 解压新代码
+        tar xzf /tmp/backend-dist.tar.gz
 
         # 检查是否需要重新安装依赖
         npm install --production
-
-        # 执行数据库迁移
-        npx prisma migrate deploy
 
         # 生成 Prisma 客户端
         npx prisma generate

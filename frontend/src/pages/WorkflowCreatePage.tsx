@@ -826,6 +826,20 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
     if (!id) return
     try {
       const data = await getWorkflowDetail(id)
+      console.log('📂 [loadWorkflow] 从服务器加载:', {
+        id,
+        title: data.title,
+        hasConfig: !!data.config,
+        nodesCount: data.config?.nodes?.length || 0,
+        nodes: (data.config?.nodes || []).map((n: any) => ({
+          id: n.id,
+          label: n.label,
+          promptLen: n.config?.prompt?.length || 0,
+          promptPreview: n.config?.prompt?.substring(0, 60) || '(空)',
+          descLen: n.config?.stepDescription?.length || 0,
+          expectedLen: n.config?.expectedResult?.length || 0
+        }))
+      })
       // 转换数据格式
       const steps: WorkflowStep[] = (data.config?.nodes || []).map((node: any) => ({
         id: node.id || `step_${Date.now()}_${Math.random()}`,
@@ -1279,9 +1293,7 @@ ${articleInput.trim()}
       if (!step.title.trim()) {
         newErrors[`step_${index}_title`] = '请输入步骤标题'
       }
-      if (!step.prompt.trim()) {
-        newErrors[`step_${index}_prompt`] = '请输入提示词内容'
-      }
+      // prompt 字段没有独立输入框，不做验证
       // 工具不是必填项，移除强制验证
     })
 
@@ -1397,40 +1409,77 @@ ${articleInput.trim()}
         }
       }
 
+      let savedId: string | undefined
       if (workflowId) {
         await updateWorkflow(workflowId, workflowData)
-        // 留标记给 StoragePage（autoSave先创建了工作流，手动保存走这里）
+        savedId = workflowId
         localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
           workflowId,
           categoryName: derivedCategory
         }))
-        setHasUnsavedChanges(false)
-        setLastSavedTime(new Date())
-        showToast(isDraft ? '草稿保存成功！' : '工作流更新成功！', 'success')
-        // 通知 StoragePage 刷新工作流列表（tab 模式下 StoragePage 不会重新挂载）
-        window.dispatchEvent(new Event('workflowSavedToServer'))
-        navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
-        // 记录已保存的ID，防止后续重复创建
+        savedId = result.id
         if (result.id) {
           setSavedWorkflowId(result.id)
-          // 留标记给 StoragePage，让它把卡片放到画布上
           localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
             workflowId: result.id,
             categoryName: derivedCategory
           }))
         }
-        setHasUnsavedChanges(false)
-        setLastSavedTime(new Date())
-        showToast(isDraft ? '草稿保存成功！' : '工作流发布成功！', 'success')
-        // 通知 StoragePage 刷新工作流列表
-        window.dispatchEvent(new Event('workflowSavedToServer'))
-        if (isDraft) {
-          navigate('/workspace')
-        } else {
-          navigate(`/workflow-intro/${result.id}`)
+      }
+
+      // 保存后验证：立即从服务器读回数据，确认保存完整
+      if (savedId) {
+        try {
+          const verify = await getWorkflowDetail(savedId)
+          const serverNodes = verify.config?.nodes || []
+          const sentNodes = workflowData.config.nodes
+          const stepsMatch = serverNodes.length === sentNodes.length
+          const contentMatch = sentNodes.every((sent: any, i: number) => {
+            const server = serverNodes[i]
+            if (!server) return false
+            return server.config?.prompt === sent.config?.prompt
+              && server.config?.stepDescription === sent.config?.stepDescription
+              && server.config?.expectedResult === sent.config?.expectedResult
+          })
+          console.log('🔍 [handleSave] 保存验证:', {
+            sent: sentNodes.length,
+            received: serverNodes.length,
+            stepsMatch,
+            contentMatch,
+            serverDetail: serverNodes.map((n: any) => ({
+              id: n.id, label: n.label,
+              promptLen: n.config?.prompt?.length || 0,
+              descLen: n.config?.stepDescription?.length || 0
+            }))
+          })
+          if (!stepsMatch || !contentMatch) {
+            console.error('❌ [handleSave] 保存验证失败！发送和服务器数据不一致')
+            showToast(`保存可能不完整！发送${sentNodes.length}步，服务器只有${serverNodes.length}步`, 'error')
+            return // 不跳转，让用户看到问题
+          }
+        } catch (verifyErr) {
+          console.warn('保存验证失败:', verifyErr)
         }
+      }
+
+      setHasUnsavedChanges(false)
+      setLastSavedTime(new Date())
+      const stepsSummary = currentFormData.steps.map(s => s.title || '无标题').join('、')
+      showToast(
+        isDraft
+          ? `草稿保存成功！共${currentFormData.steps.length}个步骤（${stepsSummary}）`
+          : '工作流发布成功！',
+        'success'
+      )
+      window.dispatchEvent(new Event('workflowSavedToServer'))
+      if (workflowId) {
+        navigate('/workspace')
+      } else if (isDraft) {
+        navigate('/workspace')
+      } else {
+        navigate(`/workflow-intro/${savedId}`)
       }
     } catch (error) {
       console.error('保存工作流失败:', error)
