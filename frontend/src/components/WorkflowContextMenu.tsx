@@ -61,37 +61,31 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
   const menuItems = [
     {
       label: '打开工作流',
-      icon: '📂',
       onClick: onOpen,
       show: true
     },
     {
       label: '编辑',
-      icon: '✏️',
       onClick: onEdit,
       show: s ? s === 'my-workflows' : isOwn
     },
     {
       label: '复制到我的AI工作法',
-      icon: '📋',
       onClick: onCopy,
       show: s ? s !== 'my-workflows' : true
     },
     {
       label: '添加到收藏',
-      icon: '⭐',
       onClick: onAddToFavorites,
       show: s === 'library' || (s === 'my-workflows' && !isFavorited) || (!s && !isOwn)
     },
     {
       label: '取消收藏',
-      icon: '💔',
       onClick: onRemoveFromFavorites,
       show: s === 'favorites' || (s === 'my-workflows' && isFavorited)
     },
     {
       label: '删除',
-      icon: '🗑️',
       onClick: onDelete,
       show: s ? s === 'my-workflows' : isOwn,
       danger: true
@@ -143,7 +137,6 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
             e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
-          <span style={{ fontSize: '16px' }}>{item.icon}</span>
           <span>{item.label}</span>
         </button>
       ))}
