@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TouchEvent as ReactTouchEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff, Search } from 'lucide-react'
+import { Clock, ChevronDown, ChevronUp, LayoutGrid, Play, X, Plus, FileText, Send, Pin, PinOff, Search, RefreshCw } from 'lucide-react'
 import WorkflowExecutionTab from '../components/workspace/WorkflowExecutionTab'
 import { useToast } from '../components/ui/Toast'
 import { useConfirm } from '../components/ui/ConfirmDialog'
@@ -166,6 +166,7 @@ interface WorkflowDefinition {
   updatedAt: string
   model?: string // 模型产品
   prompt?: string // 原始 prompt
+  isPublic?: boolean // 是否已发布
   config?: {
     nodes?: WorkflowNode[]
     [key: string]: any
@@ -802,6 +803,7 @@ export default function StoragePage() {
   const { showToast } = useToast()
   const { showConfirm } = useConfirm()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const [librarySearch, setLibrarySearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // 默认隐藏
@@ -809,6 +811,7 @@ export default function StoragePage() {
   const [librarySearchQuery, setLibrarySearchQuery] = useState('') // 工作方法库搜索
   const [showLibrarySearch, setShowLibrarySearch] = useState(false) // 是否显示搜索框
   const [isHoveringEdge, setIsHoveringEdge] = useState(false) // 鼠标是否在左侧边缘热区
+  const [isRefreshingLibrary, setIsRefreshingLibrary] = useState(false) // 刷新工作方法库
 
   // 渐进式执行模态框（改为分屏模式）
   const [showStepByStepExecution, setShowStepByStepExecution] = useState(false)
@@ -965,6 +968,8 @@ export default function StoragePage() {
   const hasLoadedRef = useRef(false)
   const hasLoadedWorkflowsRef = useRef(false)
   const isReloadingForClonedWorkflowRef = useRef(false)
+  const isReloadingForSavedWorkflowRef = useRef(false)
+  const [canvasLoaded, setCanvasLoaded] = useState(false)
 
   // 加载画布布局
   useEffect(() => {
@@ -1175,6 +1180,8 @@ export default function StoragePage() {
         }))
       } catch (error) {
         console.error('❌ [StoragePage] 加载画布布局失败:', error)
+      } finally {
+        setCanvasLoaded(true)
       }
     }
 
@@ -1365,6 +1372,27 @@ export default function StoragePage() {
     return () => window.removeEventListener('savedWorkflowsUpdated', loadLocal)
   }, [])
 
+  // 从保存/发布页面导航回来时，强制刷新工作流列表
+  useEffect(() => {
+    const state = location.state as any
+    if (state?.forceRefresh) {
+      console.log('🔄 [StoragePage] 检测到 forceRefresh，重新加载工作流列表...')
+      loadWorkflows()
+      // 清除 state 防止重复刷新
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state])
+
+  // 监听工作流保存到服务端事件（tab 模式下 StoragePage 不会卸载，需要事件通知刷新）
+  useEffect(() => {
+    const handleWorkflowSaved = () => {
+      console.log('🔔 [StoragePage] 收到工作流保存事件，重新加载列表...')
+      loadWorkflows()
+    }
+    window.addEventListener('workflowSavedToServer', handleWorkflowSaved)
+    return () => window.removeEventListener('workflowSavedToServer', handleWorkflowSaved)
+  }, [loadWorkflows])
+
   // 加载执行历史
   const loadExecutionHistory = useCallback(async () => {
     try {
@@ -1469,6 +1497,7 @@ export default function StoragePage() {
         section,
         config: workflow.config,
         nodes: workflow.config?.nodes || workflow.nodes,
+        isPublic: workflow.isPublic,
         isOwner,  // 标记是否拥有
         canEdit: isOwner  // 只有拥有者才能编辑
       }
@@ -1794,7 +1823,8 @@ export default function StoragePage() {
   useEffect(() => {
     const savedInfoStr = localStorage.getItem('newlySavedWorkflowInfo')
     if (!savedInfoStr) return
-    if (loading || !createdWorkflows || createdWorkflows.length === 0) return
+    // 等画布和工作流列表都加载完成后再处理，避免被 loadCanvasLayout 覆盖
+    if (!canvasLoaded || loading || !createdWorkflows || createdWorkflows.length === 0) return
 
     try {
       const { workflowId: savedWfId, categoryName } = JSON.parse(savedInfoStr)
@@ -1803,9 +1833,19 @@ export default function StoragePage() {
       // 确认工作流已在 createdWorkflows 中
       const savedWorkflow = createdWorkflows.find(w => w.id === savedWfId)
       if (!savedWorkflow) {
-        // 可能还没同步，等下一次 re-render
+        // 数据尚未同步，重新加载工作流列表（仅重试一次，防止死循环）
+        if (!isReloadingForSavedWorkflowRef.current) {
+          console.log('🔄 [StoragePage] 新保存的工作流未在列表中，重新加载...')
+          isReloadingForSavedWorkflowRef.current = true
+          loadWorkflows()
+        } else {
+          console.warn('⚠️ [StoragePage] 已重新加载但仍未找到新保存的工作流，清除标记')
+          localStorage.removeItem('newlySavedWorkflowInfo')
+          isReloadingForSavedWorkflowRef.current = false
+        }
         return
       }
+      isReloadingForSavedWorkflowRef.current = false
 
       // 清除标记，防止重复执行
       localStorage.removeItem('newlySavedWorkflowInfo')
@@ -1901,7 +1941,7 @@ export default function StoragePage() {
       console.error('[StoragePage] 处理新保存工作流失败:', e)
       localStorage.removeItem('newlySavedWorkflowInfo')
     }
-  }, [loading, createdWorkflows])
+  }, [canvasLoaded, loading, createdWorkflows, loadWorkflows])
 
   const attachToParent = useCallback((items: CanvasItemsMap, parentId: string, childId: string) => {
     const parent = getContainer(items, parentId)
@@ -2990,14 +3030,7 @@ export default function StoragePage() {
 
   // 打开创建工作流 tab
   const openCreateTab = useCallback(() => {
-    // 检查是否已有创建工作流的 tab
-    const existingTab = workspaceTabs.find(tab => tab.type === 'create')
-    if (existingTab) {
-      setActiveTabId(existingTab.id)
-      return
-    }
-
-    // 创建新 tab
+    // 每次都创建新的 tab，允许同时编辑多个新工作流
     const newTab: WorkspaceTab = {
       id: `create-${Date.now()}`,
       type: 'create',
@@ -3005,7 +3038,7 @@ export default function StoragePage() {
     }
     setWorkspaceTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
-  }, [workspaceTabs])
+  }, [])
 
   // 打开编辑工作流 tab
   const openEditTab = useCallback((workflowId: string, title: string) => {
@@ -3730,14 +3763,17 @@ export default function StoragePage() {
     const workflow = libraryData.find((item) => item.id === card.workflowId)
     const isDragging = draggingItemId === card.id
 
-    // 状态配置
-    const statusConfig = {
-      active: { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', label: '运行中' },
-      draft: { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', label: '草稿' },
-      paused: { color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)', label: '已暂停' }
+    // 状态配置：已发布/私密/草稿
+    const getStatusConfig = () => {
+      if (workflow?.status === 'draft') {
+        return { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', label: '草稿' }
+      }
+      if (workflow?.isPublic) {
+        return { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', label: '已发布' }
+      }
+      return { color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)', label: '私密' }
     }
-    const status = workflow?.status || 'draft'
-    const currentStatus = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft
+    const currentStatus = getStatusConfig()
 
     // 获取工作流所在容器的根容器颜色
     const isInRoot = card.parentId === ROOT_CONTAINER_ID
@@ -4849,6 +4885,47 @@ export default function StoragePage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI工作方法库</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <button
+                    onClick={async () => {
+                      setIsRefreshingLibrary(true)
+                      try {
+                        await loadWorkflows()
+                        // 同时刷新 NavigationSidebar 的数据
+                        window.dispatchEvent(new Event('workflowSavedToServer'))
+                      } finally {
+                        setIsRefreshingLibrary(false)
+                      }
+                    }}
+                    title="刷新工作方法库"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      backgroundColor: 'transparent',
+                      cursor: isRefreshingLibrary ? 'wait' : 'pointer',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                    disabled={isRefreshingLibrary}
+                  >
+                    <RefreshCw
+                      size={14}
+                      color="#9ca3af"
+                      style={{
+                        animation: isRefreshingLibrary ? 'spin 1s linear infinite' : 'none'
+                      }}
+                    />
+                  </button>
                   <button
                     onClick={() => {
                       setShowLibrarySearch(!showLibrarySearch)

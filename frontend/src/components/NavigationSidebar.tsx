@@ -153,9 +153,46 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
           fontWeight: 500,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
         }}>
-          {workflow.title}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workflow.title}</span>
+          {workflow.isDraft ? (
+            <span style={{
+              fontSize: '10px',
+              padding: '0px 4px',
+              borderRadius: '3px',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              color: '#f59e0b',
+              fontWeight: 600,
+              flexShrink: 0,
+              lineHeight: '16px'
+            }}>草稿</span>
+          ) : workflow.isPublic ? (
+            <span style={{
+              fontSize: '10px',
+              padding: '0px 4px',
+              borderRadius: '3px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              color: '#10b981',
+              fontWeight: 600,
+              flexShrink: 0,
+              lineHeight: '16px'
+            }}>已发布</span>
+          ) : (
+            <span style={{
+              fontSize: '10px',
+              padding: '0px 4px',
+              borderRadius: '3px',
+              backgroundColor: 'rgba(107, 114, 128, 0.1)',
+              color: '#6b7280',
+              fontWeight: 600,
+              flexShrink: 0,
+              lineHeight: '16px'
+            }}>私密</span>
+          )}
         </div>
         {workflow.lastUsed && (
           <div style={{
@@ -389,6 +426,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   useEffect(() => {
     loadSidebarData()
+  }, [])
+
+  // 监听工作流保存事件，自动刷新侧边栏数据
+  useEffect(() => {
+    const handleWorkflowSaved = () => {
+      console.log('🔔 [NavigationSidebar] 收到工作流保存事件，刷新数据...')
+      loadSidebarData()
+    }
+    window.addEventListener('workflowSavedToServer', handleWorkflowSaved)
+    return () => window.removeEventListener('workflowSavedToServer', handleWorkflowSaved)
   }, [])
 
   // 加载本地保存的工作流

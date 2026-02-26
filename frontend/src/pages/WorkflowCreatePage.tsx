@@ -462,7 +462,8 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
       setSourceUrl(state.data.sourceUrl || '')
       setSourceTitle(state.data.sourceTitle || '')
 
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         title: state.data.title || '',
         description: state.data.description || '',
         tags: state.data.tags || [],
@@ -471,7 +472,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
         isPublic: state.data.isPublic ?? true,
         associatedSolutions: [],
         associatedThemes: []
-      })
+      }))
     }
   }, [location.state])
 
@@ -497,7 +498,8 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
           }
 
           // 设置表单数据
-          setFormData({
+          setFormData(prev => ({
+            ...prev,
             title: data.title || '',
             description: data.description || '',
             tags: data.tags || [],
@@ -506,7 +508,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
             isPublic: data.isPublic ?? true,
             associatedSolutions: data.associatedSolutions || [],
             associatedThemes: data.associatedThemes || []
-          })
+          }))
 
           console.log('✅ [WorkflowCreatePage] 表单数据已设置:', {
             title: data.title,
@@ -549,9 +551,9 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
 
   // 自动保存函数
   const autoSave = useCallback(async () => {
-    // 只有在有未保存更改且用户已登录时才自动保存
+    // 只有在有未保存更改且用户已登录时才自动保存；手动保存进行中时跳过
     const token = localStorage.getItem('token')
-    if (!hasUnsavedChanges || !token || !formData.title.trim()) {
+    if (!hasUnsavedChanges || !token || !formData.title.trim() || saving) {
       return
     }
 
@@ -652,7 +654,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
         setAutoSaveStatus('idle')
       }, 5000)
     }
-  }, [hasUnsavedChanges, formData, workflowId])
+  }, [hasUnsavedChanges, formData, workflowId, saving])
 
   // 监听 formData 变化，标记为有未保存的更改
   useEffect(() => {
@@ -846,7 +848,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
         tags: typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : data.tags || [],
         difficultyLevel: data.difficultyLevel || 'beginner',
         price: data.price || 0,
-        useScenarios: data.useScenarios || [],
+        useScenarios: (typeof data.useScenarios === 'string' ? (() => { try { return JSON.parse(data.useScenarios) } catch { return [] } })() : data.useScenarios) || [],
         preparations: preparations,
         steps: steps,
         category: data.category || 'general',
@@ -1336,6 +1338,11 @@ ${articleInput.trim()}
               associatedThemes: step.associatedThemes
             },
             position: { x: 100, y: 100 + index * 150 }
+          })),
+          edges: formData.steps.slice(0, -1).map((_, index) => ({
+            id: `e${index}-${index + 1}`,
+            source: formData.steps[index].id,
+            target: formData.steps[index + 1].id
           }))
         }
       }
@@ -1378,6 +1385,8 @@ ${articleInput.trim()}
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
         showToast(isDraft ? '草稿保存成功！' : '工作流更新成功！', 'success')
+        // 通知 StoragePage 刷新工作流列表（tab 模式下 StoragePage 不会重新挂载）
+        window.dispatchEvent(new Event('workflowSavedToServer'))
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
@@ -1393,6 +1402,8 @@ ${articleInput.trim()}
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
         showToast(isDraft ? '草稿保存成功！' : '工作流发布成功！', 'success')
+        // 通知 StoragePage 刷新工作流列表
+        window.dispatchEvent(new Event('workflowSavedToServer'))
         if (isDraft) {
           navigate('/workspace')
         } else {
@@ -2255,6 +2266,52 @@ ${articleInput.trim()}
           >
             {saving ? '保存中...' : '保存草稿'}
           </button>
+
+          {/* 公开/私密切换 */}
+          <div
+            onClick={() => setFormData(prev => ({ ...prev, isPublic: !prev.isPublic }))}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              backgroundColor: formData.isPublic ? 'rgba(16, 185, 129, 0.08)' : 'rgba(107, 114, 128, 0.08)',
+              border: `1px solid ${formData.isPublic ? 'rgba(16, 185, 129, 0.25)' : 'rgba(107, 114, 128, 0.25)'}`,
+              transition: 'all 0.2s',
+              userSelect: 'none'
+            }}
+          >
+            <div style={{
+              width: '32px',
+              height: '18px',
+              borderRadius: '9px',
+              backgroundColor: formData.isPublic ? '#10b981' : '#9ca3af',
+              position: 'relative',
+              transition: 'background-color 0.2s'
+            }}>
+              <div style={{
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                backgroundColor: '#fff',
+                position: 'absolute',
+                top: '2px',
+                left: formData.isPublic ? '16px' : '2px',
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+              }} />
+            </div>
+            <span style={{
+              fontSize: '13px',
+              fontWeight: 500,
+              color: formData.isPublic ? '#10b981' : '#6b7280'
+            }}>
+              {formData.isPublic ? '公开' : '私密'}
+            </span>
+          </div>
+
           <button
             className="action-btn primary"
             onClick={() => handleSave(false)}
