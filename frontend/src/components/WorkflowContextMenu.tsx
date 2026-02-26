@@ -1,25 +1,31 @@
 import { useEffect, useRef } from 'react'
 import { Workflow } from '../services/navigationService'
 
+type SidebarSection = 'library' | 'my-workflows' | 'favorites'
+
 interface WorkflowContextMenuProps {
   workflow: Workflow | null
   position: { x: number; y: number }
+  section?: SidebarSection
   onClose: () => void
   onOpen?: () => void
   onCopy?: () => void
   onDelete?: () => void
   onAddToFavorites?: () => void
+  onRemoveFromFavorites?: () => void
   onEdit?: () => void
 }
 
 export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
   workflow,
   position,
+  section,
   onClose,
   onOpen,
   onCopy,
   onDelete,
   onAddToFavorites,
+  onRemoveFromFavorites,
   onEdit
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -46,6 +52,10 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
 
   if (!workflow) return null
 
+  // 根据 section 决定菜单项显隐；无 section 时回退到旧逻辑
+  const s = section
+  const isOwn = workflow.source === 'own'
+
   const menuItems = [
     {
       label: '打开工作流',
@@ -57,25 +67,31 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
       label: '编辑',
       icon: '✏️',
       onClick: onEdit,
-      show: workflow.source === 'own'
+      show: s ? s === 'my-workflows' : isOwn
     },
     {
       label: '复制到我的AI工作法',
       icon: '📋',
       onClick: onCopy,
-      show: true
+      show: s ? s !== 'my-workflows' : true
     },
     {
       label: '添加到收藏',
       icon: '⭐',
       onClick: onAddToFavorites,
-      show: workflow.source !== 'own' || !workflow.id
+      show: s ? s === 'library' : (!isOwn || !workflow.id)
+    },
+    {
+      label: '取消收藏',
+      icon: '💔',
+      onClick: onRemoveFromFavorites,
+      show: s === 'favorites'
     },
     {
       label: '删除',
       icon: '🗑️',
       onClick: onDelete,
-      show: workflow.source === 'own',
+      show: s ? s === 'my-workflows' : isOwn,
       danger: true
     }
   ]

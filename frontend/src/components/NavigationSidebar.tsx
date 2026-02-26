@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag } from '../services/navigationService'
 import { authService } from '../services/auth'
-import { deleteWorkflow, cloneWorkflow, updateWorkflow } from '../services/workflowApi'
+import { deleteWorkflow, cloneWorkflow, updateWorkflow, favoriteWorkflow, unfavoriteWorkflow } from '../services/workflowApi'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
@@ -84,6 +84,7 @@ interface WorkflowItemProps {
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onClick: () => void
+  onDoubleClick?: () => void
   onContextMenu: (e: React.MouseEvent) => void
   onToggleSelection: () => void
   onAddToFavorites: () => void
@@ -96,6 +97,7 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
   onDragStart,
   onDragEnd,
   onClick,
+  onDoubleClick,
   onContextMenu,
   onToggleSelection,
   onAddToFavorites
@@ -109,6 +111,7 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
       onDragStart={(e) => onDragStart(e)}
       onDragEnd={onDragEnd}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       style={{
         padding: '3px 16px 3px 38px',
@@ -216,32 +219,6 @@ const WorkflowItem: React.FC<WorkflowItemProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onAddToFavorites()
-            }}
-            style={{
-              padding: '0.25rem',
-              fontSize: '14px',
-              color: '#6b7280',
-              backgroundColor: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-            }}
-            title="添加到AI工作方法收藏"
-          >
-            收藏
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
               onContextMenu(e)
             }}
             style={{
@@ -319,6 +296,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const [contextMenu, setContextMenu] = useState<{
     workflow: Workflow | null
     position: { x: number; y: number }
+    section?: 'library' | 'my-workflows' | 'favorites'
   }>({ workflow: null, position: { x: 0, y: 0 } })
   const contextMenuWorkflowRef = useRef<Workflow | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -522,13 +500,14 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     })
   }
 
-  const handleContextMenu = (workflow: Workflow, e: React.MouseEvent) => {
+  const handleContextMenu = (workflow: Workflow, e: React.MouseEvent, section?: 'library' | 'my-workflows' | 'favorites') => {
     e.preventDefault()
     e.stopPropagation()
     contextMenuWorkflowRef.current = workflow
     setContextMenu({
       workflow,
-      position: { x: e.clientX, y: e.clientY }
+      position: { x: e.clientX, y: e.clientY },
+      section
     })
   }
 
@@ -586,11 +565,31 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     }
   }
 
-  const handleAddToFavorites = () => {
+  const handleAddToFavorites = async () => {
     const wf = contextMenuWorkflowRef.current
     if (wf) {
-      // TODO: Implement add to favorites logic
-      console.log('Add to favorites:', wf.id)
+      try {
+        await favoriteWorkflow(wf.id)
+        showToast('已添加到收藏', 'success')
+        loadSidebarData()
+      } catch (err) {
+        console.error('收藏失败:', err)
+        showToast('收藏失败，请重试', 'error')
+      }
+    }
+  }
+
+  const handleRemoveFromFavorites = async () => {
+    const wf = contextMenuWorkflowRef.current
+    if (wf) {
+      try {
+        await unfavoriteWorkflow(wf.id)
+        showToast('已取消收藏', 'success')
+        loadSidebarData()
+      } catch (err) {
+        console.error('取消收藏失败:', err)
+        showToast('取消收藏失败，请重试', 'error')
+      }
     }
   }
 
@@ -651,7 +650,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     sectionId: string,
     items: Workflow[],
     icon?: string,
-    actions?: { onRename?: (e: React.MouseEvent) => void; onDelete?: (e: React.MouseEvent) => void }
+    actions?: { onRename?: (e: React.MouseEvent) => void; onDelete?: (e: React.MouseEvent) => void },
+    sidebarSection?: 'library' | 'my-workflows' | 'favorites'
   ) => {
     const isCollapsed = collapsedSections.has(sectionId)
     const filteredItems = filterWorkflows(items)
@@ -773,11 +773,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                       onWorkflowSelect?.(workflow.id)
                     }
                   }}
-                  onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e)}
+                  onDoubleClick={() => {
+                    if (!batchMode && onWorkflowOpen) {
+                      onWorkflowOpen(workflow.id, workflow.title)
+                    }
+                  }}
+                  onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e, sidebarSection)}
                   onToggleSelection={() => toggleWorkflowSelection(workflow.id)}
                   onAddToFavorites={() => {
+                    contextMenuWorkflowRef.current = workflow
                     handleAddToFavorites()
-                    setContextMenu({ workflow, position: { x: 0, y: 0 } })
                   }}
                 />
               ))
@@ -953,11 +958,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                       onWorkflowSelect?.(workflow.id)
                     }
                   }}
-                  onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e)}
+                  onDoubleClick={() => {
+                    if (!batchMode && onWorkflowOpen) {
+                      onWorkflowOpen(workflow.id, workflow.title)
+                    }
+                  }}
+                  onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e, 'my-workflows')}
                   onToggleSelection={() => toggleWorkflowSelection(workflow.id)}
                   onAddToFavorites={() => {
+                    contextMenuWorkflowRef.current = workflow
                     handleAddToFavorites()
-                    setContextMenu({ workflow, position: { x: 0, y: 0 } })
                   }}
                 />
               ))
@@ -1790,11 +1800,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     onWorkflowSelect?.(workflow.id)
                   }
                 }}
-                onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e)}
+                onDoubleClick={() => {
+                  if (!batchMode && onWorkflowOpen) {
+                    onWorkflowOpen(workflow.id, workflow.title)
+                  }
+                }}
+                onContextMenu={(e) => !batchMode && handleContextMenu(workflow, e, 'favorites')}
                 onToggleSelection={() => toggleWorkflowSelection(workflow.id)}
                 onAddToFavorites={() => {
+                  contextMenuWorkflowRef.current = workflow
                   handleAddToFavorites()
-                  setContextMenu({ workflow, position: { x: 0, y: 0 } })
                 }}
               />
             ))}
@@ -2005,7 +2020,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     onConfirm: () => { hideSection('templates'); setConfirmPopup(p => ({ ...p, visible: false })) }
                   })
                 }
-              })}
+              }, 'library')}
               {!hiddenSections.has('recommended') && renderSection('推荐AI工作方法', 'recommended', sidebarData.quickStart.recommended, undefined, {
                 onRename: (e) => startRenameSection('recommended', renamedSections['recommended'] || '推荐AI工作方法', e),
                 onDelete: (e) => {
@@ -2018,7 +2033,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     onConfirm: () => { hideSection('recommended'); setConfirmPopup(p => ({ ...p, visible: false })) }
                   })
                 }
-              })}
+              }, 'library')}
               {customCategories.filter(c => c.parent === 'quick-start').map(cat => renderCustomCategorySection(cat))}
             </>
           )}
@@ -2111,7 +2126,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               {(() => {
                 const uncategorized = getWorkflowsByCategory('其他')
                 if (uncategorized.length > 0) {
-                  return renderSection('其他', 'category-other', uncategorized)
+                  return renderSection('其他', 'category-other', uncategorized, undefined, undefined, 'my-workflows')
                 }
                 return null
               })()}
@@ -2233,7 +2248,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                         onConfirm: () => { hideSection('fav-uncategorized'); setConfirmPopup(p => ({ ...p, visible: false })) }
                       })
                     }
-                  }
+                  },
+                  'favorites'
                 )}
             </>
           )}
@@ -2257,11 +2273,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         <WorkflowContextMenu
           workflow={contextMenu.workflow}
           position={contextMenu.position}
+          section={contextMenu.section}
           onClose={() => setContextMenu({ workflow: null, position: { x: 0, y: 0 } })}
           onOpen={handleWorkflowOpen}
           onCopy={handleWorkflowCopy}
           onDelete={handleWorkflowDelete}
           onAddToFavorites={handleAddToFavorites}
+          onRemoveFromFavorites={handleRemoveFromFavorites}
           onEdit={handleWorkflowEdit}
         />
       )}
