@@ -289,6 +289,13 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastFormDataRef = useRef<string>(JSON.stringify(formData))
+  // formData 实时引用：确保 handleSave 始终能读取到最新的 formData
+  const formDataRef = useRef(formData)
+  useEffect(() => { formDataRef.current = formData }, [formData])
+  // 手动保存进行中标记（ref 同步更新，防止 autoSave 竞态）
+  const manualSaveInProgressRef = useRef(false)
+  // autoSave 是否正在执行 API 调用（ref 同步更新）
+  const autoSaveRunningRef = useRef(false)
 
   // 切换资源卡片展开状态
   const toggleResourceCard = (stepId: string, resourceType: 'tool' | 'prompt' | 'media' | 'document') => {
@@ -550,112 +557,151 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
     return '其他'
   }, [formData.useScenarios])
 
+  // 构建工作流保存数据的辅助函数（autoSave 和 handleSave 共用）
+  const buildWorkflowData = useCallback((data: WorkflowFormData, isDraft: boolean, isAutoSave: boolean) => {
+    const derivedCategory = deriveCategoryName()
+    return {
+      title: data.title,
+      description: data.description,
+      tags: data.tags.join(','),
+      category: derivedCategory,
+      isPublic: isDraft ? false : data.isPublic,
+      isDraft,
+      difficultyLevel: data.difficultyLevel,
+      useScenarios: data.useScenarios,
+      preparations: data.preparations.filter(p => p.name.trim()).map((p, index) => ({
+        name: p.name,
+        description: p.description,
+        link: p.link,
+        order: index
+      })),
+      config: {
+        nodes: data.steps.map((step, index) => ({
+          id: step.id,
+          type: 'ai',
+          label: step.title,
+          config: {
+            goal: step.title,
+            prompt: step.prompt,
+            stepDescription: step.description,
+            expectedResult: step.expectedResult,
+            tools: step.tools.filter(t => t.name.trim()).map(t => ({
+              name: t.name,
+              url: t.url,
+              description: t.description
+            })),
+            promptResources: step.promptResources.filter(p => p.title.trim()).map(p => ({
+              title: p.title,
+              content: p.content
+            })),
+            demonstrationMedia: step.demonstrationMedia.filter(m => m.url.trim()).map(m => ({
+              type: m.type,
+              url: m.url,
+              caption: m.caption
+            })),
+            relatedResources: step.relatedResources.filter(r => r.title.trim() || r.url.trim()).map(r => ({
+              title: r.title,
+              type: r.type,
+              url: r.url,
+              description: r.description
+            })),
+            documentResources: step.documentResources.filter(d => d.name.trim()).map(d => ({
+              name: d.name,
+              url: d.url,
+              description: d.description
+            })),
+            provider: step.tools.length > 0 ? '' : 'OpenAI',
+            model: step.tools.length > 0 ? step.tools[0].name : 'GPT-4',
+            alternativeModels: step.alternativeModels,
+            temperature: 0.7,
+            maxTokens: 2000,
+            ...(!isAutoSave && {
+              associatedSolutions: step.associatedSolutions,
+              associatedThemes: step.associatedThemes
+            })
+          },
+          position: { x: 100, y: 100 + index * 150 }
+        })),
+        edges: data.steps.slice(0, -1).map((_, index) => ({
+          id: `e${index}-${index + 1}`,
+          source: data.steps[index].id,
+          target: data.steps[index + 1].id
+        }))
+      },
+      _derivedCategory: derivedCategory // 内部使用，API发送时会被忽略
+    }
+  }, [deriveCategoryName])
+
   // 自动保存函数
   const autoSave = useCallback(async () => {
-    // 只有在有未保存更改且用户已登录时才自动保存；手动保存进行中时跳过
+    // 手动保存进行中时跳过（使用 ref 同步检查，避免 state 延迟）
+    if (manualSaveInProgressRef.current) return
     const token = localStorage.getItem('token')
     if (!hasUnsavedChanges || !token || !formData.title.trim() || saving) {
       return
     }
 
     try {
+      autoSaveRunningRef.current = true
       setAutoSaveStatus('saving')
 
-      // 构建工作流数据（与 handleSave 相同的逻辑，但始终保存为草稿）
-      const workflowData: any = {
-        title: formData.title,
-        description: formData.description,
-        tags: formData.tags.join(','),
-        category: deriveCategoryName(),
-        isPublic: false, // 自动保存始终为私密
-        isDraft: true,    // 自动保存始终为草稿
-        difficultyLevel: formData.difficultyLevel,
-        useScenarios: formData.useScenarios,
-        preparations: formData.preparations.filter(p => p.name.trim()).map((p, index) => ({
-          name: p.name,
-          description: p.description,
-          link: p.link,
-          order: index
-        })),
-        config: {
-          nodes: formData.steps.map((step, index) => ({
-            id: step.id,
-            type: 'ai',
-            label: step.title,
-            config: {
-              goal: step.title,
-              prompt: step.prompt,
-              stepDescription: step.description,
-              expectedResult: step.expectedResult,
-              tools: step.tools.filter(t => t.name.trim()).map(t => ({
-                name: t.name,
-                url: t.url,
-                description: t.description
-              })),
-              promptResources: step.promptResources.filter(p => p.title.trim()).map(p => ({
-                title: p.title,
-                content: p.content
-              })),
-              demonstrationMedia: step.demonstrationMedia.filter(m => m.url.trim()).map(m => ({
-                type: m.type,
-                url: m.url,
-                caption: m.caption
-              })),
-              relatedResources: step.relatedResources.filter(r => r.title.trim() || r.url.trim()).map(r => ({
-                title: r.title,
-                type: r.type,
-                url: r.url,
-                description: r.description
-              })),
-              documentResources: step.documentResources.filter(d => d.name.trim()).map(d => ({
-                name: d.name,
-                url: d.url,
-                description: d.description
-              })),
-              provider: step.tools.length > 0 ? '' : 'OpenAI',
-              model: step.tools.length > 0 ? step.tools[0].name : 'GPT-4',
-              alternativeModels: step.alternativeModels,
-              temperature: 0.7,
-              maxTokens: 2000
-            },
-            position: { x: 100, y: 100 + index * 150 }
-          })),
-          edges: formData.steps.slice(0, -1).map((_, index) => ({
-            id: `e${index}-${index + 1}`,
-            source: formData.steps[index].id,
-            target: formData.steps[index + 1].id
-          }))
-        }
+      // 使用 ref 获取最新的 formData，防止闭包捕获旧值
+      const currentFormData = formDataRef.current
+      const workflowData = buildWorkflowData(currentFormData, true, true)
+
+      // 发送前再次检查手动保存是否已开始
+      if (manualSaveInProgressRef.current) {
+        autoSaveRunningRef.current = false
+        setAutoSaveStatus('idle')
+        return
       }
+
+      console.log('🔄 [autoSave] 自动保存中...', {
+        stepsCount: currentFormData.steps.length,
+        steps: currentFormData.steps.map(s => ({
+          title: s.title,
+          promptLength: s.prompt?.length || 0,
+          descLength: s.description?.length || 0
+        }))
+      })
 
       // 根据是编辑还是创建来决定调用哪个 API
       if (workflowId) {
         await updateWorkflow(workflowId, workflowData)
       } else {
-        // 新建工作流，记录ID供后续保存使用
         const result = await createWorkflow(workflowData)
         if (result.id) {
           setSavedWorkflowId(result.id)
         }
       }
 
+      // API 调用完成后，再次检查手动保存是否在此期间启动
+      // 如果是，跳过状态更新（手动保存会负责状态）
+      if (manualSaveInProgressRef.current) {
+        console.log('🔄 [autoSave] 手动保存已启动，跳过状态更新')
+        autoSaveRunningRef.current = false
+        return
+      }
+
       setAutoSaveStatus('saved')
       setLastSavedTime(new Date())
       setHasUnsavedChanges(false)
 
-      // 2秒后将状态重置为 idle
       setTimeout(() => {
         setAutoSaveStatus('idle')
       }, 2000)
     } catch (error) {
       console.error('自动保存失败:', error)
-      setAutoSaveStatus('error')
-      // 5秒后将状态重置为 idle，允许重试
-      setTimeout(() => {
-        setAutoSaveStatus('idle')
-      }, 5000)
+      if (!manualSaveInProgressRef.current) {
+        setAutoSaveStatus('error')
+        setTimeout(() => {
+          setAutoSaveStatus('idle')
+        }, 5000)
+      }
+    } finally {
+      autoSaveRunningRef.current = false
     }
-  }, [hasUnsavedChanges, formData, workflowId, saving])
+  }, [hasUnsavedChanges, formData, workflowId, saving, buildWorkflowData])
 
   // 监听 formData 变化，标记为有未保存的更改
   useEffect(() => {
@@ -1272,14 +1318,15 @@ ${articleInput.trim()}
 
   // 保存工作流（存草稿或发布）
   const handleSave = async (isDraft: boolean) => {
+    // 使用 ref 获取最新的 formData，防止闭包捕获旧值
+    const currentFormData = formDataRef.current
+
     if (isDraft) {
-      // 草稿只需要标题
-      if (!formData.title.trim()) {
+      if (!currentFormData.title.trim()) {
         showToast('请输入工作流标题', 'error')
         return
       }
     } else {
-      // 发布需要完整验证
       if (!validateForm()) {
         showToast('请填写所有必填字段', 'error')
         return
@@ -1287,95 +1334,50 @@ ${articleInput.trim()}
     }
 
     try {
+      // 同步标记手动保存开始，阻止 autoSave 继续或启动
+      manualSaveInProgressRef.current = true
+      // 清除 autoSave 定时器
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+        autoSaveTimerRef.current = null
+      }
       setSaving(true)
 
-      // 转换为后端需要的格式
-      const derivedCategory = deriveCategoryName()
-      const workflowData: any = {
-        title: formData.title,
-        description: formData.description,
-        tags: formData.tags.join(','),
-        category: derivedCategory,
-        isPublic: isDraft ? false : formData.isPublic,
-        isDraft: isDraft,
-        difficultyLevel: formData.difficultyLevel,
-        useScenarios: formData.useScenarios,
-        preparations: formData.preparations.filter(p => p.name.trim()).map((p, index) => ({
-          name: p.name,
-          description: p.description,
-          link: p.link,
-          order: index
-        })),
-        config: {
-          nodes: formData.steps.map((step, index) => ({
-            id: step.id,
-            type: 'ai',
-            label: step.title,
-            config: {
-              goal: step.title,
-              prompt: step.prompt,
-              stepDescription: step.description,
-              expectedResult: step.expectedResult,
-              // 工具列表
-              tools: step.tools.filter(t => t.name.trim()).map(t => ({
-                name: t.name,
-                url: t.url,
-                description: t.description
-              })),
-              // 提示词资源
-              promptResources: step.promptResources.filter(p => p.title.trim()).map(p => ({
-                title: p.title,
-                content: p.content
-              })),
-              // 演示媒体
-              demonstrationMedia: step.demonstrationMedia.filter(m => m.url.trim()).map(m => ({
-                type: m.type,
-                url: m.url,
-                caption: m.caption
-              })),
-              // 相关资源
-              relatedResources: step.relatedResources.filter(r => r.title.trim() || r.url.trim()).map(r => ({
-                title: r.title,
-                type: r.type,
-                url: r.url,
-                description: r.description
-              })),
-              // 文档资源
-              documentResources: step.documentResources.filter(d => d.name.trim()).map(d => ({
-                name: d.name,
-                url: d.url,
-                description: d.description
-              })),
-              // 保留旧字段以兼容
-              provider: step.tools.length > 0 ? '' : 'OpenAI',
-              model: step.tools.length > 0 ? step.tools[0].name : 'GPT-4',
-              alternativeModels: step.alternativeModels,
-              temperature: 0.7,
-              maxTokens: 2000,
-              associatedSolutions: step.associatedSolutions,
-              associatedThemes: step.associatedThemes
-            },
-            position: { x: 100, y: 100 + index * 150 }
-          })),
-          edges: formData.steps.slice(0, -1).map((_, index) => ({
-            id: `e${index}-${index + 1}`,
-            source: formData.steps[index].id,
-            target: formData.steps[index + 1].id
-          }))
-        }
+      // 如果 autoSave 正在执行 API 调用，等待它完成再继续
+      // （避免两个并发请求到服务器，autoSave 的旧数据可能覆盖新数据）
+      if (autoSaveRunningRef.current) {
+        console.log('⏳ [handleSave] 等待 autoSave 完成...')
+        await new Promise<void>(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!autoSaveRunningRef.current) {
+              clearInterval(checkInterval)
+              resolve()
+            }
+          }, 50)
+          // 最多等待 5 秒
+          setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve()
+          }, 5000)
+        })
+        console.log('✅ [handleSave] autoSave 已完成，继续手动保存')
       }
 
-      console.log('💾 [WorkflowCreatePage] 保存工作流，节点数据:', {
+      const workflowData: any = buildWorkflowData(currentFormData, isDraft, false)
+      const derivedCategory = workflowData._derivedCategory
+      delete workflowData._derivedCategory
+
+      console.log('💾 [handleSave] 保存工作流，完整数据:', {
         isDraft,
         isPublic: workflowData.isPublic,
-        nodesCount: workflowData.config.nodes.length,
+        stepsCount: currentFormData.steps.length,
         nodes: workflowData.config.nodes.map((n: any) => ({
           id: n.id,
           label: n.label,
-          hasConfig: !!n.config,
-          configKeys: n.config ? Object.keys(n.config) : [],
-          hasPrompt: !!n.config?.prompt,
-          promptLength: n.config?.prompt?.length || 0
+          promptLength: n.config?.prompt?.length || 0,
+          promptPreview: n.config?.prompt?.substring(0, 80) || '(空)',
+          descLength: n.config?.stepDescription?.length || 0,
+          expectedResultLength: n.config?.expectedResult?.length || 0
         }))
       })
 
@@ -1433,6 +1435,7 @@ ${articleInput.trim()}
       showToast('保存失败，请重试', 'error')
     } finally {
       setSaving(false)
+      manualSaveInProgressRef.current = false
     }
   }
 
