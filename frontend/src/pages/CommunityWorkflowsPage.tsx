@@ -14,6 +14,7 @@ interface Workflow {
     id: string
     name: string
     avatar?: string
+    role?: string
   }
   stats: {
     likes: number
@@ -22,6 +23,7 @@ interface Workflow {
     copies: number
   }
   isLiked: boolean
+  isFeatured?: boolean
 }
 
 export default function CommunityWorkflowsPage() {
@@ -196,8 +198,12 @@ export default function CommunityWorkflowsPage() {
                 {workflows.map((workflow) => (
                   <article
                     key={workflow.id}
-                    className="workflow-card"
+                    className={`workflow-card${workflow.isFeatured ? ' workflow-card--featured' : ''}`}
                   >
+                    {/* 精选标注 */}
+                    {workflow.isFeatured && (
+                      <span className="workflow-card__featured-badge">精选</span>
+                    )}
                     <div onClick={() => navigate(`/workflow-intro/${workflow.id}`)} style={{ cursor: 'pointer' }}>
                       <div className="workflow-card__header">
                         <h3 className="workflow-card__title">{workflow.title}</h3>

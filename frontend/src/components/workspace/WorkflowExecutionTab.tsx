@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { ChevronRight, RotateCcw, CheckCircle2, Loader2, Play, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronRight, RotateCcw, CheckCircle2, Loader2, Play, X, Edit3 } from 'lucide-react'
 import { getFullWorkflow } from '../../services/workflowApi'
 import type { WorkflowNode, WorkflowEdge, WorkflowStepDetail, WorkflowPreparation } from '../../types/workflow'
 import { useWorkflowExecution } from '../../hooks/useWorkflowExecution'
@@ -12,6 +13,7 @@ interface WorkflowExecutionTabProps {
   workflowId: string
   initialData?: any
   onClose?: () => void
+  onEdit?: (workflowId: string, title: string) => void
 }
 
 interface FullWorkflowData {
@@ -24,8 +26,10 @@ interface FullWorkflowData {
 export default function WorkflowExecutionTab({
   workflowId,
   initialData,
-  onClose
+  onClose,
+  onEdit
 }: WorkflowExecutionTabProps) {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<FullWorkflowData | null>(null)
@@ -311,6 +315,22 @@ export default function WorkflowExecutionTab({
               已完成
             </span>
           )}
+
+          <button
+            onClick={() => {
+              if (onEdit) {
+                const title = workflow?.title || workflow?.name || '编辑工作流'
+                onEdit(workflowId, title)
+              } else {
+                navigate(`/workflow/edit/${workflowId}`)
+              }
+            }}
+            className="btn-outline btn-sm"
+            title="编辑工作流"
+          >
+            <Edit3 className="w-4 h-4" />
+            编辑
+          </button>
 
           <button
             onClick={execution.resetProgress}

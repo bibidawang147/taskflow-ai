@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag } from '../services/navigationService'
 import { authService } from '../services/auth'
-import { deleteWorkflow } from '../services/workflowApi'
+import { deleteWorkflow, cloneWorkflow, updateWorkflow } from '../services/workflowApi'
 import { FavoriteTagModal } from './FavoriteTagModal'
 import { WorkflowContextMenu } from './WorkflowContextMenu'
 import { WORKFLOW_CATEGORIES, WorkflowCategory, getCategoryByName } from '../config/workflowCategories'
@@ -71,6 +72,8 @@ interface NavigationSidebarProps {
   libraryData?: any[]
   embedded?: boolean // 是否嵌入到其他容器中使用（不显示外层容器样式）
   externalSearchQuery?: string // 外部传入的搜索词
+  onWorkflowOpen?: (workflowId: string, title: string) => void  // 在Tab中打开工作流
+  onWorkflowEdit?: (workflowId: string, title: string) => void  // 在Tab中编辑工作流
 }
 
 // 独立的WorkflowItem组件，避免Hooks规则违反
@@ -251,10 +254,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   allCanvasData,
   libraryData = [],
   embedded = false,
-  externalSearchQuery
+  externalSearchQuery,
+  onWorkflowOpen,
+  onWorkflowEdit
 }) => {
   const { showToast } = useToast()
   const { showConfirm } = useConfirm()
+  const navigate = useNavigate()
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -284,6 +290,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const [hoveredSectionId, setHoveredSectionId] = useState<string | null>(null)
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingSectionName, setEditingSectionName] = useState('')
+
+  // 复制到我的AI工作法 - 分类选择弹窗
+  const [copyToCategoryPopup, setCopyToCategoryPopup] = useState<{
+    visible: boolean
+    position: { x: number; y: number }
+    workflow: Workflow | null
+  }>({ visible: false, position: { x: 0, y: 0 }, workflow: null })
 
   // 轻量确认气泡
   const [confirmPopup, setConfirmPopup] = useState<{
@@ -475,15 +488,39 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const handleWorkflowOpen = () => {
     const wf = contextMenuWorkflowRef.current
     if (wf) {
-      onWorkflowSelect?.(wf.id)
+      if (onWorkflowOpen) {
+        onWorkflowOpen(wf.id, wf.title)
+      } else {
+        navigate(`/workflow/view/${wf.id}`)
+      }
     }
   }
 
-  const handleWorkflowCopy = () => {
+  const handleWorkflowCopy = (menuPosition?: { x: number; y: number }) => {
     const wf = contextMenuWorkflowRef.current
     if (wf) {
-      // TODO: Implement copy workflow logic
-      console.log('Copy workflow:', wf.id)
+      setCopyToCategoryPopup({
+        visible: true,
+        position: menuPosition || contextMenu.position,
+        workflow: wf
+      })
+    }
+  }
+
+  const handleCopyToCategory = async (categoryName: string) => {
+    const wf = copyToCategoryPopup.workflow
+    if (!wf) return
+    setCopyToCategoryPopup(p => ({ ...p, visible: false }))
+    try {
+      const result = await cloneWorkflow(wf.id)
+      // 设置分类
+      await updateWorkflow(result.workflow.id, { category: categoryName })
+      showToast(`已复制到"${categoryName}"`, 'success')
+      loadSidebarData()
+      onRefresh?.()
+    } catch (err) {
+      console.error('复制工作流失败:', err)
+      showToast('复制失败，请重试', 'error')
     }
   }
 
@@ -513,8 +550,11 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const handleWorkflowEdit = () => {
     const wf = contextMenuWorkflowRef.current
     if (wf) {
-      // TODO: Implement edit workflow logic
-      console.log('Edit workflow:', wf.id)
+      if (onWorkflowEdit) {
+        onWorkflowEdit(wf.id, wf.title)
+      } else {
+        navigate(`/workflow/edit/${wf.id}`)
+      }
     }
   }
 
@@ -731,6 +771,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   // 按标签大类分组工作流
   const getWorkflowsByCategory = (categoryName: string): Workflow[] => {
     const allWorkflows = getAllMyWorkflows()
+    if (categoryName === '其他') {
+      const knownCategories = new Set(WORKFLOW_CATEGORIES.map(c => c.name))
+      return allWorkflows.filter(w => !w.category || !knownCategories.has(w.category))
+    }
     return allWorkflows.filter(w => w.category === categoryName)
   }
 
@@ -2016,6 +2060,14 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               )}
               {/* 按6个标签大类显示工作流 */}
               {WORKFLOW_CATEGORIES.filter(c => !hiddenCategories.has(c.id)).map(category => renderCategorySection(category))}
+              {/* 其他分类（未归类的工作流） */}
+              {(() => {
+                const uncategorized = getWorkflowsByCategory('其他')
+                if (uncategorized.length > 0) {
+                  return renderSection('其他', 'category-other', uncategorized)
+                }
+                return null
+              })()}
               {/* 自定义分类 */}
               {customCategories.filter(c => c.parent === 'my-workflows').map(cat => renderCustomCategorySection(cat))}
             </>
@@ -2206,6 +2258,60 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 borderRadius: '5px', cursor: 'pointer'
               }}
             >取消</button>
+          </div>
+        </>
+      )}
+
+      {/* 复制到我的AI工作法 - 分类选择气泡 */}
+      {copyToCategoryPopup.visible && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setCopyToCategoryPopup(p => ({ ...p, visible: false }))}
+          />
+          <div style={{
+            position: 'fixed',
+            left: copyToCategoryPopup.position.x,
+            top: copyToCategoryPopup.position.y,
+            zIndex: 9999,
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '6px 0',
+            minWidth: '160px'
+          }}>
+            <div style={{ padding: '6px 12px', fontSize: '12px', color: '#9ca3af', fontWeight: 600 }}>
+              选择分类
+            </div>
+            {WORKFLOW_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => handleCopyToCategory(cat.name)}
+                style={{
+                  width: '100%', padding: '7px 12px', fontSize: '13px',
+                  color: '#374151', backgroundColor: 'transparent', border: 'none',
+                  textAlign: 'left', cursor: 'pointer', display: 'block',
+                  transition: 'background-color 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+              >
+                {cat.name}
+              </button>
+            ))}
+            <button
+              onClick={() => handleCopyToCategory('其他')}
+              style={{
+                width: '100%', padding: '7px 12px', fontSize: '13px',
+                color: '#374151', backgroundColor: 'transparent', border: 'none',
+                textAlign: 'left', cursor: 'pointer', display: 'block',
+                transition: 'background-color 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+            >
+              其他
+            </button>
           </div>
         </>
       )}

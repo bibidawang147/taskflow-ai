@@ -14,6 +14,7 @@ interface Workflow {
     id: string
     name: string
     avatar?: string
+    role?: string
   }
   stats: {
     likes: number
@@ -22,6 +23,7 @@ interface Workflow {
     copies: number
   }
   isLiked: boolean
+  isFeatured?: boolean
   isOfficial?: boolean
   highlight?: string
   sellingPoints?: string[]
@@ -174,9 +176,13 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
                 {filteredWorkflows.slice(0, displayCount).map((workflow) => (
                   <article
                     key={workflow.id}
-                    className="workflow-card"
+                    className={`workflow-card${workflow.isFeatured ? ' workflow-card--featured' : ''}`}
                     onClick={() => navigate(`/workflow-intro/${workflow.id}`)}
                   >
+                    {/* 精选标注 */}
+                    {workflow.isFeatured && (
+                      <span className="workflow-card__featured-badge">精选</span>
+                    )}
                     {/* 第一行：标题 + 类型标签 */}
                     <div className="workflow-card__header">
                       <h3 className="workflow-card__title">{workflow.title}</h3>

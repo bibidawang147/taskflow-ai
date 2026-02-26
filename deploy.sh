@@ -86,6 +86,9 @@ deploy_backend() {
         # 检查是否需要重新安装依赖
         npm install --production
 
+        # 执行数据库迁移
+        npx prisma migrate deploy
+
         # 生成 Prisma 客户端
         npx prisma generate
 EOF

@@ -3007,6 +3007,25 @@ export default function StoragePage() {
     setActiveTabId(newTab.id)
   }, [workspaceTabs])
 
+  // 打开编辑工作流 tab
+  const openEditTab = useCallback((workflowId: string, title: string) => {
+    // 检查是否已有该工作流的编辑 tab
+    const existingTab = workspaceTabs.find(tab => tab.type === 'create' && tab.workflowId === workflowId)
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+      return
+    }
+
+    const newTab: WorkspaceTab = {
+      id: `edit-${workflowId}-${Date.now()}`,
+      type: 'create',
+      title: `编辑: ${title || '工作流'}`,
+      workflowId
+    }
+    setWorkspaceTabs(prev => [...prev, newTab])
+    setActiveTabId(newTab.id)
+  }, [workspaceTabs])
+
   // 新增空白画布 tab
   const openNewCanvasTab = useCallback(() => {
     const canvasCount = workspaceTabs.filter(tab => tab.type === 'canvas').length
@@ -5275,6 +5294,8 @@ export default function StoragePage() {
               libraryData={libraryData}
               embedded={true}
               externalSearchQuery={librarySearchQuery || undefined}
+              onWorkflowOpen={openWorkflowTab}
+              onWorkflowEdit={openEditTab}
             />
           </div>
         </div>
@@ -6024,6 +6045,7 @@ export default function StoragePage() {
                   workflowId={tab.workflowId}
                   initialData={initialData}
                   onClose={() => closeWorkspaceTab(tab.id)}
+                  onEdit={openEditTab}
                 />
               )
             })()}
@@ -6052,6 +6074,7 @@ export default function StoragePage() {
                 setWorkspaceTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title } : t))
               }}
               externalTitle={tab.title !== '未命名工作流' ? tab.title : undefined}
+              editWorkflowId={tab.workflowId}
             />
           </div>
         ))}

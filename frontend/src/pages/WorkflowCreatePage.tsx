@@ -198,11 +198,13 @@ const SCENARIO_CATEGORIES = [
 interface WorkflowCreatePageProps {
   onTitleChange?: (title: string) => void
   externalTitle?: string
+  editWorkflowId?: string  // 在Tab内编辑时传入的工作流ID
 }
 
-export default function WorkflowCreatePage({ onTitleChange, externalTitle }: WorkflowCreatePageProps = {}) {
+export default function WorkflowCreatePage({ onTitleChange, externalTitle, editWorkflowId }: WorkflowCreatePageProps = {}) {
   const navigate = useNavigate()
-  const { id } = useParams<{ id: string }>()
+  const { id: routeId } = useParams<{ id: string }>()
+  const id = routeId || editWorkflowId  // 优先用URL参数，其次用prop传入的ID
   const location = useLocation()
   const { showToast } = useToast()
   const { showConfirm } = useConfirm()
@@ -525,6 +527,26 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
     }
   }, []) // 只在组件挂载时执行一次
 
+  // 从 useScenarios 推导侧边栏分类名称
+  const SCENARIO_TO_SIDEBAR: Record<string, string> = {
+    content: '内容创作',
+    video: '视频制作',
+    data: '数据分析',
+    design: '图文设计',
+    efficiency: '效率工具',
+    monetize: '副业专区',
+  }
+  const deriveCategoryName = useCallback(() => {
+    if (formData.useScenarios.length > 0) {
+      for (const cat of SCENARIO_CATEGORIES) {
+        if (cat.children.some(c => formData.useScenarios.includes(c.id))) {
+          return SCENARIO_TO_SIDEBAR[cat.id] || cat.name
+        }
+      }
+    }
+    return '其他'
+  }, [formData.useScenarios])
+
   // 自动保存函数
   const autoSave = useCallback(async () => {
     // 只有在有未保存更改且用户已登录时才自动保存
@@ -541,7 +563,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
         title: formData.title,
         description: formData.description,
         tags: formData.tags.join(','),
-        category: formData.category,
+        category: deriveCategoryName(),
         isPublic: false, // 自动保存始终为私密
         isDraft: true,    // 自动保存始终为草稿
         difficultyLevel: formData.difficultyLevel,
@@ -823,6 +845,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle }: Wor
         description: data.description || '',
         tags: typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : data.tags || [],
         difficultyLevel: data.difficultyLevel || 'beginner',
+        price: data.price || 0,
         useScenarios: data.useScenarios || [],
         preparations: preparations,
         steps: steps,
@@ -1247,11 +1270,12 @@ ${articleInput.trim()}
       setSaving(true)
 
       // 转换为后端需要的格式
+      const derivedCategory = deriveCategoryName()
       const workflowData: any = {
         title: formData.title,
         description: formData.description,
         tags: formData.tags.join(','),
-        category: formData.category,
+        category: derivedCategory,
         isPublic: isDraft ? false : formData.isPublic,
         isDraft: isDraft,
         difficultyLevel: formData.difficultyLevel,
@@ -1346,33 +1370,26 @@ ${articleInput.trim()}
 
       if (workflowId) {
         await updateWorkflow(workflowId, workflowData)
-        // 保存成功后重置未保存状态
+        // 留标记给 StoragePage（autoSave先创建了工作流，手动保存走这里）
+        localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
+          workflowId,
+          categoryName: derivedCategory
+        }))
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
-        showToast('工作流更新成功！', 'success')
+        showToast(isDraft ? '草稿保存成功！' : '工作流更新成功！', 'success')
         navigate('/workspace')
       } else {
         const result = await createWorkflow(workflowData)
         // 记录已保存的ID，防止后续重复创建
         if (result.id) {
           setSavedWorkflowId(result.id)
-          // 计算分类名称：从 useScenarios 找到对应的一级分类名
-          let categoryName = '其他'
-          if (formData.useScenarios.length > 0) {
-            for (const cat of SCENARIO_CATEGORIES) {
-              if (cat.children.some(c => formData.useScenarios.includes(c.id))) {
-                categoryName = cat.name
-                break
-              }
-            }
-          }
           // 留标记给 StoragePage，让它把卡片放到画布上
           localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
             workflowId: result.id,
-            categoryName
+            categoryName: derivedCategory
           }))
         }
-        // 保存成功后重置未保存状态
         setHasUnsavedChanges(false)
         setLastSavedTime(new Date())
         showToast(isDraft ? '草稿保存成功！' : '工作流发布成功！', 'success')

@@ -109,6 +109,7 @@ model Workflow {
   isPublic    Boolean @default(false)
   isTemplate  Boolean @default(false)
   isDraft     Boolean @default(true) // 是否为草稿
+  isFeatured  Boolean @default(false) // 精选工作流（超级管理员发布自动标注）
   category    String?
   tags        String? // 使用逗号分隔的字符串存储标签
 

@@ -54,12 +54,14 @@ router.get('/workflows', optionalAuthenticateToken, async (req: AuthenticatedReq
           tags: true,
           usageCount: true,
           rating: true,
+          isFeatured: true,
           createdAt: true,
           author: {
             select: {
               id: true,
               name: true,
-              avatar: true
+              avatar: true,
+              role: true
             }
           },
           _count: {

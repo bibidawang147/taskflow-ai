@@ -60,7 +60,7 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
       show: workflow.source === 'own'
     },
     {
-      label: '复制',
+      label: '复制到我的AI工作法',
       icon: '📋',
       onClick: onCopy,
       show: true

@@ -85,12 +85,14 @@ router.get('/', async (req, res: Response) => {
         category: true,
         tags: true,
         version: true,
+        isFeatured: true,
         createdAt: true,
         author: {
           select: {
             id: true,
             name: true,
-            avatar: true
+            avatar: true,
+            role: true
           }
         },
         _count: {
@@ -354,6 +356,13 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
       exampleOutput
     } = req.body
 
+    // 检查作者是否为管理员，管理员发布的工作流自动标注精选
+    const author = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    })
+    const isFeatured = author?.role === 'admin' && isPublic && !isDraft
+
     // 如果config中有nodes，同时创建WorkflowNode记录
     const nodes = config?.nodes || []
 
@@ -366,6 +375,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         config,
         isPublic,
         isDraft,
+        isFeatured,
         authorId: userId,
         // 推荐相关字段
         ...(difficultyLevel !== undefined && { difficultyLevel }),
@@ -1573,6 +1583,15 @@ router.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Res
       })
     }
 
+    // 检查作者是否为管理员，管理员发布的工作流自动标注精选
+    const author = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    })
+    const finalIsPublic = isPublic !== undefined ? isPublic : workflow.isPublic
+    const finalIsDraft = isDraft !== undefined ? isDraft : workflow.isDraft
+    const isFeatured = author?.role === 'admin' && finalIsPublic && !finalIsDraft
+
     // 更新工作流（使用事务确保原子性）
     const updatedWorkflow = await prisma.$transaction(async (tx) => {
       // 更新工作流主体
@@ -1586,6 +1605,7 @@ router.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Res
           ...(config !== undefined && { config }),
           ...(isPublic !== undefined && { isPublic }),
           ...(isDraft !== undefined && { isDraft }),
+          isFeatured,
           ...(difficultyLevel !== undefined && { difficultyLevel }),
           ...(useScenarios !== undefined && { useScenarios: JSON.stringify(useScenarios) }),
         },
