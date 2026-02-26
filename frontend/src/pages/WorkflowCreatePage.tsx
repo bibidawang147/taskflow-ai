@@ -368,23 +368,24 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
     }
 
     // 添加到对应的资源列表
-    const newSteps = [...formData.steps]
     const newResource = {
       id: `${resourceType}_${Date.now()}_${Math.random()}`,
       ...data
     }
 
-    if (resourceType === 'tool') {
-      newSteps[stepIndex].tools = [...newSteps[stepIndex].tools, newResource]
-    } else if (resourceType === 'prompt') {
-      newSteps[stepIndex].promptResources = [...newSteps[stepIndex].promptResources, newResource]
-    } else if (resourceType === 'media') {
-      newSteps[stepIndex].demonstrationMedia = [...newSteps[stepIndex].demonstrationMedia, newResource]
-    } else if (resourceType === 'document') {
-      newSteps[stepIndex].documentResources = [...newSteps[stepIndex].documentResources, newResource]
-    }
-
-    setFormData({ ...formData, steps: newSteps })
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      if (resourceType === 'tool') {
+        newSteps[stepIndex] = { ...newSteps[stepIndex], tools: [...newSteps[stepIndex].tools, newResource] }
+      } else if (resourceType === 'prompt') {
+        newSteps[stepIndex] = { ...newSteps[stepIndex], promptResources: [...newSteps[stepIndex].promptResources, newResource] }
+      } else if (resourceType === 'media') {
+        newSteps[stepIndex] = { ...newSteps[stepIndex], demonstrationMedia: [...newSteps[stepIndex].demonstrationMedia, newResource] }
+      } else if (resourceType === 'document') {
+        newSteps[stepIndex] = { ...newSteps[stepIndex], documentResources: [...newSteps[stepIndex].documentResources, newResource] }
+      }
+      return { ...prev, steps: newSteps }
+    })
 
     // 关闭卡片
     setExpandedResourceCards(prev => {
@@ -908,25 +909,27 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
       description: '',
       link: ''
     }
-    setFormData({
-      ...formData,
-      preparations: [...formData.preparations, newPrep]
-    })
+    setFormData(prev => ({
+      ...prev,
+      preparations: [...prev.preparations, newPrep]
+    }))
   }
 
   // 更新前置准备项
   const handleUpdatePreparation = (index: number, field: keyof PreparationItem, value: string) => {
-    const newPreps = [...formData.preparations]
-    newPreps[index] = { ...newPreps[index], [field]: value }
-    setFormData({ ...formData, preparations: newPreps })
+    setFormData(prev => {
+      const newPreps = [...prev.preparations]
+      newPreps[index] = { ...newPreps[index], [field]: value }
+      return { ...prev, preparations: newPreps }
+    })
   }
 
   // 删除前置准备项
   const handleRemovePreparation = (index: number) => {
-    setFormData({
-      ...formData,
-      preparations: formData.preparations.filter((_, i) => i !== index)
-    })
+    setFormData(prev => ({
+      ...prev,
+      preparations: prev.preparations.filter((_, i) => i !== index)
+    }))
   }
 
   // 切换步骤高级设置展开状态
@@ -976,7 +979,7 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
       })
 
       if (response.success && response.data.content) {
-        setFormData({ ...formData, description: response.data.content.trim() })
+        setFormData(prev => ({ ...prev, description: response.data.content.trim() }))
       } else {
         showToast('生成失败，请重试', 'error')
       }
@@ -1104,73 +1107,87 @@ ${articleInput.trim()}
       associatedThemes: []
     }
 
-    setFormData({
-      ...formData,
-      steps: [...formData.steps, newStep]
-    })
+    setFormData(prev => ({
+      ...prev,
+      steps: [...prev.steps, newStep]
+    }))
   }
 
   // 更新步骤
   const handleUpdateStep = (index: number, field: string, value: any) => {
-    const newSteps = [...formData.steps]
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.')
-      newSteps[index] = {
-        ...newSteps[index],
-        [parent]: {
-          ...(newSteps[index] as any)[parent],
-          [child]: value
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.')
+        newSteps[index] = {
+          ...newSteps[index],
+          [parent]: {
+            ...(newSteps[index] as any)[parent],
+            [child]: value
+          }
+        }
+      } else {
+        newSteps[index] = {
+          ...newSteps[index],
+          [field]: value
         }
       }
-    } else {
-      newSteps[index] = {
-        ...newSteps[index],
-        [field]: value
-      }
-    }
-    setFormData({ ...formData, steps: newSteps })
+      return { ...prev, steps: newSteps }
+    })
   }
 
   // 删除步骤
   const handleDeleteStep = async (index: number) => {
     if (await showConfirm({ message: '确定要删除这个步骤吗？' })) {
-      const newSteps = formData.steps.filter((_, i) => i !== index)
-      setFormData({ ...formData, steps: newSteps })
+      setFormData(prev => ({
+        ...prev,
+        steps: prev.steps.filter((_, i) => i !== index)
+      }))
     }
   }
 
   // 添加备用模型
   const handleAddAlternativeModel = (stepIndex: number) => {
-    const newSteps = [...formData.steps]
     const defaultBrand = 'OpenAI'
-    newSteps[stepIndex].alternativeModels.push({
-      brand: defaultBrand,
-      name: AI_MODELS[defaultBrand][0],
-      url: ''
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      newSteps[stepIndex] = {
+        ...newSteps[stepIndex],
+        alternativeModels: [...newSteps[stepIndex].alternativeModels, {
+          brand: defaultBrand,
+          name: AI_MODELS[defaultBrand][0],
+          url: ''
+        }]
+      }
+      return { ...prev, steps: newSteps }
     })
-    setFormData({ ...formData, steps: newSteps })
   }
 
   // 更新备用模型
   const handleUpdateAlternativeModel = (stepIndex: number, altIndex: number, field: 'brand' | 'name', value: string) => {
-    const newSteps = [...formData.steps]
-    if (field === 'brand') {
-      newSteps[stepIndex].alternativeModels[altIndex] = {
-        brand: value,
-        name: AI_MODELS[value][0],
-        url: ''
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      const newAltModels = [...newSteps[stepIndex].alternativeModels]
+      if (field === 'brand') {
+        newAltModels[altIndex] = { brand: value, name: AI_MODELS[value][0], url: '' }
+      } else {
+        newAltModels[altIndex] = { ...newAltModels[altIndex], name: value }
       }
-    } else {
-      newSteps[stepIndex].alternativeModels[altIndex].name = value
-    }
-    setFormData({ ...formData, steps: newSteps })
+      newSteps[stepIndex] = { ...newSteps[stepIndex], alternativeModels: newAltModels }
+      return { ...prev, steps: newSteps }
+    })
   }
 
   // 删除备用模型
   const handleRemoveAlternativeModel = (stepIndex: number, altIndex: number) => {
-    const newSteps = [...formData.steps]
-    newSteps[stepIndex].alternativeModels.splice(altIndex, 1)
-    setFormData({ ...formData, steps: newSteps })
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      newSteps[stepIndex] = {
+        ...newSteps[stepIndex],
+        alternativeModels: newSteps[stepIndex].alternativeModels.filter((_, i) => i !== altIndex)
+      }
+      return { ...prev, steps: newSteps }
+    })
   }
 
   // 拖拽开始
@@ -1183,12 +1200,13 @@ ${articleInput.trim()}
     e.preventDefault()
     if (draggedStepIndex === null || draggedStepIndex === index) return
 
-    const newSteps = [...formData.steps]
-    const draggedStep = newSteps[draggedStepIndex]
-    newSteps.splice(draggedStepIndex, 1)
-    newSteps.splice(index, 0, draggedStep)
-
-    setFormData({ ...formData, steps: newSteps })
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      const draggedStep = newSteps[draggedStepIndex]
+      newSteps.splice(draggedStepIndex, 1)
+      newSteps.splice(index, 0, draggedStep)
+      return { ...prev, steps: newSteps }
+    })
     setDraggedStepIndex(index)
   }
 
@@ -1891,9 +1909,11 @@ ${articleInput.trim()}
                             type="button"
                             className="saved-resource-remove"
                             onClick={() => {
-                              const newSteps = [...formData.steps]
-                              newSteps[index].tools = newSteps[index].tools.filter(t => t.id !== tool.id)
-                              setFormData({ ...formData, steps: newSteps })
+                              setFormData(prev => {
+                                const newSteps = [...prev.steps]
+                                newSteps[index] = { ...newSteps[index], tools: newSteps[index].tools.filter(t => t.id !== tool.id) }
+                                return { ...prev, steps: newSteps }
+                              })
                             }}
                           >×</button>
                         </div>
@@ -1912,9 +1932,11 @@ ${articleInput.trim()}
                             type="button"
                             className="saved-resource-remove"
                             onClick={() => {
-                              const newSteps = [...formData.steps]
-                              newSteps[index].promptResources = newSteps[index].promptResources.filter(p => p.id !== prompt.id)
-                              setFormData({ ...formData, steps: newSteps })
+                              setFormData(prev => {
+                                const newSteps = [...prev.steps]
+                                newSteps[index] = { ...newSteps[index], promptResources: newSteps[index].promptResources.filter(p => p.id !== prompt.id) }
+                                return { ...prev, steps: newSteps }
+                              })
                             }}
                           >×</button>
                         </div>
@@ -1933,9 +1955,11 @@ ${articleInput.trim()}
                             type="button"
                             className="saved-resource-remove"
                             onClick={() => {
-                              const newSteps = [...formData.steps]
-                              newSteps[index].demonstrationMedia = newSteps[index].demonstrationMedia.filter(m => m.id !== media.id)
-                              setFormData({ ...formData, steps: newSteps })
+                              setFormData(prev => {
+                                const newSteps = [...prev.steps]
+                                newSteps[index] = { ...newSteps[index], demonstrationMedia: newSteps[index].demonstrationMedia.filter(m => m.id !== media.id) }
+                                return { ...prev, steps: newSteps }
+                              })
                             }}
                           >×</button>
                         </div>
@@ -1954,9 +1978,11 @@ ${articleInput.trim()}
                             type="button"
                             className="saved-resource-remove"
                             onClick={() => {
-                              const newSteps = [...formData.steps]
-                              newSteps[index].documentResources = newSteps[index].documentResources.filter(d => d.id !== doc.id)
-                              setFormData({ ...formData, steps: newSteps })
+                              setFormData(prev => {
+                                const newSteps = [...prev.steps]
+                                newSteps[index] = { ...newSteps[index], documentResources: newSteps[index].documentResources.filter(d => d.id !== doc.id) }
+                                return { ...prev, steps: newSteps }
+                              })
                             }}
                           >×</button>
                         </div>

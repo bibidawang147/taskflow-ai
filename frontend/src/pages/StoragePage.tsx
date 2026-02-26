@@ -892,16 +892,58 @@ export default function StoragePage() {
   })
 
   // Tab 系统状态 - 必须在 canvasDataByTabId 之前声明
-  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>([
-    { id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }
-  ])
-  const [activeTabId, setActiveTabId] = useState(CANVAS_TAB_ID)
+  // 从 localStorage 恢复 tabs 状态
+  const [workspaceTabs, setWorkspaceTabs] = useState<WorkspaceTab[]>(() => {
+    try {
+      const saved = localStorage.getItem('workspace_tabs')
+      if (saved) {
+        const tabs = JSON.parse(saved) as WorkspaceTab[]
+        // 确保默认画布 tab 始终存在
+        if (!tabs.find(t => t.id === CANVAS_TAB_ID)) {
+          tabs.unshift({ id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' })
+        }
+        return tabs
+      }
+    } catch (e) { /* ignore */ }
+    return [{ id: CANVAS_TAB_ID, type: 'canvas', title: '工作画布' }]
+  })
+  const [activeTabId, setActiveTabId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('workspace_active_tab')
+      if (saved) return saved
+    } catch (e) { /* ignore */ }
+    return CANVAS_TAB_ID
+  })
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [editingTabTitle, setEditingTabTitle] = useState('')
 
+  // 持久化 tabs 状态到 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('workspace_tabs', JSON.stringify(workspaceTabs))
+    } catch (e) { /* ignore */ }
+  }, [workspaceTabs])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('workspace_active_tab', activeTabId)
+    } catch (e) { /* ignore */ }
+  }, [activeTabId])
+
   // 每个画布 Tab 的数据存储
-  const [canvasDataByTabId, setCanvasDataByTabId] = useState<Record<string, CanvasItemsMap>>({
-    [CANVAS_TAB_ID]: createEmptyCanvasData()
+  const [canvasDataByTabId, setCanvasDataByTabId] = useState<Record<string, CanvasItemsMap>>(() => {
+    const initial: Record<string, CanvasItemsMap> = {
+      [CANVAS_TAB_ID]: createEmptyCanvasData()
+    }
+    // 恢复额外画布 tab 的数据
+    try {
+      const saved = localStorage.getItem('workspace_extra_canvas')
+      if (saved) {
+        const extra = JSON.parse(saved) as Record<string, CanvasItemsMap>
+        Object.assign(initial, extra)
+      }
+    } catch (e) { /* ignore */ }
+    return initial
   })
 
   // 当前画布的数据（兼容旧代码）
@@ -1227,6 +1269,23 @@ export default function StoragePage() {
 
     return () => clearTimeout(timeoutId)
   }, [canvasDataByTabId, edgesByTabId])
+
+  // 持久化额外画布 tab 的数据到 localStorage
+  useEffect(() => {
+    const extraCanvas: Record<string, CanvasItemsMap> = {}
+    for (const [tabId, data] of Object.entries(canvasDataByTabId)) {
+      if (tabId !== CANVAS_TAB_ID) {
+        extraCanvas[tabId] = data
+      }
+    }
+    try {
+      if (Object.keys(extraCanvas).length > 0) {
+        localStorage.setItem('workspace_extra_canvas', JSON.stringify(extraCanvas))
+      } else {
+        localStorage.removeItem('workspace_extra_canvas')
+      }
+    } catch (e) { /* ignore */ }
+  }, [canvasDataByTabId])
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
