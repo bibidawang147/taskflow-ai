@@ -672,6 +672,8 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
         const result = await createWorkflow(workflowData)
         if (result.id) {
           setSavedWorkflowId(result.id)
+          // 更新 URL 为 /workflow/edit/:id，这样刷新页面时能从服务器加载数据
+          window.history.replaceState(null, '', `/workflow/edit/${result.id}`)
         }
       }
 
