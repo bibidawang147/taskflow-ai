@@ -75,8 +75,8 @@ deploy_backend() {
     # 上传 package.json（检查依赖是否变化）
     scp -i $SSH_KEY package.json ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/
 
-    # 上传 prisma（如果数据库schema变化）
-    scp -i $SSH_KEY -r prisma ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/
+    # 只上传 prisma 迁移文件（不覆盖服务器的 schema.prisma，服务器用 PostgreSQL）
+    scp -i $SSH_KEY -r prisma/migrations ${SERVER_USER}@${SERVER_IP}:/root/workflow-backend/prisma/
 
     # 在服务器上安装依赖（如果 package.json 变化）
     echo_info "3. 检查并安装依赖..."
