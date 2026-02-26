@@ -7,6 +7,7 @@ interface WorkflowContextMenuProps {
   workflow: Workflow | null
   position: { x: number; y: number }
   section?: SidebarSection
+  isFavorited?: boolean
   onClose: () => void
   onOpen?: () => void
   onCopy?: () => void
@@ -20,6 +21,7 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
   workflow,
   position,
   section,
+  isFavorited,
   onClose,
   onOpen,
   onCopy,
@@ -79,13 +81,13 @@ export const WorkflowContextMenu: React.FC<WorkflowContextMenuProps> = ({
       label: '添加到收藏',
       icon: '⭐',
       onClick: onAddToFavorites,
-      show: s ? s === 'library' : (!isOwn || !workflow.id)
+      show: s === 'library' || (s === 'my-workflows' && !isFavorited) || (!s && !isOwn)
     },
     {
       label: '取消收藏',
       icon: '💔',
       onClick: onRemoveFromFavorites,
-      show: s === 'favorites'
+      show: s === 'favorites' || (s === 'my-workflows' && isFavorited)
     },
     {
       label: '删除',

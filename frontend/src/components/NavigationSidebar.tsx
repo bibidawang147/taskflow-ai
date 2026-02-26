@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { navigationService, favoritesService, SidebarData, Workflow, FavoriteTag } from '../services/navigationService'
 import { authService } from '../services/auth'
@@ -278,6 +278,19 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const [sidebarData, setSidebarData] = useState<SidebarData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // 收藏工作流ID集合，用于判断某个工作流是否已收藏
+  const favoriteWorkflowIds = useMemo(() => {
+    if (!sidebarData) return new Set<string>()
+    const ids = new Set<string>()
+    // 按标签分组的收藏
+    Object.values(sidebarData.favorites.workflows).forEach(wfs => {
+      wfs.forEach(wf => ids.add(wf.id))
+    })
+    // 未分类收藏
+    sidebarData.favorites.uncategorized.forEach(wf => ids.add(wf.id))
+    return ids
+  }, [sidebarData])
   // 默认所有section都是折叠的（页面刷新时）
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     new Set([
@@ -2274,6 +2287,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           workflow={contextMenu.workflow}
           position={contextMenu.position}
           section={contextMenu.section}
+          isFavorited={contextMenu.workflow ? favoriteWorkflowIds.has(contextMenu.workflow.id) : false}
           onClose={() => setContextMenu({ workflow: null, position: { x: 0, y: 0 } })}
           onOpen={handleWorkflowOpen}
           onCopy={handleWorkflowCopy}
