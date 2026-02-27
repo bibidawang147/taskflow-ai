@@ -3099,8 +3099,8 @@ export default function StoragePage() {
   )
 
   const openWorkflowTab = useCallback((workflowId: string, title: string) => {
-    // 检查是否已有该工作流的 tab
-    const existingTab = workspaceTabs.find(tab => tab.workflowId === workflowId)
+    // 检查是否已有该工作流的浏览 tab（只匹配 workflow 类型，不匹配 create 编辑类型）
+    const existingTab = workspaceTabs.find(tab => tab.type === 'workflow' && tab.workflowId === workflowId)
     if (existingTab) {
       setActiveTabId(existingTab.id)
       return

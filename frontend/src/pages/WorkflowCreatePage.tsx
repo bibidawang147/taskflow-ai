@@ -1323,16 +1323,13 @@ ${contentToAnalyze}`
 
     setUploadingStepIndex(stepIndex)
     try {
-      const res = await api.post(endpoint, formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const res = await api.post(endpoint, formDataUpload)
 
-      // 后端返回相对路径如 /uploads/images/xxx.png，拼上 API_BASE_URL 保证前端可访问
-      const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${API_BASE_URL}${res.data.url}`
+      // 后端返回相对路径如 /uploads/images/xxx.png，直接使用相对路径（适配任何域名）
       const attachment = {
         id: `att_${Date.now()}_${Math.random()}`,
         type: (isImage ? 'image' : 'file') as 'image' | 'file',
-        url: fullUrl,
+        url: res.data.url,
         name: file.name || res.data.originalName || '未命名文件'
       }
 
