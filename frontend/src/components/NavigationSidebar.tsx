@@ -74,6 +74,8 @@ interface NavigationSidebarProps {
   externalSearchQuery?: string // 外部传入的搜索词
   onWorkflowOpen?: (workflowId: string, title: string) => void  // 在Tab中打开工作流
   onWorkflowEdit?: (workflowId: string, title: string) => void  // 在Tab中编辑工作流
+  openWorkflowIds?: string[]  // 当前在标签页中打开的工作流ID列表
+  onWorkflowDelete?: (workflowId: string, closeTab: boolean) => void  // 删除工作流时通知标签页
 }
 
 // 独立的WorkflowItem组件，避免Hooks规则违反
@@ -270,7 +272,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   embedded = false,
   externalSearchQuery,
   onWorkflowOpen,
-  onWorkflowEdit
+  onWorkflowEdit,
+  openWorkflowIds = [],
+  onWorkflowDelete
 }) => {
   const { showToast } = useToast()
   const { showConfirm } = useConfirm()
@@ -312,6 +316,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     section?: 'library' | 'my-workflows' | 'favorites'
   }>({ workflow: null, position: { x: 0, y: 0 } })
   const contextMenuWorkflowRef = useRef<Workflow | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    visible: boolean; workflow: Workflow | null
+  }>({ visible: false, workflow: null })
   const [batchMode, setBatchMode] = useState(false)
   const [selectedWorkflows, setSelectedWorkflows] = useState<Set<string>>(new Set())
   const [localSavedWorkflows, setLocalSavedWorkflows] = useState<any[]>([])
@@ -566,12 +573,38 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const handleWorkflowDelete = async () => {
     const workflow = contextMenuWorkflowRef.current
     if (!workflow) return
+
+    const isOpenInTab = openWorkflowIds.includes(workflow.id)
+    if (isOpenInTab) {
+      // 工作流正在标签页中打开，显示三按钮弹窗
+      setDeleteDialog({ visible: true, workflow })
+      return
+    }
+
+    // 工作流未打开，走原有确认逻辑
     if (!await showConfirm({ message: `确定要删除"${workflow.title}"吗？此操作不可撤销。` })) return
     try {
       await deleteWorkflow(workflow.id)
       contextMenuWorkflowRef.current = null
       loadSidebarData()
       onRefresh?.()
+    } catch (err) {
+      console.error('删除工作流失败:', err)
+      showToast('删除失败，请重试', 'error')
+    }
+  }
+
+  const handleDeleteDialogAction = async (action: 'cancel' | 'delete' | 'deleteAndClose') => {
+    const workflow = deleteDialog.workflow
+    setDeleteDialog({ visible: false, workflow: null })
+    if (action === 'cancel' || !workflow) return
+
+    try {
+      await deleteWorkflow(workflow.id)
+      contextMenuWorkflowRef.current = null
+      loadSidebarData()
+      onRefresh?.()
+      onWorkflowDelete?.(workflow.id, action === 'deleteAndClose')
     } catch (err) {
       console.error('删除工作流失败:', err)
       showToast('删除失败，请重试', 'error')
@@ -2337,6 +2370,70 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 borderRadius: '5px', cursor: 'pointer'
               }}
             >取消</button>
+          </div>
+        </>
+      )}
+
+      {/* 删除工作流（已在标签页打开）- 三按钮弹窗 */}
+      {deleteDialog.visible && deleteDialog.workflow && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 99998 }}
+            onClick={() => handleDeleteDialogAction('cancel')}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '420px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+              zIndex: 99999
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600, color: '#1f2937' }}>
+              删除工作流
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#4b5563', lineHeight: 1.6 }}>
+              "{deleteDialog.workflow.title}" 当前正在标签页中打开，请选择操作：
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => handleDeleteDialogAction('cancel')}
+                style={{
+                  padding: '8px 18px', fontSize: '14px', fontWeight: 500,
+                  border: '1px solid #d1d5db', borderRadius: '8px',
+                  backgroundColor: 'white', color: '#374151', cursor: 'pointer'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleDeleteDialogAction('delete')}
+                style={{
+                  padding: '8px 18px', fontSize: '14px', fontWeight: 500,
+                  border: '1px solid #fca5a5', borderRadius: '8px',
+                  backgroundColor: '#fff5f5', color: '#dc2626', cursor: 'pointer'
+                }}
+              >
+                仅删除
+              </button>
+              <button
+                onClick={() => handleDeleteDialogAction('deleteAndClose')}
+                style={{
+                  padding: '8px 18px', fontSize: '14px', fontWeight: 500,
+                  border: 'none', borderRadius: '8px',
+                  backgroundColor: '#ef4444', color: 'white', cursor: 'pointer'
+                }}
+              >
+                删除并关闭标签
+              </button>
+            </div>
           </div>
         </>
       )}

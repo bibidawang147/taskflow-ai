@@ -112,6 +112,7 @@ export default function WorkspacePage() {
 
   // 创建新容器
   const handleCreateContainer = async () => {
+    console.log('🟢 handleCreateContainer 被调用了!')
     let newCards: CardConfig[] = []
     setCards(prev => {
       const maxZIndex = prev.length > 0 ? Math.max(...prev.map(c => c.zIndex), 0) : 0

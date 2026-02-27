@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { FileText, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { createWorkflow, updateWorkflow, getWorkflowDetail } from '../services/workflowApi'
 import { chatWithAI } from '../services/aiApi'
+import { api, API_BASE_URL } from '../services/api'
 import { popularWorkPackages } from '../data/popularWorkPackages'
 import { exploreThemes } from '../data/exploreThemes'
 import { useToast } from '../components/ui/Toast'
@@ -66,6 +67,7 @@ interface WorkflowStep {
   description: string  // 步骤说明
   prompt: string
   expectedResult: string  // 预期结果
+  expectedResultAttachments: Array<{ id: string; type: 'image' | 'file'; url: string; name: string }>
   model: AIModel
   alternativeModels: AIModel[]
   advancedSettings: AdvancedSettings
@@ -197,11 +199,12 @@ const SCENARIO_CATEGORIES = [
 
 interface WorkflowCreatePageProps {
   onTitleChange?: (title: string) => void
+  onWorkflowIdChange?: (workflowId: string) => void  // 新建工作流后通知父组件更新ID
   externalTitle?: string
   editWorkflowId?: string  // 在Tab内编辑时传入的工作流ID
 }
 
-export default function WorkflowCreatePage({ onTitleChange, externalTitle, editWorkflowId }: WorkflowCreatePageProps = {}) {
+export default function WorkflowCreatePage({ onTitleChange, onWorkflowIdChange, externalTitle, editWorkflowId }: WorkflowCreatePageProps = {}) {
   const navigate = useNavigate()
   const { id: routeId } = useParams<{ id: string }>()
   const id = routeId || editWorkflowId  // 优先用URL参数，其次用prop传入的ID
@@ -227,6 +230,7 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
       description: '',
       prompt: '',
       expectedResult: '',
+      expectedResultAttachments: [],
       model: {
         brand: 'OpenAI',
         name: 'GPT-4',
@@ -585,6 +589,12 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
             prompt: step.prompt,
             stepDescription: step.description,
             expectedResult: step.expectedResult,
+            expectedResultAttachments: (step.expectedResultAttachments || []).map(a => ({
+              id: a.id,
+              type: a.type,
+              url: a.url,
+              name: a.name
+            })),
             tools: step.tools.filter(t => t.name.trim()).map(t => ({
               name: t.name,
               url: t.url,
@@ -667,13 +677,31 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
 
       // 根据是编辑还是创建来决定调用哪个 API
       if (workflowId) {
-        await updateWorkflow(workflowId, workflowData)
+        try {
+          await updateWorkflow(workflowId, workflowData)
+        } catch (updateErr: any) {
+          // 如果工作流已被删除（404），自动创建新工作流
+          if (updateErr.response?.status === 404) {
+            console.log('🔄 [autoSave] 工作流已被删除，自动创建新工作流...')
+            const result = await createWorkflow(workflowData)
+            if (result.id) {
+              setSavedWorkflowId(result.id)
+              onWorkflowIdChange?.(result.id)
+              // 仅在独立编辑页时修改URL，工作台内嵌时不改URL避免刷新后跳离画布
+              if (!editWorkflowId && !location.pathname.startsWith('/workspace')) window.history.replaceState(null, '', `/workflow/edit/${result.id}`)
+            }
+          } else {
+            throw updateErr
+          }
+        }
       } else {
         const result = await createWorkflow(workflowData)
         if (result.id) {
           setSavedWorkflowId(result.id)
+          onWorkflowIdChange?.(result.id)
           // 更新 URL 为 /workflow/edit/:id，这样刷新页面时能从服务器加载数据
-          window.history.replaceState(null, '', `/workflow/edit/${result.id}`)
+          // 仅在独立编辑页时修改URL，工作台内嵌时不改URL避免刷新后跳离画布
+          if (!editWorkflowId && !location.pathname.startsWith('/workspace')) window.history.replaceState(null, '', `/workflow/edit/${result.id}`)
         }
       }
 
@@ -847,6 +875,12 @@ export default function WorkflowCreatePage({ onTitleChange, externalTitle, editW
         description: node.config?.stepDescription || '',
         prompt: node.config?.prompt || '',
         expectedResult: node.config?.expectedResult || '',
+        expectedResultAttachments: (node.config?.expectedResultAttachments || []).map((a: any) => ({
+          id: a.id || `att_${Date.now()}_${Math.random()}`,
+          type: a.type || 'file',
+          url: a.url || '',
+          name: a.name || ''
+        })),
         model: {
           brand: node.config?.provider || 'OpenAI',
           name: node.config?.model || 'GPT-4',
@@ -1059,37 +1093,90 @@ ${formData.useScenarios.length > 0 ? `适用场景：${formData.useScenarios.joi
 
     setConvertingArticle(true)
     try {
-      const isUrl = /^https?:\/\//.test(articleInput.trim())
-      const prompt = `你是一个专业的 AI 工作流编辑专家。请根据以下${isUrl ? '文章链接对应的内容' : '文章内容'}，将其拆解为一个结构化的 AI 工作流。
+      const contentToAnalyze = articleInput.trim()
 
-${isUrl ? '文章链接：' : '文章内容：'}
-${articleInput.trim()}
+      const prompt = `# 角色
+你是一个专业的AI工作流结构化解析专家。你的任务是将用户提供的一段内容（可能是教程、方法论、操作指南、经验分享等），智能拆解为一个完整的、可执行的工作流。
 
-请严格按照以下 JSON 格式输出，不要有任何多余的文字或解释：
+# 目标
+从非结构化的内容中，提取并还原出一个完整工作流的所有步骤，使其可以直接录入到工作流平台中。
+
+# 解析字段定义
+
+每个步骤包含以下字段：
+
+## 1. 步骤标题
+- 用"动词 + 对象"的格式概括该步骤核心动作
+- 控制在5-15字以内
+- 示例：「用DeepSeek生成选题清单」「在剪映中添加字幕」
+
+## 2. 资源区（四类资源，缺失的输出空数组）
+
+| 类型 | 说明 | 识别线索 |
+|------|------|----------|
+| tools | AI工具、软件、平台、插件 | 产品名、网址、APP名称 |
+| prompts | 提示词、指令、咒语 | 引号内的指令、"输入以下内容"、prompt原文 |
+| media | 图片、视频、音频、截图等素材 | "参考图"、"示例视频"、素材描述 |
+| documents | 模板、文档、表格、参考资料 | "模板"、"清单"、"表格"、文件名 |
+
+## 3. 步骤说明
+- 用2-4句话描述具体操作方法
+- 写给零基础用户看，要能直接照着做
+- 如果涉及资源区的工具或提示词，用【】标注引用，如：打开【ChatGPT】，输入【提示词A】
+
+## 4. 预期结果
+- 明确写出这一步完成后用户会得到的具体产出物
+- 格式：「得到一份/一个/一段 + 具体产出」
+- 示例：「得到一份包含20个选题的清单」
+
+# 工作流级别信息
+
+在步骤之外，还需要提取工作流本身的元信息：
+
+- **workflow_title**：整个工作流的标题（15字以内）
+- **workflow_description**：一句话说明这个工作流能帮用户解决什么问题
+- **total_steps**：总步骤数
+
+# 输出格式（严格JSON）
 {
-  "title": "工作流标题",
-  "description": "一句话介绍（50-100字）",
+  "workflow_title": "工作流标题",
+  "workflow_description": "一句话描述",
+  "total_steps": 3,
   "steps": [
     {
+      "step_number": 1,
       "title": "步骤标题",
+      "resources": {
+        "tools": [],
+        "prompts": [],
+        "media": [],
+        "documents": []
+      },
       "description": "步骤说明",
-      "prompt": "给 AI 的提示词内容"
+      "expected_result": "预期结果"
     }
   ]
 }
 
-要求：
-1. 标题简洁明了，体现核心价值
-2. 步骤数量 2-6 个，每步骤有明确的目标
-3. prompt 要具体可执行，不要太笼统
-4. 直接输出 JSON，不要包裹在代码块中`
+# 智能拆分规则
+
+1. **判断粒度**：每个步骤应该是一个独立的、可执行的最小操作单元。如果一个动作中包含"然后"、"接着"、"再"等连接词引出不同操作，考虑拆分
+2. **保持顺序**：步骤顺序必须还原内容中的实际执行顺序，不可自行调整
+3. **合并冗余**：如果多段内容描述的是同一个操作的不同细节，合并为一个步骤
+4. **补全隐含步骤**：如果内容中存在逻辑跳跃（如突然出现一个结果但没说怎么得到的），补充缺失的中间步骤，并在description中标注「[补充步骤]」
+5. **提示词完整保留**：内容中出现的提示词/prompt必须原文保留，一字不改地放入prompts数组
+6. **工具精准识别**：工具名称使用内容中的原始写法，不要自行翻译或替换
+
+# 待解析内容
+
+${contentToAnalyze}`
 
       const response = await chatWithAI({
         provider: INTERNAL_AI_CONFIG.provider,
         model: INTERNAL_AI_CONFIG.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.5,
-        maxTokens: 3000
+        maxTokens: 4000
       })
 
       if (response.success && response.data.content) {
@@ -1099,27 +1186,52 @@ ${articleInput.trim()}
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0])
 
-          const newSteps: WorkflowStep[] = (parsed.steps || []).map((s: any, idx: number) => ({
-            id: `step_${Date.now()}_${idx}`,
-            title: s.title || '',
-            description: s.description || '',
-            prompt: s.prompt || '',
-            expectedResult: '',
-            model: { brand: 'OpenAI', name: 'GPT-4', url: '' },
-            alternativeModels: [],
-            advancedSettings: { temperature: 0.7, maxTokens: 2000 },
-            showAdvanced: false,
-            tools: [],
-            demonstrationMedia: [],
-            relatedResources: [],
-            associatedSolutions: [],
-            associatedThemes: []
-          }))
+          const newSteps: WorkflowStep[] = (parsed.steps || []).map((s: any, idx: number) => {
+            const res = s.resources || {}
+            return {
+              id: `step_${Date.now()}_${idx}`,
+              title: s.title || '',
+              description: s.description || '',
+              prompt: '',
+              expectedResult: s.expected_result || '',
+              expectedResultAttachments: [],
+              model: { brand: 'OpenAI', name: 'GPT-4', url: '' },
+              alternativeModels: [],
+              advancedSettings: { temperature: 0.7, maxTokens: 2000 },
+              showAdvanced: false,
+              tools: (res.tools || []).map((t: string, ti: number) => ({
+                id: `tool_${Date.now()}_${idx}_${ti}`,
+                name: t,
+                url: '',
+                description: ''
+              })),
+              promptResources: (res.prompts || []).map((p: string, pi: number) => ({
+                id: `prompt_${Date.now()}_${idx}_${pi}`,
+                title: `提示词${pi + 1}`,
+                content: p
+              })),
+              demonstrationMedia: (res.media || []).map((m: string, mi: number) => ({
+                id: `media_${Date.now()}_${idx}_${mi}`,
+                type: 'image' as const,
+                url: '',
+                caption: m
+              })),
+              relatedResources: [],
+              documentResources: (res.documents || []).map((d: string, di: number) => ({
+                id: `doc_${Date.now()}_${idx}_${di}`,
+                name: d,
+                url: '',
+                description: ''
+              })),
+              associatedSolutions: [],
+              associatedThemes: []
+            }
+          })
 
           setFormData({
             ...formData,
-            title: parsed.title || formData.title,
-            description: parsed.description || formData.description,
+            title: parsed.workflow_title || formData.title,
+            description: parsed.workflow_description || formData.description,
             steps: newSteps.length > 0 ? newSteps : formData.steps
           })
 
@@ -1149,6 +1261,7 @@ ${articleInput.trim()}
       description: '',
       prompt: '',
       expectedResult: '',
+      expectedResultAttachments: [],
       model: {
         brand: 'OpenAI',
         name: 'GPT-4',
@@ -1193,6 +1306,59 @@ ${articleInput.trim()}
           ...newSteps[index],
           [field]: value
         }
+      }
+      return { ...prev, steps: newSteps }
+    })
+  }
+
+  // 预期结果附件上传
+  const [uploadingStepIndex, setUploadingStepIndex] = useState<number | null>(null)
+
+  const handleExpectedResultUpload = async (stepIndex: number, file: File) => {
+    const isImage = file.type.startsWith('image/')
+    const endpoint = isImage ? '/api/utils/upload-media' : '/api/utils/upload-document'
+
+    const formDataUpload = new FormData()
+    formDataUpload.append('file', file)
+
+    setUploadingStepIndex(stepIndex)
+    try {
+      const res = await api.post(endpoint, formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      // 后端返回相对路径如 /uploads/images/xxx.png，拼上 API_BASE_URL 保证前端可访问
+      const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${API_BASE_URL}${res.data.url}`
+      const attachment = {
+        id: `att_${Date.now()}_${Math.random()}`,
+        type: (isImage ? 'image' : 'file') as 'image' | 'file',
+        url: fullUrl,
+        name: file.name || res.data.originalName || '未命名文件'
+      }
+
+      setFormData(prev => {
+        const newSteps = [...prev.steps]
+        newSteps[stepIndex] = {
+          ...newSteps[stepIndex],
+          expectedResultAttachments: [...(newSteps[stepIndex].expectedResultAttachments || []), attachment]
+        }
+        return { ...prev, steps: newSteps }
+      })
+      showToast('上传成功', 'success')
+    } catch (err: any) {
+      showToast(err.response?.data?.error || '文件上传失败', 'error')
+    } finally {
+      setUploadingStepIndex(null)
+    }
+  }
+
+  // 删除预期结果附件
+  const handleRemoveExpectedResultAttachment = (stepIndex: number, attachmentId: string) => {
+    setFormData(prev => {
+      const newSteps = [...prev.steps]
+      newSteps[stepIndex] = {
+        ...newSteps[stepIndex],
+        expectedResultAttachments: (newSteps[stepIndex].expectedResultAttachments || []).filter(a => a.id !== attachmentId)
       }
       return { ...prev, steps: newSteps }
     })
@@ -1411,17 +1577,36 @@ ${articleInput.trim()}
 
       let savedId: string | undefined
       if (workflowId) {
-        await updateWorkflow(workflowId, workflowData)
-        savedId = workflowId
-        localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
-          workflowId,
-          categoryName: derivedCategory
-        }))
+        try {
+          await updateWorkflow(workflowId, workflowData)
+          savedId = workflowId
+        } catch (updateErr: any) {
+          // 如果工作流已被删除（404），自动创建新工作流
+          if (updateErr.response?.status === 404) {
+            console.log('💾 [handleSave] 工作流已被删除，自动创建新工作流...')
+            const result = await createWorkflow(workflowData)
+            savedId = result.id
+            if (result.id) {
+              setSavedWorkflowId(result.id)
+              onWorkflowIdChange?.(result.id)
+              if (!editWorkflowId && !location.pathname.startsWith('/workspace')) window.history.replaceState(null, '', `/workflow/edit/${result.id}`)
+            }
+          } else {
+            throw updateErr
+          }
+        }
+        if (savedId) {
+          localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
+            workflowId: savedId,
+            categoryName: derivedCategory
+          }))
+        }
       } else {
         const result = await createWorkflow(workflowData)
         savedId = result.id
         if (result.id) {
           setSavedWorkflowId(result.id)
+          onWorkflowIdChange?.(result.id)
           localStorage.setItem('newlySavedWorkflowInfo', JSON.stringify({
             workflowId: result.id,
             categoryName: derivedCategory
@@ -1592,10 +1777,10 @@ ${articleInput.trim()}
               </button>
               {showArticlePopover && (
                 <div ref={articlePopoverRef} className="article-popover">
-                  <h4 className="article-popover-title">输入文章链接/直接粘贴文字内容</h4>
+                  <h4 className="article-popover-title">粘贴文章内容</h4>
                   <textarea
                     className="article-popover-textarea"
-                    placeholder="粘贴文章链接或直接粘贴文字内容..."
+                    placeholder="将文章内容复制粘贴到这里..."
                     value={articleInput}
                     onChange={(e) => setArticleInput(e.target.value)}
                     autoFocus
@@ -2307,11 +2492,78 @@ ${articleInput.trim()}
                   <label className="content-label">预期结果 <span className="optional-hint">(可选)</span></label>
                   <textarea
                     className="expected-result-textarea"
-                    placeholder="完成这一步后，用户应该得到什么结果？"
+                    placeholder="完成这一步后，用户应该得到什么结果？支持直接粘贴图片"
                     rows={2}
                     value={step.expectedResult}
                     onChange={(e) => handleUpdateStep(index, 'expectedResult', e.target.value)}
+                    onPaste={(e) => {
+                      const items = e.clipboardData.items
+                      for (let i = 0; i < items.length; i++) {
+                        if (items[i].type.startsWith('image/')) {
+                          e.preventDefault()
+                          const file = items[i].getAsFile()
+                          if (file) handleExpectedResultUpload(index, file)
+                          return
+                        }
+                      }
+                    }}
                   />
+
+                  {/* 预期结果附件 */}
+                  {(step.expectedResultAttachments?.length > 0) && (
+                    <div className="expected-result-attachments">
+                      {step.expectedResultAttachments.map(att => (
+                        <div key={att.id} className="expected-result-attachment-item">
+                          {att.type === 'image' ? (
+                            <img src={att.url} alt={att.name} className="attachment-preview-img" />
+                          ) : (
+                            <div className="attachment-file-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                              <span className="attachment-file-name">{att.name}</span>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="attachment-remove-btn"
+                            onClick={() => handleRemoveExpectedResultAttachment(index, att.id)}
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {uploadingStepIndex === index ? (
+                    <div className="expected-result-upload-btn uploading">
+                      <span className="ai-loading-spinner"></span>
+                      <span>上传中...</span>
+                    </div>
+                  ) : (
+                    <label className="expected-result-upload-btn">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            handleExpectedResultUpload(index, file)
+                            e.target.value = ''
+                          }
+                        }}
+                      />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      <span>上传图片/文件，或直接粘贴图片</span>
+                    </label>
+                  )}
                 </div>
 
               </div>

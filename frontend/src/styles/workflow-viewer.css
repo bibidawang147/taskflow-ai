@@ -630,6 +630,43 @@
   line-height: 1.6;
 }
 
+.expected-result-attachments-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.expected-result-att-img {
+  max-width: 200px;
+  max-height: 160px;
+  border-radius: 8px;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.expected-result-att-img:hover {
+  border-color: #7C3AED;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+}
+
+.expected-result-att-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--wv-primary-bg);
+  font-size: 0.8125rem;
+  color: #7C3AED;
+  text-decoration: none;
+}
+
+.expected-result-att-file:hover {
+  background: #F5F3FF;
+}
+
 .step-card-shortcut-hint {
   margin-top: 1.5rem;
   padding: 0.75rem 1rem;

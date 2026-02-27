@@ -265,4 +265,63 @@ router.post('/upload-document', uploadDocument.single('file'), async (req: Reque
   }
 })
 
+/**
+ * 抓取文章内容（用于文章快速转功能）
+ * GET /api/utils/fetch-article-content?url=xxx
+ */
+router.get('/fetch-article-content', async (req: Request, res: Response) => {
+  try {
+    const { url } = req.query
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: '缺少 url 参数' })
+    }
+
+    try {
+      new URL(url)
+    } catch {
+      return res.status(400).json({ error: '无效的 URL 格式' })
+    }
+
+    // 使用 Jina Reader API 获取干净的文章内容
+    const jinaUrl = `https://r.jina.ai/${url}`
+    console.log('[抓取文章内容] 使用 Jina Reader API:', url)
+
+    const response = await axios.get(jinaUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Return-Format': 'markdown'
+      },
+      timeout: 30000
+    })
+
+    let title = ''
+    let content = ''
+
+    if (response.data && typeof response.data === 'object') {
+      title = response.data.title || ''
+      content = response.data.content || response.data.text || ''
+    } else if (typeof response.data === 'string') {
+      content = response.data
+      const titleMatch = content.match(/^#\s+(.+)/m)
+      if (titleMatch) title = titleMatch[1]
+    }
+
+    if (!content || content.trim().length < 50) {
+      return res.status(422).json({ error: '无法提取文章内容，页面可能需要登录或内容过少' })
+    }
+
+    // 截断过长内容（AI token 限制）
+    if (content.length > 15000) {
+      content = content.substring(0, 15000) + '\n\n[内容已截断]'
+    }
+
+    console.log(`[抓取文章内容] 成功: ${title}, ${content.length} 字符`)
+    res.json({ title, content })
+  } catch (error: any) {
+    console.error('[抓取文章内容] 失败:', error.message)
+    res.status(500).json({ error: '抓取文章内容失败: ' + (error.message || '未知错误') })
+  }
+})
+
 export default router

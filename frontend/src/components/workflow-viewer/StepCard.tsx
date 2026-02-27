@@ -212,12 +212,27 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
         </div>
       )}
 
-      {detail?.expectedResult && (
+      {(detail?.expectedResult || (config.expectedResultAttachments?.length > 0)) && (
         <div className="step-card-section">
           <h4 className="step-card-section-title">预期结果</h4>
-          <div className="step-card-expected-result">
-            {detail.expectedResult}
-          </div>
+          {detail?.expectedResult && (
+            <div className="step-card-expected-result">
+              {detail.expectedResult}
+            </div>
+          )}
+          {(config.expectedResultAttachments?.length > 0) && (
+            <div className="expected-result-attachments-view">
+              {config.expectedResultAttachments.map((att: any) => (
+                att.type === 'image' ? (
+                  <img key={att.id} src={att.url} alt={att.name} className="expected-result-att-img" />
+                ) : (
+                  <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="expected-result-att-file">
+                    {att.name}
+                  </a>
+                )
+              ))}
+            </div>
+          )}
         </div>
       )}
     </>
@@ -287,6 +302,27 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(({
       {isExpanded && (
         <div className="step-card-content">
           {renderGuideBlocksContent()}
+
+          {/* 预期结果附件（图片/文件） */}
+          {config.expectedResultAttachments?.length > 0 && (() => {
+            const imageAtts = config.expectedResultAttachments.filter((a: any) => a.type === 'image' && a.url?.trim())
+            const fileAtts = config.expectedResultAttachments.filter((a: any) => a.type !== 'image' && a.url?.trim())
+            return (
+              <div className="step-card-section">
+                <h4 className="step-card-section-title">预期结果参考</h4>
+                {imageAtts.length > 0 && (
+                  <MediaGallery media={imageAtts.map((att: any) => ({ type: 'image' as const, url: att.url, caption: att.name || '' }))} />
+                )}
+                {fileAtts.length > 0 && (
+                  <div className="expected-result-attachments-view">
+                    {fileAtts.map((att: any) => (
+                      <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="expected-result-att-file">{att.name}</a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* 快捷键提示 */}
           {isActive && !isCompleted && (

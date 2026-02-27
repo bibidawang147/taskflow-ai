@@ -38,6 +38,7 @@ interface WorkspaceTab {
   type: 'canvas' | 'workflow' | 'create'
   title: string
   workflowId?: string
+  deleted?: boolean
 }
 
 const CANVAS_TAB_ID = 'canvas-main'
@@ -328,8 +329,8 @@ function getContainerContentOrigin(items: CanvasItemsMap, containerId: string): 
 
   const parentOrigin = getContainerContentOrigin(items, container.parentId || ROOT_CONTAINER_ID)
   return {
-    x: parentOrigin.x + container.position.x + CONTAINER_PADDING,
-    y: parentOrigin.y + container.position.y + CONTAINER_HEADER_HEIGHT + CONTAINER_PADDING
+    x: parentOrigin.x + container.position.x,
+    y: parentOrigin.y + container.position.y + CONTAINER_HEADER_HEIGHT
   }
 }
 
@@ -916,6 +917,17 @@ export default function StoragePage() {
   })
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [editingTabTitle, setEditingTabTitle] = useState('')
+
+  // 懒加载：只有被访问过的 workflow/create tab 才会挂载组件，避免刷新时所有 tab 同时加载导致多个失败 toast
+  const [mountedTabIds, setMountedTabIds] = useState<Set<string>>(() => new Set([activeTabId]))
+  useEffect(() => {
+    setMountedTabIds(prev => {
+      if (prev.has(activeTabId)) return prev
+      const next = new Set(prev)
+      next.add(activeTabId)
+      return next
+    })
+  }, [activeTabId])
 
   // 持久化 tabs 状态到 localStorage
   useEffect(() => {
@@ -2324,14 +2336,36 @@ export default function StoragePage() {
     window.removeEventListener('mouseup', handleConnectionMouseUp)
     const current = connectionStateRef.current
     if (current.mode !== 'connecting') return
+
+    // 策略1: 先用 elementFromPoint 精确检测
+    let targetItemId: string | null = null
+    let targetDir: HandleDirection | null = null
     const targetEl = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement
     const handleEl = targetEl?.closest?.('[data-handle-direction]') as HTMLElement
     if (handleEl) {
-      const targetItemId = handleEl.getAttribute('data-handle-item')
-      const targetDir = handleEl.getAttribute('data-handle-direction') as HandleDirection
-      if (targetItemId && targetItemId !== current.sourceItemId) {
-        createEdge(current.sourceItemId, current.sourceHandle, targetItemId, targetDir)
-      }
+      targetItemId = handleEl.getAttribute('data-handle-item')
+      targetDir = handleEl.getAttribute('data-handle-direction') as HandleDirection
+    }
+
+    // 策略2: 用屏幕距离检测（20px 范围内找最近手柄）
+    if (!targetItemId) {
+      const allHandles = document.querySelectorAll('[data-handle-direction][data-handle-item]')
+      let minDist = Infinity
+      allHandles.forEach(el => {
+        const rect = el.getBoundingClientRect()
+        const cx = rect.left + rect.width / 2
+        const cy = rect.top + rect.height / 2
+        const dist = Math.sqrt((e.clientX - cx) ** 2 + (e.clientY - cy) ** 2)
+        if (dist < 20 && dist < minDist) {
+          minDist = dist
+          targetItemId = el.getAttribute('data-handle-item')
+          targetDir = el.getAttribute('data-handle-direction') as HandleDirection
+        }
+      })
+    }
+
+    if (targetItemId && targetDir && targetItemId !== current.sourceItemId) {
+      createEdge(current.sourceItemId, current.sourceHandle, targetItemId, targetDir)
     }
     setConnectionState({ mode: 'idle' })
     connectionStateRef.current = { mode: 'idle' }
@@ -3058,6 +3092,12 @@ export default function StoragePage() {
     [workspaceTabs, activeTabId]
   )
 
+  // 当前在标签页中打开的 workflowId 列表（供侧边栏删除时判断）
+  const openWorkflowIds = useMemo(() =>
+    workspaceTabs.filter(t => t.workflowId).map(t => t.workflowId!),
+    [workspaceTabs]
+  )
+
   const openWorkflowTab = useCallback((workflowId: string, title: string) => {
     // 检查是否已有该工作流的 tab
     const existingTab = workspaceTabs.find(tab => tab.workflowId === workflowId)
@@ -3162,28 +3202,45 @@ export default function StoragePage() {
     })
   }, [activeTabId])
 
+  // 侧边栏删除工作流时的回调：关闭标签或标记为已删除
+  const handleWorkflowDeleteFromSidebar = useCallback((workflowId: string, closeTab: boolean) => {
+    if (closeTab) {
+      setWorkspaceTabs(prev => {
+        const closing = prev.filter(t => t.workflowId === workflowId)
+        if (closing.some(t => t.id === activeTabId)) {
+          setActiveTabId(CANVAS_TAB_ID)
+        }
+        return prev.filter(t => t.workflowId !== workflowId)
+      })
+    } else {
+      setWorkspaceTabs(prev =>
+        prev.map(t => t.workflowId === workflowId ? { ...t, deleted: true } : t)
+      )
+    }
+  }, [activeTabId])
+
   const handleCreateContainer = () => {
     const containerId = generateId('container')
 
     updateCanvasItems((draft) => {
-      // 首选位置：画布左上角（带一点偏移避免紧贴边缘）
-      const preferredPosition = {
-        x: 20,
-        y: 20
+      const root = getContainer(draft, ROOT_CONTAINER_ID)
+      if (!root) return
+
+      // 找到最大的 y 坐标底部，新容器放在现有内容下方
+      let maxBottom = 0
+      for (const childId of root.childrenIds) {
+        const child = draft[childId]
+        if (!child) continue
+        const outerSize = getItemOuterSize(child)
+        const bottom = child.position.y + outerSize.height
+        if (bottom > maxBottom) maxBottom = bottom
       }
 
-      // 计算容器的外部尺寸（包含padding和header）
-      const outerWidth = CONTAINER_MIN_WIDTH + CONTAINER_PADDING * 2
-      const outerHeight = CONTAINER_MIN_HEIGHT + CONTAINER_PADDING * 2 + CONTAINER_HEADER_HEIGHT
-
-      // 使用碰撞检测找到不重叠的位置
-      const position = findNonOverlappingPosition(
-        draft,
-        ROOT_CONTAINER_ID,
-        preferredPosition,
-        outerWidth,
-        outerHeight
-      )
+      // 新容器放在所有现有内容下方，留 20px 间距
+      const position = {
+        x: 20,
+        y: root.childrenIds.length === 0 ? 20 : maxBottom + 20
+      }
 
       draft[containerId] = {
         id: containerId,
@@ -3199,10 +3256,6 @@ export default function StoragePage() {
       attachToParent(draft, ROOT_CONTAINER_ID, containerId)
       recalcContainerSizes(draft, [ROOT_CONTAINER_ID])
     })
-
-    // 不自动进入编辑模式，用户可以双击容器标题来重命名
-    // setEditingContainerId(containerId)
-    // setEditingName('新容器')
   }
 
   // 处理添加工具
@@ -4344,25 +4397,48 @@ export default function StoragePage() {
     const sourceItem = canvasItems[connectionState.sourceItemId]
     if (!sourceItem) return null
     const start = getHandleAbsolutePosition(canvasItems, connectionState.sourceItemId, connectionState.sourceHandle)
-    const end = connectionState.mousePosition
-    // 猜测最佳目标方向
-    const dx = end.x - start.x
-    const dy = end.y - start.y
+    let end = connectionState.mousePosition
     let guessDir: HandleDirection = 'left'
-    if (Math.abs(dx) > Math.abs(dy)) {
-      guessDir = dx > 0 ? 'left' : 'right'
-    } else {
-      guessDir = dy > 0 ? 'top' : 'bottom'
+
+    // 磁吸：如果鼠标接近某个手柄，吸附到该手柄位置
+    const SNAP_DISTANCE = 30
+    let snapped = false
+    const directions: HandleDirection[] = ['top', 'bottom', 'left', 'right']
+    for (const [itemId, item] of Object.entries(canvasItems)) {
+      if (itemId === connectionState.sourceItemId || itemId === ROOT_CONTAINER_ID) continue
+      if (!item) continue
+      for (const dir of directions) {
+        const handlePos = getHandleAbsolutePosition(canvasItems, itemId, dir)
+        const dist = Math.sqrt((end.x - handlePos.x) ** 2 + (end.y - handlePos.y) ** 2)
+        if (dist < SNAP_DISTANCE) {
+          end = handlePos
+          guessDir = dir
+          snapped = true
+          break
+        }
+      }
+      if (snapped) break
     }
+
+    if (!snapped) {
+      const dx = end.x - start.x
+      const dy = end.y - start.y
+      if (Math.abs(dx) > Math.abs(dy)) {
+        guessDir = dx > 0 ? 'left' : 'right'
+      } else {
+        guessDir = dy > 0 ? 'top' : 'bottom'
+      }
+    }
+
     const pathD = computeBezierPath(start, end, connectionState.sourceHandle, guessDir)
     return (
       <path
         d={pathD}
         fill="none"
-        stroke="#8b5cf6"
-        strokeWidth={0.8}
-        strokeDasharray="4 3"
-        style={{ pointerEvents: 'none' }}
+        stroke={snapped ? '#7c3aed' : '#8b5cf6'}
+        strokeWidth={snapped ? 1.5 : 0.8}
+        strokeDasharray={snapped ? 'none' : '4 3'}
+        style={{ pointerEvents: 'none', transition: 'stroke-width 0.15s' }}
       />
     )
   }
@@ -4593,8 +4669,8 @@ export default function StoragePage() {
           width: outerWidth,
           height: outerHeight,
           userSelect: 'none',
-          backgroundColor: '#ffffff',
-          border: isDragging ? '1px solid rgba(139, 92, 246, 0.6)' : '1px solid rgba(0, 0, 0, 0.1)',
+          backgroundColor: 'transparent',
+          border: isDragging ? '2px dashed rgba(139, 92, 246, 0.8)' : '2px dashed rgba(139, 92, 246, 0.4)',
           borderRadius: 0,
           overflow: container.collapsed ? 'hidden' : 'visible',
           // 添加位置过渡动画（拖拽时不应用）
@@ -4872,7 +4948,9 @@ export default function StoragePage() {
         }
         .connection-handle.connecting-active {
           opacity: 1 !important;
-          transform: scale(1) !important;
+          transform: scale(1.6) !important;
+          background: #7c3aed !important;
+          box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2), 0 1px 3px rgba(0,0,0,0.2) !important;
         }
       `}</style>
       <div
@@ -5432,6 +5510,8 @@ export default function StoragePage() {
               externalSearchQuery={librarySearchQuery || undefined}
               onWorkflowOpen={openWorkflowTab}
               onWorkflowEdit={openEditTab}
+              openWorkflowIds={openWorkflowIds}
+              onWorkflowDelete={handleWorkflowDeleteFromSidebar}
             />
           </div>
         </div>
@@ -5521,7 +5601,7 @@ export default function StoragePage() {
             {workspaceTabs.map(tab => (
               <div
                 key={tab.id}
-                className={`workspace-tab ${activeTabId === tab.id ? 'workspace-tab--active' : ''}`}
+                className={`workspace-tab ${activeTabId === tab.id ? 'workspace-tab--active' : ''}${tab.deleted ? ' workspace-tab--deleted' : ''}`}
                 onClick={() => {
                   if (tab.id !== activeTabId) {
                     setActiveTabId(tab.id)
@@ -5583,6 +5663,19 @@ export default function StoragePage() {
                   >
                     {tab.title}
                   </span>
+                )}
+                {tab.deleted && (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    flexShrink: 0,
+                    lineHeight: '16px',
+                    marginLeft: '4px'
+                  }}>已删除</span>
                 )}
                 {tab.id !== CANVAS_TAB_ID && (
                   <button
@@ -6098,8 +6191,8 @@ export default function StoragePage() {
           </div>
         </div>
 
-        {/* 工作流执行 Tab 内容 */}
-        {workspaceTabs.filter(tab => tab.type === 'workflow').map(tab => (
+        {/* 工作流执行 Tab 内容（仅渲染已访问过的 tab，避免刷新时全部加载） */}
+        {workspaceTabs.filter(tab => tab.type === 'workflow' && mountedTabIds.has(tab.id)).map(tab => (
           <div
             key={tab.id}
             className="execution-tab"
@@ -6188,8 +6281,8 @@ export default function StoragePage() {
           </div>
         ))}
 
-        {/* 创建工作流 Tab 内容 */}
-        {workspaceTabs.filter(tab => tab.type === 'create').map(tab => (
+        {/* 创建工作流 Tab 内容（仅渲染已访问过的 tab，避免刷新时全部加载） */}
+        {workspaceTabs.filter(tab => tab.type === 'create' && mountedTabIds.has(tab.id)).map(tab => (
           <div
             key={tab.id}
             className="create-workflow-tab"
@@ -6208,6 +6301,10 @@ export default function StoragePage() {
             <WorkflowCreatePage
               onTitleChange={(title) => {
                 setWorkspaceTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title } : t))
+              }}
+              onWorkflowIdChange={(workflowId) => {
+                // 新建工作流保存后更新tab的workflowId，同时清除已删除标记
+                setWorkspaceTabs(prev => prev.map(t => t.id === tab.id ? { ...t, workflowId, deleted: false } : t))
               }}
               externalTitle={tab.title !== '未命名工作流' ? tab.title : undefined}
               editWorkflowId={tab.workflowId}

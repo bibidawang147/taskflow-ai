@@ -100,17 +100,22 @@ export default function WorkflowViewPage() {
         const edges = apiWorkflow.config?.edges || []
 
         // 转换节点格式
-        const transformedNodes = nodes.map((node: any) => ({
-          id: node.id,
-          type: node.type,
-          position: node.position || { x: 0, y: 0 },
-          data: {
+        const transformedNodes = nodes.map((node: any) => {
+          const nodeConfig = node.config || node.data?.config || {}
+          return {
+            id: node.id,
             type: node.type,
             label: node.label || node.data?.label || '未命名节点',
-            config: node.config || node.data?.config || {}
-          },
-          stepDetail: node.stepDetail || null
-        }))
+            position: node.position || { x: 0, y: 0 },
+            config: nodeConfig,
+            data: {
+              type: node.type,
+              label: node.label || node.data?.label || '未命名节点',
+              config: nodeConfig
+            },
+            stepDetail: node.stepDetail || null
+          }
+        })
 
         setData({
           workflow: apiWorkflow,
