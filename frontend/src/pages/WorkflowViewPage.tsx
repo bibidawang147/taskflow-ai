@@ -147,19 +147,7 @@ export default function WorkflowViewPage() {
   const handleCompleteStep = useCallback((stepId: string) => {
     execution.completeStep(stepId)
     execution.goToNextStep()
-
-    // 滚动到下一步
-    const currentIndex = stepIds.indexOf(stepId)
-    if (currentIndex < stepIds.length - 1) {
-      const nextStepId = stepIds[currentIndex + 1]
-      setTimeout(() => {
-        const cardEl = cardRefs.current.get(nextStepId)
-        if (cardEl) {
-          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      }, 100)
-    }
-  }, [execution, stepIds])
+  }, [execution])
 
   // 键盘快捷键
   useEffect(() => {
