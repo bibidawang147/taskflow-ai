@@ -5,6 +5,7 @@ import { getFullWorkflow, cloneWorkflow, favoriteWorkflow } from '../services/wo
 import { authService } from '../services/auth'
 import type { Workflow, WorkflowNode, WorkflowEdge, WorkflowStepDetail, WorkflowPreparation } from '../types/workflow'
 import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
+import { track } from '../utils/analytics'
 import WorkflowOverviewChart from '../components/workflow-viewer/WorkflowOverviewChart'
 import StepCardList from '../components/workflow-viewer/StepCardList'
 import PreparationSection from '../components/workflow-viewer/PreparationSection'
@@ -61,6 +62,7 @@ export default function WorkflowViewPage() {
     try {
       setCloning(true)
       const result = await cloneWorkflow(id)
+      track('workflow_add_to_workspace', { workflowId: id })
       // 自动收藏到AI工作方法收藏夹
       try {
         await favoriteWorkflow(id)
@@ -123,6 +125,7 @@ export default function WorkflowViewPage() {
           edges,
           preparations
         })
+        track('workflow_view', { workflowId: id })
       } catch (err) {
         console.error('Failed to load workflow:', err)
         setError('加载工作流失败，请稍后重试')
@@ -145,9 +148,15 @@ export default function WorkflowViewPage() {
 
   // 完成步骤并跳转下一步
   const handleCompleteStep = useCallback((stepId: string) => {
+    if (execution.completedSteps.size === 0) {
+      track('workflow_execute_start', { workflowId: id })
+    }
     execution.completeStep(stepId)
     execution.goToNextStep()
-  }, [execution])
+    if (execution.completedSteps.size + 1 >= execution.totalSteps) {
+      track('workflow_execute_complete', { workflowId: id })
+    }
+  }, [execution, id])
 
   // 键盘快捷键
   useEffect(() => {

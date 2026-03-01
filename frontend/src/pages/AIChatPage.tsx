@@ -53,6 +53,7 @@ import { chatWithAI, chatWithAIStream } from '../services/aiApi'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { detectStepsInText, convertStepsToWorkflowData, type StepDetectionResult } from '../utils/stepDetection'
+import { track } from '../utils/analytics'
 
 // 合并className的工具函数
 function cn(...classes: (string | boolean | undefined | null)[]) {
@@ -584,6 +585,7 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
     if (!messageText || loading) {
       return
     }
+    track('ai_chat_send')
 
     // 用户界面显示原始输入
     const userMessage: ChatMessage = { role: 'user', content: messageText }
@@ -926,6 +928,7 @@ const buildToolExecutionResults = (workflow: WorkflowCard, tools: WorkflowTool[]
   }
 
   const handleAddWorkflow = async (workflow: WorkflowCard) => {
+    track('ai_chat_suggestion_click', { workflowId: workflow.id })
     try {
       // 检查是否已经在本地工具箱中
       const existingWorkflow = workflows.find((wf) => wf.id === workflow.id)

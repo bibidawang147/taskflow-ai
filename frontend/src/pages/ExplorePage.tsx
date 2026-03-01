@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../services/api'
+import { track } from '../utils/analytics'
 import '../styles/community.css'
 import '../styles/explore.css'
 
@@ -126,6 +127,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat)
     setDisplayCount(9)
+    track('explore_category_filter', { category: cat })
   }
 
   // 加载更多
@@ -177,7 +179,10 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
                   <article
                     key={workflow.id}
                     className={`workflow-card${workflow.isFeatured ? ' workflow-card--featured' : ''}`}
-                    onClick={() => navigate(`/workflow-intro/${workflow.id}`)}
+                    onClick={() => {
+                      track('explore_workflow_click', { workflowId: workflow.id })
+                      navigate(`/workflow-intro/${workflow.id}`)
+                    }}
                   >
                     {/* 精选标注 */}
                     {workflow.isFeatured && (

@@ -982,3 +982,22 @@ model PricingConfig {
 
   @@map("pricing_config")
 }
+
+// ==================== 用户行为事件追踪 ====================
+
+model UserEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  sessionId  String
+  event      String
+  properties String?  // JSON string (SQLite 无原生 JSON 类型)
+  page       String?
+  referrer   String?
+  timestamp  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+  @@index([sessionId, createdAt])
+  @@map("user_events")
+}

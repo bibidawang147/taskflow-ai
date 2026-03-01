@@ -35,9 +35,11 @@ import WechatBindCallbackPage from './pages/WechatBindCallbackPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import RedeemPage from './pages/RedeemPage'
+import TextToWorkflowJsonPage from './pages/TextToWorkflowJsonPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { lazy, Suspense } from 'react'
+import { usePageTracking } from './hooks/usePageTracking'
 
 const isDev = import.meta.env.DEV
 const TestPage = lazy(() => import('./pages/TestPage'))
@@ -45,6 +47,8 @@ const AIRecommendationTestPage = lazy(() => import('./pages/AIRecommendationTest
 const GridDragDemoPage = lazy(() => import('./pages/GridDragDemoPage'))
 
 function App() {
+  usePageTracking()
+
   return (
     <Routes>
       {/* Dev-only test routes */}
@@ -91,6 +95,8 @@ function App() {
         <Route path="article-to-workflow" element={<ProtectedRoute><ArticleWorkflowMVPPage /></ProtectedRoute>} />
         <Route path="reverse-engineer" element={<ProtectedRoute><ReverseEngineerPage /></ProtectedRoute>} />
         <Route path="community/posts/new" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
+        {/* 工具页面 */}
+        <Route path="tools/text-to-json" element={<ProtectedRoute><TextToWorkflowJsonPage /></ProtectedRoute>} />
         {/* 管理员页面 */}
         <Route path="admin/promo" element={<ProtectedRoute><AdminPromoPage /></ProtectedRoute>} />
         <Route path="admin/orders" element={<ProtectedRoute><AdminOrdersPage /></ProtectedRoute>} />

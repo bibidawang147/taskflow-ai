@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { AuthenticatedRequest, authenticateToken, optionalAuthenticateToken } from '../middleware/auth'
 import { Response } from 'express'
+import axios from 'axios'
 import prisma from '../utils/database'
 import { requireRole } from '../middleware/requireRole'
 import { checkUsage } from '../middleware/checkUsage'
@@ -443,6 +444,109 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
   }
 })
 
+// 批量导入工作流（需要认证）
+router.post('/batch-import', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id
+    const { workflows } = req.body
+
+    if (!Array.isArray(workflows) || workflows.length === 0) {
+      return res.status(400).json({ error: 'workflows 数组不能为空' })
+    }
+
+    const author = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    })
+
+    const results: { title: string; id: string; success: boolean; error?: string }[] = []
+
+    for (const wf of workflows) {
+      try {
+        if (!wf.title) throw new Error('缺少 title')
+
+        const rawNodes = wf.config?.nodes || []
+        const rawEdges = wf.config?.edges || []
+        const preparations = wf.preparations || []
+        const isPublic = wf.isPublic ?? true
+        const isDraft = wf.isDraft ?? false
+        const isFeatured = author?.role === 'admin' && isPublic && !isDraft
+
+        // 为节点生成唯一 ID，避免全局冲突
+        const ts = Date.now()
+        const idMap: Record<string, string> = {}
+        rawNodes.forEach((node: any, idx: number) => {
+          idMap[node.id] = `step-${ts}-${idx}`
+        })
+        const nodes = rawNodes.map((node: any, idx: number) => ({
+          ...node,
+          id: idMap[node.id] || `step-${ts}-${idx}`
+        }))
+        const edges = rawEdges.map((edge: any, idx: number) => ({
+          ...edge,
+          id: `e-${ts}-${idx}`,
+          source: idMap[edge.source] || edge.source,
+          target: idMap[edge.target] || edge.target
+        }))
+
+        const created = await prisma.workflow.create({
+          data: {
+            title: wf.title,
+            description: wf.description || '',
+            category: wf.category || '效率工具',
+            tags: typeof wf.tags === 'string' ? wf.tags : (Array.isArray(wf.tags) ? wf.tags.join(',') : null),
+            config: { nodes, edges },
+            isPublic,
+            isDraft,
+            isFeatured,
+            authorId: userId,
+            ...(wf.difficultyLevel && { difficultyLevel: wf.difficultyLevel }),
+            ...(wf.useScenarios && { useScenarios: JSON.stringify(wf.useScenarios) }),
+            nodes: {
+              create: nodes.map((node: any) => ({
+                id: node.id,
+                type: node.type || 'ai',
+                label: node.label || '',
+                position: node.position || { x: 0, y: 0 },
+                config: node.config || {}
+              }))
+            },
+            ...(preparations.length > 0 && {
+              preparations: {
+                create: preparations.filter((p: any) => p.name?.trim()).map((p: any, idx: number) => ({
+                  name: p.name,
+                  description: p.description || null,
+                  link: p.link || null,
+                  order: p.order ?? idx
+                }))
+              }
+            })
+          }
+        })
+
+        if (isPublic) {
+          invalidateWorkflowCache()
+          if (!isDraft) {
+            enqueueEmbeddingJob(created.id).catch(() => {})
+          }
+        }
+
+        results.push({ title: created.title, id: created.id, success: true })
+      } catch (err: any) {
+        results.push({ title: wf.title || '无标题', id: '', success: false, error: err.message })
+      }
+    }
+
+    const success = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+
+    res.status(201).json({ message: `导入完成：成功 ${success} 个，失败 ${failed} 个`, results })
+  } catch (error: any) {
+    console.error('批量导入失败:', error)
+    res.status(500).json({ error: '批量导入失败: ' + (error.message || '未知错误') })
+  }
+})
+
 // 收藏工作流（需要认证）
 router.post('/:id/favorite', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -820,6 +924,149 @@ router.post('/generate/from-article', authenticateToken, checkUsage('ai_convert'
     res.status(500).json({
       error: '生成工作流失败: ' + (error.message || '未知错误')
     })
+  }
+})
+
+// 文字内容 → 批量导入 JSON 转换（管理工具）
+router.post('/text-to-import-json', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { content } = req.body
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: '请提供文字内容' })
+    }
+
+    const truncatedContent = content.slice(0, 50000)
+
+    const prompt = `你是一个工作流结构化数据专家。用户会给你一段描述工作流的文字内容，你需要将其转换为严格的 JSON 格式。
+
+用户提供的文字内容：
+${truncatedContent}
+
+---
+
+请将上述内容转换为以下 JSON 数组格式。如果文字中描述了多个工作流，就生成多个元素；如果只有一个，就生成只有一个元素的数组。
+
+输出格式（严格遵守）：
+[
+  {
+    "title": "工作流标题（简洁有力，不超过30字）",
+    "description": "工作流描述（80-150字，说明目标、适用场景、核心价值）",
+    "category": "从以下选一个：办公效率 | 内容创作 | 设计 | 编程开发 | 学习提升 | 数据分析",
+    "tags": "标签1,标签2,标签3（逗号分隔，3-8个标签，包含工具名和应用场景）",
+    "difficultyLevel": "beginner 或 intermediate 或 advanced",
+    "preparations": [
+      {
+        "name": "前置准备项名称",
+        "description": "说明（可选）",
+        "link": "相关链接（可选，没有填null）",
+        "order": 0
+      }
+    ],
+    "config": {
+      "nodes": [
+        {
+          "id": "step_1",
+          "type": "ai",
+          "label": "步骤标题（动词开头）",
+          "position": { "x": 100, "y": 100 },
+          "config": {
+            "goal": "这一步要达成什么目的（20-50字）",
+            "stepDescription": "详细操作说明（从原文完整提取，包含具体步骤、参数设置、注意事项、技巧等）",
+            "prompt": "如果原文有提示词/Prompt，必须完整复制，一字不改！没有则为空字符串",
+            "expectedResult": "这一步的预期产出/结果",
+            "tools": [{ "name": "工具名", "url": "", "description": "工具说明" }],
+            "promptResources": [],
+            "demonstrationMedia": [],
+            "relatedResources": [],
+            "documentResources": [],
+            "expectedResultAttachments": []
+          }
+        }
+      ],
+      "edges": [
+        { "id": "e0-1", "source": "step_1", "target": "step_2" }
+      ]
+    }
+  }
+]
+
+## 重要规则：
+1. **nodes 的 id 必须为 step_1, step_2, step_3...** 递增命名
+2. **position 自动计算**：第 N 个 node 的 position 为 { x: 100, y: N * 200 }
+3. **edges 自动生成**：每两个相邻 step 之间一条 edge，id 为 "e{前序号}-{后序号}"
+4. **提示词提取**：如果原文有 prompt/提示词，config.prompt 必须原样复制，不要概括改写
+5. **tools 数组**：每个步骤用到的工具都要列出，url 可以为空字符串
+6. **preparations**：如果文字中提到需要提前准备的东西（注册账号、安装软件等），提取到 preparations
+7. **type 固定为 "ai"**（当前系统统一用 ai 类型）
+
+只返回合法的 JSON 数组，不要有任何其他文字、解释或 markdown 代码块标记。`
+
+    // 复用 articleAnalysisService 的 AI 调用模式
+    const alibabaApiKey = process.env.ALIBABA_API_KEY
+    const alibabaBaseUrl = process.env.ALIBABA_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+    const alibabaModel = process.env.ALIBABA_DEFAULT_MODEL || 'qwen-plus'
+    const openaiApiKey = process.env.OPENAI_API_KEY
+
+    let apiUrl: string
+    let apiKeyToUse: string
+    let modelToUse: string
+    let headers: any
+
+    // 根据内容长度选择模型：长文本用 qwen-long，短文本用默认模型
+    const useLongModel = truncatedContent.length > 8000
+
+    if (alibabaApiKey) {
+      apiUrl = `${alibabaBaseUrl}/chat/completions`
+      apiKeyToUse = alibabaApiKey
+      modelToUse = useLongModel ? 'qwen-long' : alibabaModel
+      headers = { 'Authorization': `Bearer ${apiKeyToUse}`, 'Content-Type': 'application/json' }
+    } else if (openaiApiKey) {
+      apiUrl = 'https://api.openai.com/v1/chat/completions'
+      apiKeyToUse = openaiApiKey
+      modelToUse = 'gpt-4o'
+      headers = { 'Authorization': `Bearer ${apiKeyToUse}`, 'Content-Type': 'application/json' }
+    } else {
+      return res.status(500).json({ error: '未配置 AI API Key（需要 ALIBABA_API_KEY 或 OPENAI_API_KEY）' })
+    }
+
+    const requestBody: any = {
+      model: modelToUse,
+      messages: [
+        { role: 'system', content: '你是一个专业的工作流结构化数据转换专家。你只输出合法的 JSON，不输出任何其他内容。' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3
+    }
+
+    if (!alibabaApiKey && openaiApiKey) {
+      requestBody.response_format = { type: 'json_object' }
+    }
+
+    console.log(`[text-to-import-json] 发送 AI 请求，模型: ${modelToUse}，内容长度: ${truncatedContent.length}`)
+
+    const response = await axios.post(apiUrl, requestBody, { headers, timeout: 180000 })
+
+    let rawContent = response.data.choices[0].message.content.trim()
+
+    // 清理可能的 markdown 代码块
+    if (rawContent.startsWith('```json')) {
+      rawContent = rawContent.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+    } else if (rawContent.startsWith('```')) {
+      rawContent = rawContent.replace(/^```\s*/, '').replace(/\s*```$/, '')
+    }
+
+    const parsed = JSON.parse(rawContent)
+    const workflows = Array.isArray(parsed) ? parsed : [parsed]
+
+    console.log(`[text-to-import-json] 成功解析 ${workflows.length} 个工作流`)
+
+    res.json({ workflows, raw: rawContent })
+  } catch (error: any) {
+    console.error('[text-to-import-json] 失败:', error.message)
+    if (error.response?.data) {
+      console.error('[text-to-import-json] AI API 错误:', JSON.stringify(error.response.data).slice(0, 500))
+    }
+    res.status(500).json({ error: '转换失败: ' + (error.message || '未知错误') })
   }
 })
 

@@ -32,6 +32,7 @@ import adminPromoRoutes from './routes/adminPromo'
 import pricingRoutes from './routes/pricing'
 import referralRoutes from './routes/referral'
 import utilsRoutes from './routes/utils'
+import eventsRoutes from './routes/events'
 import { errorHandler } from './middleware/errorHandler'
 import { authenticateToken } from './middleware/auth'
 import logger, { stream } from './utils/logger'
@@ -140,6 +141,7 @@ app.use('/api/admin/promo', adminPromoRoutes) // 管理员-码管理
 app.use('/api/pricing', pricingRoutes) // 定价+购买+订单管理
 app.use('/api/referral', referralRoutes) // 用户专属邀请码
 app.use('/api/utils', utilsRoutes) // 工具接口（文件上传、文章抓取等）
+app.use('/api/events', eventsRoutes) // 用户行为事件追踪
 
 // 错误处理
 app.use(errorHandler)

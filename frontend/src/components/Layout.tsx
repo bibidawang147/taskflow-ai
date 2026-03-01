@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X, ChevronDown, MessageCircle, Mail, AlertCircle } from 'lucide-react';
+import { User, Package, LogOut, Gift, Check, Loader2, Crown, ShieldCheck, CreditCard, Copy, Ticket, Menu, X, ChevronDown, MessageCircle, Mail, AlertCircle, FileJson } from 'lucide-react';
 import { authService } from '../services/auth';
 import { useState, useRef, useEffect, useMemo } from 'react';
 
@@ -215,6 +215,7 @@ export default function Layout() {
   const menuItems = [
     { icon: Package, label: '会员中心', path: '/membership' },
     ...(isAdmin ? [
+      { icon: FileJson, label: '工作流导入', path: '/tools/text-to-json' },
       { icon: Ticket, label: '优惠码管理', path: '/admin/promo' },
       { icon: ShieldCheck, label: '订单管理', path: '/admin/orders' },
       { icon: CreditCard, label: '定价管理', path: '/admin/pricing' },

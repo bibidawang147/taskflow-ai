@@ -25,6 +25,7 @@ import ExecutionSplitPanel, { type ExecutionWorkflow, type WorkflowNode } from '
 import ExecutionHistoryModal from '../components/ExecutionHistoryModal'
 import ResizableSplitter from '../components/ResizableSplitter'
 import { adjustOverlappingItemsAfterResize } from '../utils/storageAvoidanceUtils'
+import { track } from '../utils/analytics'
 import { NavigationSidebar } from '../components/NavigationSidebar'
 import WorkflowCreatePage from './WorkflowCreatePage'
 import CanvasWelcomeModal from '../components/CanvasWelcomeModal'
@@ -3099,6 +3100,7 @@ export default function StoragePage() {
   )
 
   const openWorkflowTab = useCallback((workflowId: string, title: string) => {
+    track('workspace_open_workflow', { workflowId })
     // 检查是否已有该工作流的浏览 tab（只匹配 workflow 类型，不匹配 create 编辑类型）
     const existingTab = workspaceTabs.find(tab => tab.type === 'workflow' && tab.workflowId === workflowId)
     if (existingTab) {

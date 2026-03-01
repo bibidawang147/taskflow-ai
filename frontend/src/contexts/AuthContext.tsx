@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, authService, LoginData, RegisterData } from '../services/auth'
+import { track, setAnalyticsUserId } from '../utils/analytics'
 
 interface AuthContextType {
   user: User | null
@@ -30,6 +31,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (authService.isAuthenticated()) {
           const { user } = await authService.getProfile()
           setUser(user)
+          setAnalyticsUserId(user.id)
         }
       } catch (error: any) {
         console.error('检查认证状态失败:', error)
@@ -51,6 +53,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.login(data)
       authService.setToken(response.token)
       setUser(response.user)
+      setAnalyticsUserId(response.user.id)
+      track('login_success', { method: 'email' })
     } catch (error) {
       throw error
     }
@@ -61,6 +65,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.register(data)
       authService.setToken(response.token)
       setUser(response.user)
+      setAnalyticsUserId(response.user.id)
+      track('register_success')
     } catch (error) {
       throw error
     }
@@ -76,8 +82,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const logout = () => {
+    track('logout')
     authService.logout()
     setUser(null)
+    setAnalyticsUserId(null)
   }
 
   const value = {
