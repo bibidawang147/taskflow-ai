@@ -13,12 +13,15 @@ export const api = axios.create({
   },
 })
 
-// 请求拦截器 - 添加认证令牌
+// 请求拦截器 - 添加认证令牌，FormData 时自动移除 Content-Type 让浏览器设置 boundary
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
     }
     return config
   },
