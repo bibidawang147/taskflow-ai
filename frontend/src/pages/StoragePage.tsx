@@ -4536,17 +4536,22 @@ export default function StoragePage() {
           if (!isDragging) {
             e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)'
             e.currentTarget.style.transform = 'translateY(-2px)'
+            const deleteBtn = e.currentTarget.querySelector('.article-delete-btn') as HTMLElement
+            if (deleteBtn) deleteBtn.style.opacity = '1'
           }
         }}
         onMouseLeave={(e) => {
           if (!isDragging) {
             e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
             e.currentTarget.style.transform = 'translateY(0)'
+            const deleteBtn = e.currentTarget.querySelector('.article-delete-btn') as HTMLElement
+            if (deleteBtn) deleteBtn.style.opacity = '0'
           }
         }}
       >
         {/* 删除按钮 */}
         <button
+          className="article-delete-btn"
           onClick={(e) => {
             e.stopPropagation()
             handleDeleteArticleCard(card.id)
@@ -4576,12 +4581,10 @@ export default function StoragePage() {
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#6b7280'
             e.currentTarget.style.color = '#ffffff'
-            e.currentTarget.style.opacity = '1'
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'rgba(107, 114, 128, 0.1)'
             e.currentTarget.style.color = '#6b7280'
-            e.currentTarget.style.opacity = '0'
           }}
           title="删除文章卡片"
         >

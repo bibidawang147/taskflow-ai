@@ -95,7 +95,7 @@ export function ExploreContent({ embedded = false }: { embedded?: boolean }) {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/community/workflows?limit=50`, {
+      const response = await fetch(`${API_BASE_URL}/api/community/workflows?limit=500`, {
         headers
       })
       const data = await response.json()
