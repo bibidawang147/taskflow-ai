@@ -773,9 +773,9 @@ export default function WorkflowCreatePage({ onTitleChange, onWorkflowIdChange, 
     }
   }, [formData])
 
-  // 自动保存定时器：每30秒检查一次
+  // 自动保存定时器：每30秒检查一次（仅新建工作流启用，已保存工作流需手动保存）
   useEffect(() => {
-    if (hasUnsavedChanges && autoSaveStatus === 'idle') {
+    if (!id && hasUnsavedChanges && autoSaveStatus === 'idle') {
       autoSaveTimerRef.current = setTimeout(() => {
         autoSave()
       }, 30000) // 30秒
@@ -786,7 +786,7 @@ export default function WorkflowCreatePage({ onTitleChange, onWorkflowIdChange, 
         clearTimeout(autoSaveTimerRef.current)
       }
     }
-  }, [hasUnsavedChanges, autoSave, autoSaveStatus])
+  }, [id, hasUnsavedChanges, autoSave, autoSaveStatus])
 
   // beforeunload 警告：关闭/刷新页面时提示
   useEffect(() => {
